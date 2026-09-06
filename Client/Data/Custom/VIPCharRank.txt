@@ -1,0 +1,16 @@
+//=== VIP Char Rank
+// TypeRank : 
+//			1   Text Rank 
+//			2	Rank Ảnh
+// VD Type = 1 Thì  TextRank/Img =  "Ten Rank"
+// VD Type = 1 Thì  SizeText/Width =  18 Font Size Text
+// ColorText = Ma mau Text chi su dung khi Type = 1
+// PosX ~ PosY : Điều chỉnh vị trí 
+
+// VD Type = 2 Thì  TextRank/Img =  "Custom\\RankUser\\TuChan\\1.tga"
+
+2
+//LevelRank		TypeRank		TextRank/Img								ColorText					SizeText/Width			Height		PosX			PosY
+	1				1			"★"											"0xFFDD00FF"					22					-1			7				-5
+
+end

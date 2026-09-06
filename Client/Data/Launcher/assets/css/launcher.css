@@ -1,0 +1,51 @@
+@charset "utf-8";
+
+html, body, form, input, legend, label, select, option, button, fieldset, textarea, div, p, pre, blockquote, img, h1, h2, h3, h4, h5, h6, dl, dt, dd, ul, ol, li {margin:0;padding:0;}
+body {font-size:14px;font-family:'맑은 고딕', '돋움';color:#fff;overflow:hidden;}
+fieldset,img{border:none;}
+a{text-decoration:none;}
+ol, ul, dl, li {list-style:none;}
+.blind {position:absolute;left:-3000px;top:-3000px;width:0;height:0;font-size:0;line-height:0;overflow:hidden;}
+
+.wrp_launcher{width:982px;height:480px;background-color:#000;}
+.launcher{overflow:hidden;width:980px;height:478px;border:1px solid #141d25;}
+.launcher .main_banner{position:relative;float:left;border-right:1px solid #141d25;width:488px;height:478px;}
+.launcher .main_banner .visual_slider{z-index:5;}
+.launcher .main_banner .bx-controls{position:absolute;right:20px;top:20px;overflow:hidden;z-index:100;}
+.launcher .main_banner .bx-controls a{display:block;float:left;width:30px;height:30px;text-indent:-9999px;}
+.launcher .main_banner .bx-controls a:hover{background-position:0px -32px;}
+.launcher .main_banner .bx-controls .bx-prev{margin-right:10px;background:url(../image/btn_prev.png) no-repeat;}
+.launcher .main_banner .bx-controls .bx-next{background:url(../image/btn_next.png) no-repeat;}
+
+.launcher .contents{position:relative;width:449px;height:458px;float:left;padding:10px 20px;background:url(../image/bg_left_conts.gif) left top no-repeat;}
+.launcher .contents .top_bx{clear:both;overflow:hidden;height:60px;margin-bottom:20px;}
+.launcher .contents .menu_list{float:left;padding-top:3px;}
+.launcher .contents .menu_list li{float:left;margin-left:5px;}
+.launcher .contents .menu_list li:first-child{margin-left:0px;}
+.launcher .contents .menu_list li a{display:block;width:110px;height:440px;background:url(../image/btn_red.jpg) no-repeat;color:#d8cabf;font-size:14px;text-align:center;line-height:44px;}
+.launcher .contents .menu_list li a:hover{background:url(../image/btn_red_over.jpg) no-repeat;}
+.launcher .contents .game_grade{float:right;width:91px;height:50px;background:url(../image/bg_grade.jpg) no-repeat;}
+.launcher .contents .noti_list{clear:both;padding-bottom:22px;}
+.launcher .contents .noti_list dt{overflow:hidden;padding-bottom:7px;margin-bottom:5px;color:#fff;border-bottom:1px solid #b02323;font-weight:bold;}
+.launcher .contents .noti_list dt span{display:block;float:left;}
+.launcher .contents .noti_list dt a{display:block;float:right;width:43px;height:16px;background-color:#b02323;border:1px solid #b02323;border-radius:2px;color:#fff;font-size:11px;line-height:16px;text-align:center;}
+.launcher .contents .noti_list dd{padding-left:10px;background:url(../image/ico_list_r.gif) 0px 12px no-repeat;}
+.launcher .contents .noti_list dd a{overflow:hidden;display:block;width:435px;color:#c8c8c8;line-height:1.7em;text-overflow:ellipsis;-o-text-overflow:ellipsis;white-space:nowrap;}
+.launcher .contents .noti_list dd a:hover{color:#b02323;}
+.launcher .contents .noti_list dd.important a{color:#b02323;}
+.launcher .contents .ad_link{position:absolute;bottom:10px;left:19px;display:block;}
+
+/*blue launcher*/
+.launcher.blue .main_banner .bx-controls .bx-prev{margin-right:10px;background:url(../image/btn_prev_blue.png) no-repeat;}
+.launcher.blue .main_banner .bx-controls .bx-next{background:url(../image/btn_next_blue.png) no-repeat;}
+.launcher.blue .main_banner .bx-controls a:hover{background-position:0px -32px;}
+.launcher.blue .contents .menu_list li a{display:block;width:110px;height:440px;background:url(../image/btn_blue.jpg) no-repeat;color:#d8cabf;font-size:14px;text-align:center;line-height:44px;}
+.launcher.blue .contents .menu_list li a:hover{background:url(../image/btn_blue_over.jpg) no-repeat;}
+.launcher.blue .contents .noti_list dt{border-bottom:1px solid #2371b0;}
+.launcher.blue .contents .noti_list dd{background:url(../image/ico_list_b.gif) 0px 11px no-repeat;}
+.launcher.blue .contents .noti_list dd a:hover{color:#2371b0;}
+.launcher.blue .contents .noti_list dd.important a{color:#2371b0;}
+.launcher.blue .contents .noti_list dt a{background-color:#2371b0;border:1px solid #2371b0;border-radius:2px;}
+
+
+

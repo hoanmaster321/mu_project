@@ -1,0 +1,67 @@
+# ==============================================================================
+# MU ONLINE PROJECT - GITIGNORE
+# ==============================================================================
+
+# Boost library (requested not to upload to github)
+**/boost_1_80_0/
+boost_1_80_0/
+Source/5.Main/boost_1_80_0/
+Source_Server-Mobi/5.Main/boost_1_80_0/
+
+# Visual Studio & IDEs
+.vs/
+.vscode/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+*.sdf
+*.opensdf
+*.ipch
+
+# Build outputs & Intermediate compiler directories
+BuildLog/
+build/
+build-*/
+test-build-*/
+.build/
+**/Release/
+**/Debug/
+**/x64/
+**/Win32/
+**/CTRelease/
+**/DLL_Release/
+**/dlltest___Win32_Release/
+*.obj
+*.pch
+*.ilk
+*.idb
+*.tlog
+*.recipe
+*.lastbuildstate
+*.aps
+*.dmp
+
+# Android & Gradle
+.gradle/
+**/build/
+**/.cxx/
+**/.idea/
+**/captures/
+*.iml
+.externalNativeBuild/
+android/local.properties
+
+# Logs & Temporary
+*.log
+*log*.txt
+202*.txt
+*.tmp
+* - Copy*
+Thumbs.db
+[Dd]esktop.ini
+.DS_Store
+
+# Keep important files
+!.gitignore
+!*.keystore

@@ -1,0 +1,60 @@
+// ---------------------------------------------------------- //
+// 	Section		ItemIndex	Comment               //
+// ---------------------------------------------------------- //
+	0		26		//Flameberge
+	0		27		//Sword Breaker
+	0		28		//Rune Bastard Sword
+	2		16		//Frost Mace
+	2		17		//Absolute Scepter
+	4		23		//Dark Stinger
+	5		30		//Deadly Staff
+	5		31		//Imperial Staff
+	5		32		//Summon Spirit Stick
+	6		17		//Crimson Glory Shield
+	6		18		//Salamander Shield
+	6		19		//Frost Barrier Shield
+	6		20		//Guardian Shield
+	7		45		//Titan Helm
+	7		46		//Brave Helm
+	7		49		//Seraphim Helm
+	7		50		//Divine Helm
+	7		51		//Royal Mask
+	7		52		//Hades Helm
+	7		53		//Succubus Helm
+	8		45		//Titan Armor
+	8		46		//Brave Armor
+	8		47		//Phantom Armor
+	8		48		//Destroy Armor
+	8		49		//Seraphim Armor
+	8		50		//Divine Armor
+	8		51		//Royal Armor
+	8		52		//Hades Armor
+	8		53		//Succubus Armor
+	9		45		//Titan Pants
+	9		46		//Brave Pants
+	9		47		//Phantom Pants
+	9		48		//Destroy Pants
+	9		49		//Seraphim Pants
+	9		50		//Divine Pants
+	9		51		//Royal Pants
+	9		52		//Hades Pants
+	9		53		//Succubus Pants	
+	10		45		//Titan Gloves
+	10		46		//Brave Gloves
+	10		47		//Phantom Gloves
+	10		48		//Destroy Gloves
+	10		49		//Seraphim Gloves
+	10		50		//Divine Gloves
+	10		51		//Royal Gloves
+	10		52		//Hades Gloves
+	10		53		//Succubus Gloves	
+	11		45		//Titan Boots
+	11		46		//Brave Boots
+	11		47		//Phantom Boots
+	11		48		//Destroy Boots
+	11		49		//Seraphim Boots
+	11		50		//Divine Boots
+	11		51		//Royal Boots
+	11		52		//Hades Boots
+	11		53		//Succubus Boots	
+end
