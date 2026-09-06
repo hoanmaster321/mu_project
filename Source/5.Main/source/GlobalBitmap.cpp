@@ -10,7 +10,6 @@
 #include "GPUContext.h"
 #include "VulkanTextureManager.h"
 
-#if defined(__ANDROID__) || defined(MU_IOS)
 #include <vector>
 #include "turbojpeg.h"
 
@@ -23,7 +22,6 @@ static GLuint NormalizeTextureFilter(GLuint filter)
 {
 	return (filter == GL_NEAREST || filter == GL_LINEAR) ? filter : GL_LINEAR;
 }
-#endif
 
 CBitmapCache::CBitmapCache() 
 {
@@ -593,10 +591,9 @@ GLuint CGlobalBitmap::FindAvailableTextureIndex(GLuint uiSeed)
 
 bool CGlobalBitmap::OpenJpeg(GLuint uiBitmapIndex, const std::string& filename, GLuint uiFilter, GLuint uiWrapMode)
 {
-#if defined(__ANDROID__) || defined(MU_IOS)
 	uiFilter = NormalizeTextureFilter(uiFilter);
 	uiWrapMode = NormalizeTextureWrapMode(uiWrapMode);
-#endif
+
 	std::string filename_ozj;
 	ExchangeExt(filename, "OZJ", filename_ozj);
 
@@ -611,7 +608,6 @@ bool CGlobalBitmap::OpenJpeg(GLuint uiBitmapIndex, const std::string& filename, 
 		return false;
 	}
 
-#if defined(__ANDROID__) || defined(MU_IOS)
 	fseek(infile, 0, SEEK_END);
 	const long fileSize = ftell(infile);
 	fseek(infile, 0, SEEK_SET);
@@ -627,7 +623,6 @@ bool CGlobalBitmap::OpenJpeg(GLuint uiBitmapIndex, const std::string& filename, 
 		fclose(infile);
 		return false;
 	}
-	fclose(infile);
 
 	const unsigned char* jpegData = fileBuffer.data() + 24;
 	const unsigned long jpegSize = (unsigned long)(fileBuffer.size() - 24);
@@ -637,72 +632,61 @@ bool CGlobalBitmap::OpenJpeg(GLuint uiBitmapIndex, const std::string& filename, 
 	int jpegSubsamp = TJSAMP_444;
 	int jpegColorspace = TJCS_RGB;
 	tjhandle tjHandle = tjInitDecompress();
-	if(tjHandle == NULL)
+	if(tjHandle != NULL)
 	{
-		return false;
-	}
-	if(tjDecompressHeader3(tjHandle, jpegData, jpegSize, &jpegWidth, &jpegHeight, &jpegSubsamp, &jpegColorspace) != 0 ||
-		jpegWidth <= 0 || jpegHeight <= 0 || jpegWidth > MAX_WIDTH || jpegHeight > MAX_HEIGHT)
-	{
+		if(tjDecompressHeader3(tjHandle, jpegData, jpegSize, &jpegWidth, &jpegHeight, &jpegSubsamp, &jpegColorspace) == 0 &&
+			jpegWidth > 0 && jpegHeight > 0 && jpegWidth <= MAX_WIDTH && jpegHeight <= MAX_HEIGHT)
+		{
+			std::vector<unsigned char> decoded((size_t)jpegWidth * (size_t)jpegHeight * 3u);
+			if(tjDecompress2(tjHandle, jpegData, jpegSize, decoded.data(), jpegWidth, 0, jpegHeight, TJPF_RGB, TJFLAG_FASTDCT) == 0)
+			{
+				tjDestroy(tjHandle);
+				fclose(infile);
+
+				int Width = 1;
+				while(Width < jpegWidth && Width < MAX_WIDTH) Width <<= 1;
+				int Height = 1;
+				while(Height < jpegHeight && Height < MAX_HEIGHT) Height <<= 1;
+
+				BITMAP_t* pNewBitmap = new BITMAP_t;
+				memset(pNewBitmap, 0, sizeof(BITMAP_t));
+				pNewBitmap->BitmapIndex = uiBitmapIndex;
+				strncpy_s(pNewBitmap->FileName, MAX_BITMAP_FILE_NAME, filename.c_str(), MAX_BITMAP_FILE_NAME - 1);
+				pNewBitmap->Width      = (float)Width;
+				pNewBitmap->Height     = (float)Height;
+				pNewBitmap->Components = 3;
+				pNewBitmap->Ref = 1;
+
+				const size_t BufferSize = (size_t)Width * (size_t)Height * pNewBitmap->Components;
+				pNewBitmap->Buffer = new BYTE[BufferSize];
+				memset(pNewBitmap->Buffer, 0, BufferSize);
+				m_dwUsedTextureMemory += BufferSize;
+
+				const int jpegRowSize = jpegWidth * 3;
+				const int textureRowSize = Width * 3;
+				for(int row = 0; row < jpegHeight; ++row)
+				{
+					memcpy(pNewBitmap->Buffer + (size_t)row * textureRowSize,
+						decoded.data() + (size_t)row * jpegRowSize,
+						(size_t)jpegRowSize);
+				}
+
+				m_mapBitmap.insert(type_bitmap_map::value_type(uiBitmapIndex, pNewBitmap));
+
+				pNewBitmap->TextureNumber = uiBitmapIndex;
+				if (GPUContext::Instance().IsInitialized() && pNewBitmap->Buffer && Width > 0 && Height > 0)
+				{
+					const bool linear = (uiFilter == GL_LINEAR || uiFilter == GL_LINEAR_MIPMAP_LINEAR || uiFilter == GL_LINEAR_MIPMAP_NEAREST);
+					const bool clamp = (uiWrapMode == GL_CLAMP || uiWrapMode == GL_CLAMP_TO_EDGE);
+					VulkanTextureManager::Instance().CreateTextureWithId(uiBitmapIndex, Width, Height, 3, pNewBitmap->Buffer, linear, clamp);
+				}
+				return true;
+			}
+		}
 		tjDestroy(tjHandle);
-		return false;
 	}
 
-	std::vector<unsigned char> decoded((size_t)jpegWidth * (size_t)jpegHeight * 3u);
-	if(tjDecompress2(tjHandle, jpegData, jpegSize, decoded.data(), jpegWidth, 0, jpegHeight, TJPF_RGB, TJFLAG_FASTDCT) != 0)
-	{
-		tjDestroy(tjHandle);
-		return false;
-	}
-	tjDestroy(tjHandle);
-
-	int Width = 1;
-	while(Width < jpegWidth && Width < MAX_WIDTH) Width <<= 1;
-	int Height = 1;
-	while(Height < jpegHeight && Height < MAX_HEIGHT) Height <<= 1;
-
-	BITMAP_t* pNewBitmap = new BITMAP_t;
-	memset(pNewBitmap, 0, sizeof(BITMAP_t));
-	pNewBitmap->BitmapIndex = uiBitmapIndex;
-	strncpy_s(pNewBitmap->FileName, MAX_BITMAP_FILE_NAME, filename.c_str(), MAX_BITMAP_FILE_NAME - 1);
-	pNewBitmap->Width      = (float)Width;
-	pNewBitmap->Height     = (float)Height;
-	pNewBitmap->Components = 3;
-	pNewBitmap->Ref = 1;
-
-	const size_t BufferSize = (size_t)Width * (size_t)Height * pNewBitmap->Components;
-	pNewBitmap->Buffer = new BYTE[BufferSize];
-	memset(pNewBitmap->Buffer, 0, BufferSize);
-	m_dwUsedTextureMemory += BufferSize;
-
-	const int jpegRowSize = jpegWidth * 3;
-	const int textureRowSize = Width * 3;
-	for(int row = 0; row < jpegHeight; ++row)
-	{
-		memcpy(pNewBitmap->Buffer + (size_t)row * textureRowSize,
-			decoded.data() + (size_t)row * jpegRowSize,
-			(size_t)jpegRowSize);
-	}
-
-	m_mapBitmap.insert(type_bitmap_map::value_type(uiBitmapIndex, pNewBitmap));
-
-	pNewBitmap->TextureNumber = uiBitmapIndex;
-	if (GPUContext::Instance().IsInitialized() && pNewBitmap->Buffer && Width > 0 && Height > 0)
-	{
-		const bool linear = (uiFilter == GL_LINEAR || uiFilter == GL_LINEAR_MIPMAP_LINEAR || uiFilter == GL_LINEAR_MIPMAP_NEAREST);
-		const bool clamp = (uiWrapMode == GL_CLAMP || uiWrapMode == GL_CLAMP_TO_EDGE);
-		VulkanTextureManager::Instance().CreateTextureWithId(uiBitmapIndex, Width, Height, 3, pNewBitmap->Buffer, linear, clamp);
-	}
-
-	if(filename.find("World74") != std::string::npos || filename.find("MU-logo_g") != std::string::npos)
-	{
-		char szDebugOutput[512];
-		sprintf(szDebugOutput, "OpenJpeg turbo file=%s jpeg=%dx%d tex=%dx%d idx=%u texNo=%u",
-			filename_ozj.c_str(), jpegWidth, jpegHeight, Width, Height, uiBitmapIndex, pNewBitmap->TextureNumber);
-		OutputDebugStringA(szDebugOutput);
-	}
-	return true;
-#else
+#if !defined(__ANDROID__) && !defined(MU_IOS)
 	fseek(infile,24,SEEK_SET);	//. Skip Dump
 	
 	struct jpeg_decompress_struct cinfo;
@@ -779,6 +763,9 @@ bool CGlobalBitmap::OpenJpeg(GLuint uiBitmapIndex, const std::string& filename, 
 	fclose(infile);
 	return true;
 #endif
+	fclose(infile);
+	g_ErrorReport.Write("OpenJpeg ALL FAILED: %s\r\n", filename.c_str());
+	return false;
 }
 bool CGlobalBitmap::OpenTga(GLuint uiBitmapIndex, const std::string& filename, GLuint uiFilter, GLuint uiWrapMode)
 {
@@ -908,7 +895,6 @@ bool CGlobalBitmap::OpenTga(GLuint uiBitmapIndex, const std::string& filename, G
 		const bool clamp = (uiWrapMode == GL_CLAMP || uiWrapMode == GL_CLAMP_TO_EDGE);
 		VulkanTextureManager::Instance().CreateTextureWithId(uiBitmapIndex, Width, Height, pNewBitmap->Components, pNewBitmap->Buffer, linear, clamp);
 	}
-
 	return true;
 }
 

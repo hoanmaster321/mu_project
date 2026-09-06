@@ -722,6 +722,8 @@ uint32_t VulkanTextureManager::CreateTextureWithId(uint32_t textureId, uint32_t 
 
     vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, nullptr, 0, nullptr, 1, &barrier);
 
+    m_pendingStaging.push_back({ stagingBuffer, stagingBufferMemory });
+
     // 4. Create Image View & Sampler
     CreateImageView(tex.image, format, tex.imageView);
     CreateSampler(linearFilter, clamp, tex.sampler);

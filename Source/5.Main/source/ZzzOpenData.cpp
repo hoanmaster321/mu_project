@@ -5654,41 +5654,35 @@ void OpenBasicData(HDC hDC)
 #endif	// ASG_ADD_KARUTAN_NPC
 
 	g_ErrorReport.Write( "> First Load Files OK.\r\n");
-
+	g_ErrorReport.Write( "> OpenPlayers begin\r\n");
 	OpenPlayers();
-
-
+	g_ErrorReport.Write( "> RenderTitleSceneUI 2 begin\r\n");
 	rUIMng.RenderTitleSceneUI(hDC, 2, 11);
-
+	g_ErrorReport.Write( "> OpenPlayerTextures begin\r\n");
     OpenPlayerTextures();
+	g_ErrorReport.Write( "> RenderTitleSceneUI 3 begin\r\n");
 	rUIMng.RenderTitleSceneUI(hDC, 3, 11);
-
+	g_ErrorReport.Write( "> OpenItems begin\r\n");
     OpenItems();
+	g_ErrorReport.Write( "> RenderTitleSceneUI 4 begin\r\n");
 	rUIMng.RenderTitleSceneUI(hDC, 4, 11);
-
+	g_ErrorReport.Write( "> OpenItemTextures begin\r\n");
     OpenItemTextures();
+	g_ErrorReport.Write( "> RenderTitleSceneUI 5 begin\r\n");
 	rUIMng.RenderTitleSceneUI(hDC, 5, 11);
-
+	g_ErrorReport.Write( "> OpenSkills begin\r\n");
     OpenSkills();
+	g_ErrorReport.Write( "> RenderTitleSceneUI 6 begin\r\n");
 	rUIMng.RenderTitleSceneUI(hDC, 6, 11);
-
-#ifdef __ANDROID__
-	OutputDebugStringA("OPENBASIC: OpenImages begin");
-#endif
+	g_ErrorReport.Write( "> OpenImages begin\r\n");
 	OpenImages();
-#ifdef __ANDROID__
-	OutputDebugStringA("OPENBASIC: OpenImages done");
-#endif
+	g_ErrorReport.Write( "> RenderTitleSceneUI 7 begin\r\n");
 	rUIMng.RenderTitleSceneUI(hDC, 7, 11);
-
-#ifdef __ANDROID__
-	OutputDebugStringA("OPENBASIC: OpenSounds begin");
-#endif
+	g_ErrorReport.Write( "> OpenSounds begin\r\n");
     OpenSounds();
-#ifdef __ANDROID__
-	OutputDebugStringA("OPENBASIC: OpenSounds done");
-#endif
+	g_ErrorReport.Write( "> RenderTitleSceneUI 8 begin\r\n");
 	rUIMng.RenderTitleSceneUI(hDC, 8, 11);
+	g_ErrorReport.Write( "> Scripts begin\r\n");
 
 	char Text[100];
 

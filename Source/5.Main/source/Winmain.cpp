@@ -1519,7 +1519,7 @@ bool ExceptionCallback(_EXCEPTION_POINTERS* pExceptionInfo )
 }
 #endif
 char* szServerIpAddress = "192.168.1.117";
-WORD g_ServerPort = 63000;
+WORD g_ServerPort = 44405;
 BYTE Version[SIZE_PROTOCOLVERSION] = { '1' + 1, '0' + 2, '4' + 3, '0' + 4, '5' + 5 };
 BYTE Serial[SIZE_PROTOCOLSERIAL + 1] = { "TbYehR2hFUPBKgZj" };
 #if (GetGPUUse)
@@ -1635,7 +1635,17 @@ void CALLBACK MUHelperTimerProc(HWND hwnd, UINT uMsg, UINT_PTR idEvent, DWORD dw
 }
 int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR szCmdLine, int nCmdShow)
 {
-	
+	char szModulePath[MAX_PATH] = { 0 };
+	if (GetModuleFileNameA(NULL, szModulePath, MAX_PATH))
+	{
+		char* pSlash = strrchr(szModulePath, '\\');
+		if (pSlash)
+		{
+			*pSlash = '\0';
+			SetCurrentDirectoryA(szModulePath);
+		}
+	}
+
 #if(UseStackLog)
 	StartStackLogging();
 #endif

@@ -236,15 +236,18 @@ int CWsctlc::Connect(char *ip_addr, unsigned short port, DWORD WinMsgNum)
 	nResult = connect( m_socket, (LPSOCKADDR)&addr, sizeof(addr) );
 	if( nResult == SOCKET_ERROR) 
 	{
-#ifdef DEBUG		
-		LogPrint("Connect error (%d)", WSAGetLastError());
-#endif // _DEBUG
-		if(WSAGetLastError() != WSAEWOULDBLOCK) 
+		int err = WSAGetLastError();
+		g_ErrorReport.Write("[CWsctlc::Connect] connect() failed: %d\r\n", err);
+		if(err != WSAEWOULDBLOCK) 
 		{
 			closesocket(m_socket);
 			return FALSE;
 		}
     }
+	else
+	{
+		g_ErrorReport.Write("[CWsctlc::Connect] connect() succeeded\r\n");
+	}
 
     nResult = WSAAsyncSelect( m_socket, m_hWnd, WinMsgNum, FD_READ | FD_WRITE | FD_CLOSE);
     if( nResult == SOCKET_ERROR) 

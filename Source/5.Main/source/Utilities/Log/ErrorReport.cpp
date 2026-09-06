@@ -84,9 +84,7 @@ int Xor_ConvertBuffer( void *lpBuffer, int iSize, int iKey = 0)
 CErrorReport::CErrorReport()
 {
 	Clear();
-#if(DEBUG)
 	Create("MuError.log");
-#endif
 }
 
 CErrorReport::~CErrorReport()
@@ -182,10 +180,16 @@ BOOL CErrorReport::WriteFile( HANDLE hFile, void* lpBuffer, DWORD nNumberOfBytes
 
 void CErrorReport::WriteDebugInfoStr( char *lpszToWrite)
 {
+	if ( m_hFile == INVALID_HANDLE_VALUE)
+	{
+		Create("MuError.log");
+	}
+
 	if ( m_hFile != INVALID_HANDLE_VALUE)
 	{
 		DWORD dwNumber;
 		WriteFile( m_hFile, lpszToWrite, strlen( lpszToWrite), &dwNumber, NULL);
+		FlushFileBuffers(m_hFile);
 
 		if ( dwNumber == 0)
 		{
@@ -193,6 +197,7 @@ void CErrorReport::WriteDebugInfoStr( char *lpszToWrite)
 			Create( m_lpszFileName);
 		}
 	}
+	OutputDebugStringA(lpszToWrite);
 }
 
 void CErrorReport::Write( const char* lpszFormat, ...)

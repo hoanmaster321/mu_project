@@ -455,16 +455,13 @@ void WebzenScene(HDC hDC)
 	OutputDebugStringA("WEBZEN: OpenBasicData begin");
 #endif
 	OpenBasicData(hDC);
-#ifdef __ANDROID__
-	OutputDebugStringA("WEBZEN: OpenBasicData done");
-#endif
+	g_ErrorReport.Write("> WebzenScene: OpenBasicData done\r\n");
 
 	g_pNewUISystem->LoadMainSceneInterface();
-#ifdef __ANDROID__
-	OutputDebugStringA("WEBZEN: LoadMainSceneInterface done");
-#endif
+	g_ErrorReport.Write("> WebzenScene: LoadMainSceneInterface done\r\n");
 
 	CUIMng::Instance().RenderTitleSceneUI(hDC, 11, 11);
+	g_ErrorReport.Write("> WebzenScene: RenderTitleSceneUI 11 done\r\n");
 
 	rUIMng.ReleaseTitleSceneUI();
 		DeleteBitmap(BITMAP_TITLE);
@@ -1140,6 +1137,10 @@ bool NewRenderCharacterScene(HDC hDC)
 		return false;
 	}
 
+	if (GPUContext::Instance().IsInitialized()) {
+		GPUContext::Instance().BeginFrame();
+	}
+
     FogEnable = false;
 	vec3_t pos;
 	Vector(9758.0f, 18913.0f, 675.0f, pos);
@@ -1295,6 +1296,7 @@ void CreateLogInScene()
 	CurrentProtocolState = REQUEST_JOIN_SERVER;
     CreateSocket(szServerIpAddress,g_ServerPort);
     EnableSocket = true;
+	g_ErrorReport.Write("> CreateLogInScene: socket created\r\n");
 
 	GuildInputEnable = false;
 	TabInputEnable   = false;
@@ -1313,6 +1315,7 @@ void CreateLogInScene()
 	InputNumber = 2;
     InputTextHide[1] = 1;
 
+	g_ErrorReport.Write("> CreateLogInScene: camera walk\r\n");
 	CCameraMove::GetInstancePtr()->PlayCameraWalk(Hero->Object.Position, 1000);
 #ifdef PJH_NEW_SERVER_SELECT_MAP
 	CCameraMove::GetInstancePtr()->SetTourMode(TRUE, FALSE, 1);
@@ -1320,10 +1323,12 @@ void CreateLogInScene()
 	CCameraMove::GetInstancePtr()->SetTourMode(TRUE, TRUE);
 #endif //PJH_NEW_SERVER_SELECT_MAP
 	
+	g_ErrorReport.Write("> CreateLogInScene: MoveMainCamera\r\n");
 	MoveMainCamera();
 
 	g_fMULogoAlpha = 0;
 	
+	g_ErrorReport.Write("> CreateLogInScene: PlayMp3\r\n");
 	::PlayMp3(g_lpszMp3[MUSIC_LOGIN_THEME]);
 
 	g_ErrorReport.Write( "> Login Scene init success.\r\n");
@@ -1400,6 +1405,10 @@ void NewMoveLogInScene()
 bool NewRenderLogInScene(HDC hDC)
 {
 	if(!InitLogIn) return false;
+
+	if (GPUContext::Instance().IsInitialized()) {
+		GPUContext::Instance().BeginFrame();
+	}
 
 	FogEnable = false;
 // 	extern GLfloat FogColor[4];

@@ -325,11 +325,13 @@ else()
     )
 
     if(MSVC)
+        target_compile_options(${PROJECT_NAME} PRIVATE /Zi)
         target_link_options(${PROJECT_NAME} PRIVATE
+            /DEBUG
             /NODEFAULTLIB:libc.lib
             /NODEFAULTLIB:MSVCRT.lib
             /NODEFAULTLIB:MSVCRTD.lib
-            "/MANIFESTUAC:level='requireAdministrator' uiAccess='false'"
+            "/MANIFESTUAC:level='asInvoker' uiAccess='false'"
         )
     endif()
 
@@ -417,7 +419,10 @@ if(WIN32)
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
             $<TARGET_FILE:SDL3::SDL3-shared>
             "${CMAKE_CURRENT_SOURCE_DIR}/../../Client/SDL3.dll"
-        COMMENT "Copying Main.exe and SDL3.dll to output directories"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            $<TARGET_PDB_FILE:${PROJECT_NAME}>
+            "${CMAKE_CURRENT_SOURCE_DIR}/../../Client/Main.pdb"
+        COMMENT "Copying Main.exe, Main.pdb and SDL3.dll to output directories"
     )
 endif()
 

@@ -157,11 +157,7 @@ void SEASON3B::CNewUISystem::Release()
 
 bool SEASON3B::CNewUISystem::LoadMainSceneInterface()
 {
-#ifdef __ANDROID__
-#define ANDROID_UI_STAGE(msg) do { OutputDebugStringA("UI_LOAD: " msg); g_ErrorReport.Write("[UI_LOAD] " msg "\r\n"); } while(0)
-#else
-#define ANDROID_UI_STAGE(msg) ((void)0)
-#endif
+#define ANDROID_UI_STAGE(msg) do {} while(0)
 	ANDROID_UI_STAGE("begin");
 	g_MessageBox->Show(true);
 	m_pNewChatLogWindow->Show(true);
