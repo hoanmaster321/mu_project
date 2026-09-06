@@ -14,6 +14,7 @@
 #include "DSPlaySound.h"
 #include "WSClient.h"
 #include "SkillManager.h"
+#include "BatchRenderer.h"
 
 
 void RenderCircle(int Type,vec3_t ObjectPosition,float ScaleBottom,float ScaleTop,float Height,float Rotation,float LightTop,float TextureV)
@@ -59,14 +60,13 @@ void RenderCircle(int Type,vec3_t ObjectPosition,float ScaleBottom,float ScaleTo
 		VectorRotate(p,Matrix1,Position[3]);
 		VectorAdd(ObjectPosition,Position[3],Position[3]);
 
-		glBegin(GL_QUADS);
-		for(int i=0;i<4;i++)
-		{
-			glTexCoord2f(UV[i][0],UV[i][1]+TextureV);
-			glColor3fv(Light[i]);
-			glVertex3fv(Position[i]);
+		vec3_t quadUV[4];
+		vec4_t quadColor[4];
+		for (int i = 0; i < 4; ++i) {
+			Vector(UV[i][0], UV[i][1] + TextureV, 0.0f, quadUV[i]);
+			Vector4(Light[i][0], Light[i][1], Light[i][2], 1.0f, quadColor[i]);
 		}
-		glEnd();
+		g_BatchRenderer.AddTerrainCustomQuad(TERRAIN_BATCH_BLEND, Type, 0, Position, quadUV, quadColor);
 	}
 }
 
@@ -115,15 +115,15 @@ void RenderCircle2D(int Type,vec3_t ScreenPosition,float ScaleBottom,float Scale
 		Vector(0.f,ScaleTop,Height,p);
 		VectorRotate(p,Matrix1,Position[3]);
 		
-		glBegin(GL_QUADS);
+		vec3_t quadUV[4];
+		vec4_t quadColor[4];
 		for(int i=0;i<4;i++)
 		{
-			glTexCoord2f(UV[i][0],UV[i][1]+TextureV);
-			glColor3fv(Light[i]);
      		VectorAdd(ObjectPosition,Position[i],Position[i]);
-			glVertex2f(Position[i][0],Position[i][1]);
+			Vector(UV[i][0], UV[i][1] + TextureV, 0.0f, quadUV[i]);
+			Vector4(Light[i][0], Light[i][1], Light[i][2], 1.0f, quadColor[i]);
 		}
-		glEnd();
+		g_BatchRenderer.AddTerrainCustomQuad(TERRAIN_BATCH_BLEND, Type, 0, Position, quadUV, quadColor);
 	}
 }
 

@@ -23,13 +23,6 @@ void InsertShadowVolume( CShadowVolume *psv)
 
 void RenderShadowVolumesAsFrame( void)
 {
-	glPolygonMode( GL_FRONT, GL_LINE);
-	glDepthMask( true);
-	DisableAlphaBlend();
-	DisableTexture();
-	vec3_t vLight = { 0.4f, 0.f, 0.f};
-	glColor3fv( vLight);
-
 	while ( m_qSV.GetCount() > 0)
 	{
 		CShadowVolume *psv = m_qSV.Remove();
@@ -37,20 +30,10 @@ void RenderShadowVolumesAsFrame( void)
 		psv->Destroy();
 		delete psv;
 	}
-
-	glPolygonMode( GL_FRONT, GL_FILL);
 }
 
 void ShadeWithShadowVolumes( void)
 {
-	DisableAlphaBlend();
-
-	DisableDepthMask();
-	glEnable( GL_STENCIL_TEST);
-
-	glColorMask( GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE);
-	glStencilFunc( GL_ALWAYS, 0xFFFFFFFF, 0xFFFFFFFF);
-
 	while ( m_qSV.GetCount() > 0)
 	{
 		CShadowVolume *psv = m_qSV.Remove();
@@ -58,47 +41,10 @@ void ShadeWithShadowVolumes( void)
 		psv->Destroy();
 		delete psv;
 	}
-
-	glFrontFace( GL_CCW);
-	glColorMask( GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
-	glDisable( GL_STENCIL_TEST);
-	EnableDepthMask();
 }
 
 void RenderShadowToScreen( void)
 {
-	DisableDepthTest();
-	DisableDepthMask();
-	glEnable( GL_STENCIL_TEST);
-
-	glStencilFunc( GL_LEQUAL, 0x1, 0xFFFFFFFF);
-	glStencilOp( GL_KEEP, GL_KEEP, GL_KEEP);
-
-	glDepthFunc( GL_ALWAYS);
-
-	EnableAlphaBlendMinus();
-	DisableTexture();
-	vec3_t vLight = { .7f,0.7f,0.5f};
-
-	//RenderTerrainAlphaBitmap(BITMAP_HIDE, Hero->Object.Position[0],Hero->Object.Position[1],20.f,20.f,vLight,0.f,fAlpha);
-	float p[4][2];
-	float Width  = ( float)WindowWidth;
-	float Height = ( float)WindowHeight;
-	p[0][0] = 0.f      ;p[0][1] = 0.f;
-	p[1][0] = 0.f      ;p[1][1] = Height;
-	p[2][0] = 0.f+Width;p[2][1] = Height;
-	p[3][0] = 0.f+Width;p[3][1] = 0.f;
-	//BeginBitmap();
-	glBegin(GL_TRIANGLE_FAN);
-	glColor3fv(vLight);
-	for(int i=0;i<4;i++)
-	{
-		glVertex2f(p[i][0],p[i][1]);
-	}
-	glEnd();
-	glDepthFunc( GL_LESS);
-	glDisable( GL_STENCIL_TEST);
-	EnableDepthMask();
 }
 
 
@@ -302,23 +248,8 @@ void CShadowVolume::RenderAsFrame( void)
 
 void CShadowVolume::RenderShadowVolume( void)
 {
-	glBegin(GL_TRIANGLES);
-
-	for ( int i = 0; i < m_nNumVertices; ++i)
-	{
-		glVertex3fv(m_pVertices[i]);
-	}
-
-	glEnd();
 }
 
 void CShadowVolume::Shade( void)
 {
-	glFrontFace( GL_CCW);
-	glStencilOp( GL_KEEP, GL_KEEP, GL_INCR);
-	RenderShadowVolume();
-
-	glFrontFace( GL_CW);
-	glStencilOp( GL_KEEP, GL_KEEP, GL_DECR);
-	RenderShadowVolume();
 }

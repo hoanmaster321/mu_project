@@ -167,7 +167,7 @@ typedef struct _Mesh_t
 
 #if CB_SHADER330_TEST
 #include "volk.h"
-#include "VulkanGLStub.h"
+#include "RenderState.h"
 #include <vector>
 
 typedef struct _VertexBMD

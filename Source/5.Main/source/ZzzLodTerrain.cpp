@@ -17,9 +17,7 @@
 #include "ZzzCharacter.h"
 #include "ZzzInterface.h"
 #include "ZzzEffect.h"
-#if defined(__ANDROID__) || defined(MU_IOS)
-#include "Platform/gl_compat.h"
-#endif
+#include "BatchRenderer.h"
 #include "./Utilities/Log/ErrorReport.h"
 #include "CSChaosCastle.h"
 #include "GMBattleCastle.h"
@@ -1200,7 +1198,6 @@ extern int TerrainIndex4;
 extern vec3_t TerrainVertex[4];
 extern float TerrainTextureCoord[4][2];
 
-#if defined(__ANDROID__) || defined(MU_IOS)
 enum TerrainBlendState : uint8_t
 {
     TB_OPAQUE = 0,
@@ -1413,36 +1410,39 @@ static void TerrainBatch_Flush()
             continue;
         }
 
-        if (bucket.blendState != curBlend)
+        int batchType = TERRAIN_BATCH_OPAQUE;
+        if ((TerrainBlendState)bucket.blendState == TB_ALPHA_TEST)
+            batchType = TERRAIN_BATCH_ALPHA;
+        else if ((TerrainBlendState)bucket.blendState == TB_ALPHA_BLEND)
+            batchType = TERRAIN_BATCH_BLEND;
+
+        const float* vData = bucket.verts.data();
+        for (int q = 0; q < bucket.quadCount; ++q)
         {
-            switch ((TerrainBlendState)bucket.blendState)
+            vec3_t verts[4];
+            vec3_t uvs[4];
+            vec4_t colors[4];
+            for (int i = 0; i < 4; ++i)
             {
-            case TB_OPAQUE:
-                DisableAlphaBlend();
-                break;
-            case TB_ALPHA_TEST:
-                EnableAlphaTest();
-                break;
-            case TB_ALPHA_BLEND:
-                EnableAlphaBlend();
-                break;
+                const float* v = vData + (q * 4 + i) * 9;
+                verts[i][0] = v[0];
+                verts[i][1] = v[1];
+                verts[i][2] = v[2];
+                colors[i][0] = v[3];
+                colors[i][1] = v[4];
+                colors[i][2] = v[5];
+                colors[i][3] = v[6];
+                uvs[i][0] = v[7];
+                uvs[i][1] = v[8];
+                uvs[i][2] = 0.0f;
             }
-            curBlend = bucket.blendState;
-            curTex = 0xFFFF;
+            g_BatchRenderer.AddTerrainCustomQuad(batchType, bucket.textureId, 0, verts, uvs, colors);
         }
-
-        if (bucket.textureId != curTex)
-        {
-            BindTexture(bucket.textureId);
-            curTex = bucket.textureId;
-        }
-
-        GL_DrawQuadsBulk(bucket.verts.data(), bucket.quadCount);
     }
 
+    g_BatchRenderer.FlushTerrainBatches();
     s_terrainBatchActive = false;
 }
-#endif
 
 int    TerrainIndex1;
 int    TerrainIndex2;
@@ -1501,176 +1501,8 @@ inline void Interpolation(int mx,int my)
 	}
 }
 
-inline void Vertex0()
-{
-	glTexCoord2f(TerrainTextureCoord[0][0],TerrainTextureCoord[0][1]);
-	glColor3fv(PrimaryTerrainLight[TerrainIndex1]);
-	glVertex3fv(TerrainVertex[0]);
-}
-
-inline void Vertex1()
-{
-	glTexCoord2f(TerrainTextureCoord[1][0],TerrainTextureCoord[1][1]);
-	glColor3fv(PrimaryTerrainLight[TerrainIndex2]);
-	glVertex3fv(TerrainVertex[1]);
-}
-
-inline void Vertex2()
-{
-	glTexCoord2f(TerrainTextureCoord[2][0],TerrainTextureCoord[2][1]);
-	glColor3fv(PrimaryTerrainLight[TerrainIndex3]);
-	glVertex3fv(TerrainVertex[2]);
-}
-
-inline void Vertex3()
-{
-	glTexCoord2f(TerrainTextureCoord[3][0],TerrainTextureCoord[3][1]);
-	glColor3fv(PrimaryTerrainLight[TerrainIndex4]);
-	glVertex3fv(TerrainVertex[3]);
-}
-
-inline void Vertex01()
-{
-	glTexCoord2f(TerrainTextureCoord01[0],TerrainTextureCoord01[1]);
-	glColor3fv(PrimaryTerrainLight[Index01]);
-	glVertex3fv(TerrainVertex01);
-}
-
-inline void Vertex12()
-{
-	glTexCoord2f(TerrainTextureCoord12[0],TerrainTextureCoord12[1]);
-	glColor3fv(PrimaryTerrainLight[Index12]);
-	glVertex3fv(TerrainVertex12);
-}
-
-inline void Vertex23()
-{
-	glTexCoord2f(TerrainTextureCoord23[0],TerrainTextureCoord23[1]);
-	glColor3fv(PrimaryTerrainLight[Index23]);
-	glVertex3fv(TerrainVertex23);
-}
-
-inline void Vertex30()
-{
-	glTexCoord2f(TerrainTextureCoord30[0],TerrainTextureCoord30[1]);
-	glColor3fv(PrimaryTerrainLight[Index30]);
-	glVertex3fv(TerrainVertex30);
-}
-
-inline void Vertex02()
-{
-	glTexCoord2f(TerrainTextureCoord02[0],TerrainTextureCoord02[1]);
-	glColor3fv(PrimaryTerrainLight[Index02]);
-	glVertex3fv(TerrainVertex02);
-}
-				
-inline void VertexAlpha0()
-{
-	glTexCoord2f(TerrainTextureCoord[0][0],TerrainTextureCoord[0][1]);
-    float *Light = &PrimaryTerrainLight[TerrainIndex1][0];
-	glColor4f(Light[0],Light[1],Light[2],TerrainMappingAlpha[TerrainIndex1]);
-	glVertex3fv(TerrainVertex[0]);
-}
-
-inline void VertexAlpha1()
-{
-	glTexCoord2f(TerrainTextureCoord[1][0],TerrainTextureCoord[1][1]);
-    float *Light = &PrimaryTerrainLight[TerrainIndex2][0];
-	glColor4f(Light[0],Light[1],Light[2],TerrainMappingAlpha[TerrainIndex2]);
-	glVertex3fv(TerrainVertex[1]);
-}
-
-inline void VertexAlpha2()
-{
-	glTexCoord2f(TerrainTextureCoord[2][0],TerrainTextureCoord[2][1]);
-    float *Light = &PrimaryTerrainLight[TerrainIndex3][0];
-	glColor4f(Light[0],Light[1],Light[2],TerrainMappingAlpha[TerrainIndex3]);
-	glVertex3fv(TerrainVertex[2]);
-}
-
-inline void VertexAlpha3()
-{
-	glTexCoord2f(TerrainTextureCoord[3][0],TerrainTextureCoord[3][1]);
-    float *Light = &PrimaryTerrainLight[TerrainIndex4][0];
-	glColor4f(Light[0],Light[1],Light[2],TerrainMappingAlpha[TerrainIndex4]);
-	glVertex3fv(TerrainVertex[3]);
-}
-
-inline void VertexAlpha01()
-{
-	glTexCoord2f(TerrainTextureCoord01[0],TerrainTextureCoord01[1]);
-    float *Light = &PrimaryTerrainLight[Index01][0];
-	glColor4f(Light[0],Light[1],Light[2],TerrainMappingAlpha01);
-	glVertex3fv(TerrainVertex01);
-}
-
-inline void VertexAlpha12()
-{
-	glTexCoord2f(TerrainTextureCoord12[0],TerrainTextureCoord12[1]);
-    float *Light = &PrimaryTerrainLight[Index12][0];
-	glColor4f(Light[0],Light[1],Light[2],TerrainMappingAlpha12);
-	glVertex3fv(TerrainVertex12);
-}
-
-inline void VertexAlpha23()
-{
-	glTexCoord2f(TerrainTextureCoord23[0],TerrainTextureCoord23[1]);
-    float *Light = &PrimaryTerrainLight[Index23][0];
-	glColor4f(Light[0],Light[1],Light[2],TerrainMappingAlpha23);
-	glVertex3fv(TerrainVertex23);
-}
-
-inline void VertexAlpha30()
-{
-	glTexCoord2f(TerrainTextureCoord30[0],TerrainTextureCoord30[1]);
-    float *Light = &PrimaryTerrainLight[Index30][0];
-	glColor4f(Light[0],Light[1],Light[2],TerrainMappingAlpha30);
-	glVertex3fv(TerrainVertex30);
-}
-
-inline void VertexAlpha02()
-{
-	glTexCoord2f(TerrainTextureCoord02[0],TerrainTextureCoord02[1]);
-    float *Light = &PrimaryTerrainLight[Index02][0];
-	glColor4f(Light[0],Light[1],Light[2],TerrainMappingAlpha02);
-	glVertex3fv(TerrainVertex02);
-}
-				
-inline void VertexBlend0()
-{
-	glTexCoord2f(TerrainTextureCoord[0][0],TerrainTextureCoord[0][1]);
-    float Light = TerrainMappingAlpha[TerrainIndex1];
-	glColor3f(Light,Light,Light);
-	glVertex3fv(TerrainVertex[0]);
-}
-
-inline void VertexBlend1()
-{
-	glTexCoord2f(TerrainTextureCoord[1][0],TerrainTextureCoord[1][1]);
-    float Light = TerrainMappingAlpha[TerrainIndex2];
-	glColor3f(Light,Light,Light);
-	glVertex3fv(TerrainVertex[1]);
-}
-
-inline void VertexBlend2()
-{
-	glTexCoord2f(TerrainTextureCoord[2][0],TerrainTextureCoord[2][1]);
-    float Light = TerrainMappingAlpha[TerrainIndex3];
-	glColor3f(Light,Light,Light);
-	glVertex3fv(TerrainVertex[2]);
-}
-
-inline void VertexBlend3()
-{
-	glTexCoord2f(TerrainTextureCoord[3][0],TerrainTextureCoord[3][1]);
-    float Light = TerrainMappingAlpha[TerrainIndex4];
-	glColor3f(Light,Light,Light);
-	glVertex3fv(TerrainVertex[3]);
-}
-
 void RenderFace(int Texture,int mx,int my)
 {
-#if defined(__ANDROID__) || defined(MU_IOS)
     if (s_terrainBatchActive)
     {
         TerrainBlendState bs = TB_OPAQUE;
@@ -1716,7 +1548,6 @@ void RenderFace(int Texture,int mx,int my)
         TerrainBatch_CollectFace(Texture, bs, 1);
         return;
     }
-#endif
 	if(gMapManager.WorldActive == WD_39KANTURU_3RD)
 	{
 		if(Texture == 3)
@@ -1779,71 +1610,39 @@ void RenderFace(int Texture,int mx,int my)
 #endif	// ASG_ADD_MAP_KARUTAN
 	else
 	   	DisableAlphaBlend();
-	BindTexture(BITMAP_MAPTILE+Texture);
-
-	glBegin(GL_TRIANGLE_FAN);
-	Vertex0();
-	Vertex1();
-	Vertex2();
-	Vertex3();
-	glEnd();
 }
 
 void RenderFace_After(int Texture, int mx, int my)
 {
-	if(Texture == 100)
-		EnableAlphaTest();
-	else if( Texture == 101)
-		EnableAlphaBlend();
-	else
-		return;
-	
-	BindTexture(BITMAP_MAPTILE+Texture);
-
-	glBegin(GL_TRIANGLE_FAN);
-		Vertex0();
-		Vertex1();
-		Vertex2();
-		Vertex3();
-	glEnd();
+    if (s_terrainBatchActive)
+    {
+        TerrainBlendState bs = TB_OPAQUE;
+        if (Texture == 100) bs = TB_ALPHA_TEST;
+        else if (Texture == 101) bs = TB_ALPHA_BLEND;
+        else return;
+        TerrainBatch_CollectFace(Texture, bs, 1);
+        return;
+    }
 }
 
 void RenderFaceAlpha(int Texture,int mx,int my)
 {
-#if defined(__ANDROID__) || defined(MU_IOS)
     if (s_terrainBatchActive)
     {
         TerrainBatch_CollectFace(Texture, TB_ALPHA_TEST, 1);
         return;
     }
-#endif
     EnableAlphaTest();
-	BindTexture(BITMAP_MAPTILE+Texture);
-	glBegin(GL_TRIANGLE_FAN);
-	VertexAlpha0();
-	VertexAlpha1();
-	VertexAlpha2();
-	VertexAlpha3();
-	glEnd();
 }
 
 void RenderFaceBlend(int Texture,int mx,int my)
 {
-#if defined(__ANDROID__) || defined(MU_IOS)
     if (s_terrainBatchActive)
     {
         TerrainBatch_CollectFace(Texture, TB_ALPHA_BLEND, 1);
         return;
     }
-#endif
 	EnableAlphaBlend();
-	BindTexture(BITMAP_MAPTILE+Texture);
-	glBegin(GL_TRIANGLE_FAN);
-	VertexBlend0();
-	VertexBlend1();
-	VertexBlend2();
-	VertexBlend3();
-	glEnd();
 }
 
 void FaceTexture(int Texture,float xf,float yf,bool Water,bool Scale)
@@ -2012,32 +1811,13 @@ void RenderTerrainFace(float xf,float yf,int xi,int yi,float lodf)
 #ifdef ASG_ADD_MAP_KARUTAN
 				}
 #endif	// ASG_ADD_MAP_KARUTAN
-#if defined(__ANDROID__) || defined(MU_IOS)
                 if (s_terrainBatchActive)
                 {
                     TerrainBatch_CollectGrassFace(
                         Texture,
                         (gMapManager.IsPKField() || IsDoppelGanger2()) ? TB_ALPHA_BLEND : TB_OPAQUE);
                 }
-                else
-#endif
-                {
-				    BindTexture(Texture);
-				    glBegin(GL_QUADS);
-				    glTexCoord2f(TerrainTextureCoord[0][0],TerrainTextureCoord[0][1]);
-				    glColor3fv(PrimaryTerrainLight[TerrainIndex1]);
-				    glVertex3fv(TerrainVertex[0]);
-				    glTexCoord2f(TerrainTextureCoord[1][0],TerrainTextureCoord[1][1]);
-				    glColor3fv(PrimaryTerrainLight[TerrainIndex2]);
-				    glVertex3fv(TerrainVertex[1]);
-				    glTexCoord2f(TerrainTextureCoord[2][0],TerrainTextureCoord[2][1]);
-				    glColor3fv(PrimaryTerrainLight[TerrainIndex3]);
-				    glVertex3fv(TerrainVertex[2]);
-				    glTexCoord2f(TerrainTextureCoord[3][0],TerrainTextureCoord[3][1]);
-				    glColor3fv(PrimaryTerrainLight[TerrainIndex4]);
-				    glVertex3fv(TerrainVertex[3]);
-				    glEnd();
-                }
+
 
 				if(gMapManager.IsPKField() || IsDoppelGanger2())
 					DisableAlphaBlend();
@@ -2106,20 +1886,7 @@ bool RenderTerrainTile(float xf,float yf,int xi,int yi,float lodf,int lodi,bool 
 			{
 				EnableAlphaTest();
 				DisableTexture();
-				glBegin(GL_TRIANGLE_FAN);
-				if ( 4 <= path->GetClosedStatus( TerrainIndex1))
-				{
-					glColor4f(0.3f,0.3f,1.0f,0.5f);
-				}
-				else
-				{
-					glColor4f(1.0f,1.0f,1.0f,0.3f);
-				}
-				for(int i=0;i<4;i++)
-				{
-					glVertex3fv(TerrainVertex[i]);
-				}
-				glEnd();
+				// debug path draw omitted in Vulkan
 				DisableAlphaBlend();
 			}
 		}
@@ -2132,12 +1899,7 @@ bool RenderTerrainTile(float xf,float yf,int xi,int yi,float lodf,int lodi,bool 
 		{
 			DisableTexture();
 			glColor3f(0.5f,0.5f,0.5f);
-			glBegin(GL_LINE_STRIP);
-			for(int i=0;i<4;i++)
-			{
-				glVertex3fv(TerrainVertex[i]);
-			}
-			glEnd();
+			// debug line strip omitted in Vulkan
 			DisableAlphaBlend();
 		}
 #endif// _DEBUG
@@ -2175,13 +1937,7 @@ bool RenderTerrainTile(float xf,float yf,int xi,int yi,float lodf,int lodi,bool 
 			EnableAlphaTest();
 			DisableTexture();
      		
-			glBegin(GL_TRIANGLE_FAN);
-			glColor4f(1.f,0.5f,0.5f,0.3f);
-			for(int i=0;i<4;i++)
-			{
-				glVertex3fv(TerrainVertex[i]);
-			}
-			glEnd();
+			// debug wall draw omitted in Vulkan
 
 			DisableAlphaBlend();
 		}
@@ -2245,20 +2001,21 @@ void RenderTerrainBitmapTile(float xf,float yf,float lodf,int lodi,vec3_t c[4],b
 		VectorCopy(PrimaryTerrainLight[TerrainIndex4],Light[3]);
 	}
 
-	glBegin(GL_TRIANGLE_FAN);
+	vec3_t uvs[4];
+	vec4_t colors[4];
 	for(int i=0;i<4;i++)
 	{
+		Vector(c[i][0], c[i][1], 0.f, uvs[i]);
 		if(LightEnable)
 		{
-			if(Alpha==1.f)
-				glColor3fv(Light[i]);
-			else
-				glColor4f(Light[i][0],Light[i][1],Light[i][2],Alpha);
+			Vector4(Light[i][0], Light[i][1], Light[i][2], Alpha, colors[i]);
 		}
-		glTexCoord2f ( c[i][0], c[i][1] );
-		glVertex3fv ( TerrainVertex[i] );
+		else
+		{
+			Vector4(g_CurrentGLColor[0], g_CurrentGLColor[1], g_CurrentGLColor[2], Alpha, colors[i]);
+		}
 	}
-	glEnd();
+	g_BatchRenderer.AddTerrainCustomQuad(TERRAIN_BATCH_BLEND, CachTexture, 0, TerrainVertex, uvs, colors);
 }
 
 void RenderTerrainBitmap(int Texture,int mxi,int myi,float Rotation)
@@ -3237,19 +2994,15 @@ void RenderTerrain(bool EditFlag)
 	if (g_pNewUISystem->GetUI_NewOptionWindow()->OnOffGrap[g_pNewUISystem->GetUI_NewOptionWindow()->eRenderTerrain] || SceneFlag != MAIN_SCENE) TerrainFlag = TERRAIN_MAP_NORMAL;
 
 
-#if defined(__ANDROID__) || defined(MU_IOS)
     if (!EditFlag)
     {
         TerrainBatch_Begin();
     }
-#endif
     RenderTerrainFrustrum ( EditFlag );
-#if defined(__ANDROID__) || defined(MU_IOS)
     if (!EditFlag)
     {
         TerrainBatch_Flush();
     }
-#endif
     //  
 	if ( EditFlag && SelectFlag )
 	{
@@ -3261,13 +3014,9 @@ void RenderTerrain(bool EditFlag)
 		if ( TerrainGrassEnable && gMapManager.WorldActive != WD_7ATLANSE && !IsDoppelGanger3())
 		{
 			TerrainFlag = TERRAIN_MAP_GRASS;
-#if defined(__ANDROID__) || defined(MU_IOS)
             TerrainBatch_Begin();
-#endif
 			RenderTerrainFrustrum ( EditFlag );
-#if defined(__ANDROID__) || defined(MU_IOS)
             TerrainBatch_Flush();
-#endif
 		}
 		DisableDepthTest();
 		EnableCullFace();

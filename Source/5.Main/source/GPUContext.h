@@ -3,6 +3,7 @@
 #include "volk.h"
 #include <SDL3/SDL.h>
 #include <vector>
+#include <string>
 #include <utility>
 #include <cstdint>
 #include <glm/glm.hpp>

@@ -34,133 +34,10 @@ public:
 
 class UniformBlockCache {
 public:
-    UniformBlockCache() {
-#if CBMu_ENABLE_GL_BMD_UBO_RING
-    }
-    ~UniformBlockCache() {
-        for (int i = 0; i < 3; ++i) {
-            if (ubos[i]) {
-                glDeleteBuffers(1, &ubos[i]);
-            }
-        }
-#else
-        glGenBuffers(1, &ubo);
-    }
-    ~UniformBlockCache() {
-        if (ubo) glDeleteBuffers(1, &ubo);
-#endif
-    }
-
-    void Bind(GLuint shaderID, const char* blockName, GLuint bindingPoint = 0) {
-#if CBMu_ENABLE_GL_BMD_UBO_CACHE
-        // CBMu_BEGIN: Cache uniform block BMD để tránh tra cứu chuỗi trong mỗi mesh.
-        BlockBinding& binding = bindings[shaderID];
-        if (!binding.Queried) {
-            binding.Index = glGetUniformBlockIndex(shaderID, blockName);
-            binding.Valid = binding.Index != GL_INVALID_INDEX;
-            binding.Queried = true;
-        }
-        if (!binding.Valid) {
-            return;
-        }
-        if (!binding.Bound || binding.BindingPoint != bindingPoint) {
-            glUniformBlockBinding(shaderID, binding.Index, bindingPoint);
-            binding.Bound = true;
-            binding.BindingPoint = bindingPoint;
-        }
-        glBindBufferBase(GL_UNIFORM_BUFFER, bindingPoint, ubo);
-        // CBMu_END: Cache uniform block BMD để tránh tra cứu chuỗi trong mỗi mesh.
-#else
-        GLuint blockIndex = glGetUniformBlockIndex(shaderID, blockName);
-        if (blockIndex != GL_INVALID_INDEX) {
-            glUniformBlockBinding(shaderID, blockIndex, bindingPoint);
-            glBindBufferBase(GL_UNIFORM_BUFFER, bindingPoint, ubo);
-        }
-#endif
-    }
-
-    void Update(const RenderUniformBlock& data) {
-#if CBMu_ENABLE_GL_BMD_UBO_UPDATE_SKIP
-        if (hasLastBlock && std::memcmp(&lastBlock, &data, sizeof(RenderUniformBlock)) == 0) {
-            return;
-        }
-#endif
-#if CBMu_ENABLE_GL_BMD_UBO_RING
-        SelectNextUBO();
-#endif
-        glBindBuffer(GL_UNIFORM_BUFFER, ubo);
-#if CBMu_ENABLE_GL_BMD_UBO_CACHE
-        // Cấp phát UBO một lần, sau đó chỉ cập nhật dữ liệu để giảm chi phí mỗi mesh.
-#if CBMu_ENABLE_GL_BMD_UBO_RING && CBMu_ENABLE_GL_BMD_UBO_RING_ORPHAN
-        // Orphan & upload in one atomic call to avoid uninitialized GPU read.
-        glBufferData(GL_UNIFORM_BUFFER, sizeof(RenderUniformBlock), &data, GL_DYNAMIC_DRAW);
-        MarkCurrentAllocated();
-#else
-        if (!IsCurrentAllocated()) {
-            glBufferData(GL_UNIFORM_BUFFER, sizeof(RenderUniformBlock), nullptr, GL_DYNAMIC_DRAW);
-            MarkCurrentAllocated();
-        }
-        glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(RenderUniformBlock), &data);
-#endif
-#else
-        glBufferData(GL_UNIFORM_BUFFER, sizeof(RenderUniformBlock), &data, GL_DYNAMIC_DRAW);
-#endif
-        glBindBuffer(GL_UNIFORM_BUFFER, 0);
-#if CBMu_ENABLE_GL_BMD_UBO_UPDATE_SKIP
-        std::memcpy(&lastBlock, &data, sizeof(RenderUniformBlock));
-        hasLastBlock = true;
-#endif
-    }
-
-private:
-    struct BlockBinding {
-        GLuint Index = GL_INVALID_INDEX;
-        GLuint BindingPoint = 0;
-        bool Queried = false;
-        bool Valid = false;
-        bool Bound = false;
-    };
-
-    GLuint ubo = 0;
-#if CBMu_ENABLE_GL_BMD_UBO_RING
-    // CBMu_BEGIN: Dùng vòng UBO RenderBlock để giảm stall khi cập nhật nhiều mesh BMD.
-    GLuint ubos[3] = {};
-    bool allocatedRing[3] = {};
-    unsigned int uboCursor = 0;
-    unsigned int currentUBOIndex = 0;
-
-    void SelectNextUBO() {
-        currentUBOIndex = uboCursor++ % 3u;
-        if (ubos[currentUBOIndex] == 0) {
-            glGenBuffers(1, &ubos[currentUBOIndex]);
-        }
-        ubo = ubos[currentUBOIndex];
-    }
-
-    bool IsCurrentAllocated() const {
-        return allocatedRing[currentUBOIndex];
-    }
-
-    void MarkCurrentAllocated() {
-        allocatedRing[currentUBOIndex] = true;
-    }
-    // CBMu_END: Dùng vòng UBO RenderBlock để giảm stall khi cập nhật nhiều mesh BMD.
-#else
-    bool allocated = false;
-
-    bool IsCurrentAllocated() const {
-        return allocated;
-    }
-
-    void MarkCurrentAllocated() {
-        allocated = true;
-    }
-#endif
-    std::unordered_map<GLuint, BlockBinding> bindings;
-#if CBMu_ENABLE_GL_BMD_UBO_UPDATE_SKIP
-    RenderUniformBlock lastBlock = {};
-    bool hasLastBlock = false;
-#endif
+    UniformBlockCache() {}
+    ~UniformBlockCache() {}
+    void Bind(GLuint shaderID, const char* blockName, GLuint bindingPoint = 0) {}
+    void Update(const RenderUniformBlock& data) {}
 };
 
 void CBMu_BindBMDVAO(GLuint vao);
@@ -239,32 +116,14 @@ public:
         }
     }
     inline void SetTexture(RenderStateCache& s, bool enable) {
-        if (s.textureEnabled != enable) {
-            if (enable) glEnable(GL_TEXTURE_2D); else DisableTexture();
-            s.textureEnabled = enable;
-        }
+        s.textureEnabled = enable;
     }
     inline void BindTextureCached(RenderStateCache& s, GLuint tex) {
-        if (!s.textureEnabled) {
-            glEnable(GL_TEXTURE_2D);
-            s.textureEnabled = true;
-        }
-        if (s.boundTexture != tex) {
-            glActiveTexture(GL_TEXTURE0);
-            BindTexture(tex);
-            s.boundTexture = tex;
-        }
+        s.textureEnabled = true;
+        s.boundTexture = tex;
     }
 
     inline void SendExtraUniforms(GLuint shaderID, int renderFlags, float alpha) {
-        static UniformLocationCache uniformCache;
-        GLint loc;
-        if ((loc = uniformCache.GetLocation(shaderID, "uRenderFlags")) != -1) {
-            glUniform1i(loc, renderFlags);
-        }
-        if ((loc = uniformCache.GetLocation(shaderID, "uAlpha")) != -1) {
-            glUniform1f(loc, alpha);
-        }
     }
 
 

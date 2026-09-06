@@ -5,7 +5,6 @@
 #include "New_ModelBMD.h"
 #include "New_RenderBMD.h"
 #include "ZzzBMD.h"
-#include "VulkanGLStub.h"
 #include <map>
 #include <vector>
 

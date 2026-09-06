@@ -18,323 +18,12 @@
 #include "MapManager.h"
 #include "NewUISystem.h"
 #if defined(__ANDROID__) || defined(MU_IOS)
-#include "Platform/gl_compat.h"
 #include <cstdint>
 #include <vector>
 #endif
 
 namespace
 {
-#if defined(__ANDROID__) || defined(MU_IOS)
-enum class ParticleSpriteBlendMode : uint8_t
-{
-	Unknown,
-	AlphaTest,
-	AlphaBlend,
-	AlphaBlendMinus,
-	AlphaBlend3,
-};
-
-enum class ParticleDepthMode : uint8_t
-{
-	Keep,
-	Enable,
-	Disable,
-};
-
-struct ParticleSpriteQuadBatch
-{
-	std::vector<float> vertices;
-	int texture = -1;
-	int quadCount = 0;
-	ParticleSpriteBlendMode blendMode = ParticleSpriteBlendMode::Unknown;
-	bool depthEnabled = true;
-};
-
-void FlushParticleSpriteQuadBatch(ParticleSpriteQuadBatch& batch)
-{
-	if (batch.quadCount <= 0 || batch.texture < 0 || batch.vertices.empty())
-	{
-		batch.vertices.clear();
-		batch.texture = -1;
-		batch.quadCount = 0;
-		batch.blendMode = ParticleSpriteBlendMode::Unknown;
-		return;
-	}
-
-	BindTexture(batch.texture);
-	GL_DrawQuadsBulk(batch.vertices.data(), batch.quadCount);
-
-	batch.vertices.clear();
-	batch.texture = -1;
-	batch.quadCount = 0;
-	batch.blendMode = ParticleSpriteBlendMode::Unknown;
-}
-
-void ApplyParticleBlendMode(ParticleSpriteBlendMode mode)
-{
-	switch (mode)
-	{
-	case ParticleSpriteBlendMode::AlphaTest:
-		EnableAlphaTest(false);
-		break;
-	case ParticleSpriteBlendMode::AlphaBlend:
-		EnableAlphaBlend();
-		break;
-	case ParticleSpriteBlendMode::AlphaBlendMinus:
-		EnableAlphaBlendMinus();
-		break;
-	case ParticleSpriteBlendMode::AlphaBlend3:
-		EnableAlphaBlend3();
-		break;
-	default:
-		break;
-	}
-}
-
-ParticleSpriteBlendMode DetermineParticleBlendMode(const PARTICLE* o, const BITMAP_t* pBitmap)
-{
-	ParticleSpriteBlendMode mode = (pBitmap != nullptr && pBitmap->Components == 3)
-		? ParticleSpriteBlendMode::AlphaBlend
-		: ParticleSpriteBlendMode::AlphaTest;
-
-	switch (o->Type)
-	{
-	case BITMAP_CLUD64:
-		if (o->SubType == 0 || o->SubType == 5 || o->SubType == 11)
-		{
-			mode = ParticleSpriteBlendMode::AlphaBlendMinus;
-		}
-		break;
-	case BITMAP_TWINTAIL_WATER:
-		mode = ParticleSpriteBlendMode::AlphaBlend;
-		break;
-	case BITMAP_SMOKE:
-		if (o->SubType == 2 || o->SubType == 5 || o->SubType == 12 || o->SubType == 14 ||
-			o->SubType == 15 || o->SubType == 20 || o->SubType == 21 || o->SubType == 29 ||
-			o->SubType == 37 || o->SubType == 38 || o->SubType == 59)
-		{
-			mode = ParticleSpriteBlendMode::AlphaBlendMinus;
-		}
-		break;
-	case BITMAP_SMOKE + 1:
-	case BITMAP_SMOKE + 4:
-		mode = ParticleSpriteBlendMode::AlphaBlend3;
-		break;
-	case BITMAP_ADV_SMOKE + 1:
-		mode = ParticleSpriteBlendMode::AlphaBlend3;
-		break;
-	case BITMAP_SMOKE + 3:
-		mode = (o->SubType == 3 || o->SubType == 4)
-			? ParticleSpriteBlendMode::AlphaBlendMinus
-			: ParticleSpriteBlendMode::AlphaBlend3;
-		break;
-	case BITMAP_FIRE:
-	case BITMAP_FIRE + 2:
-	case BITMAP_FIRE + 3:
-		if (o->SubType == 18)
-		{
-			mode = ParticleSpriteBlendMode::AlphaBlend3;
-		}
-		break;
-	case BITMAP_LIGHT + 2:
-		if (o->SubType == 3 || o->SubType == 4 || o->SubType == 6)
-		{
-			mode = ParticleSpriteBlendMode::AlphaBlendMinus;
-		}
-		break;
-	case BITMAP_CLOUD:
-		if (o->SubType == 10 || o->SubType == 12 || o->SubType == 7 || o->SubType == 14 || o->SubType == 16)
-		{
-			mode = ParticleSpriteBlendMode::AlphaBlendMinus;
-		}
-		break;
-	case BITMAP_SPARK:
-		if (o->SubType == 10)
-		{
-			mode = ParticleSpriteBlendMode::AlphaBlendMinus;
-		}
-		break;
-	}
-
-	return mode;
-}
-
-ParticleDepthMode DetermineParticleDepthMode(const PARTICLE* o)
-{
-	if (o->Type == BITMAP_LIGHT && o->SubType == 6)
-	{
-		return ParticleDepthMode::Enable;
-	}
-
-	if (o->Type == BITMAP_EXPLOTION && o->SubType == 5)
-	{
-		return ParticleDepthMode::Disable;
-	}
-
-	return ParticleDepthMode::Keep;
-}
-
-void PrepareParticleSpriteBatch(ParticleSpriteQuadBatch& batch,
-	int texture,
-	ParticleSpriteBlendMode desiredBlendMode,
-	ParticleDepthMode desiredDepthMode,
-	ParticleSpriteBlendMode& currentBlendMode,
-	bool& currentDepthEnabled)
-{
-	bool desiredDepthEnabled = currentDepthEnabled;
-	if (desiredDepthMode == ParticleDepthMode::Enable)
-	{
-		desiredDepthEnabled = true;
-	}
-	else if (desiredDepthMode == ParticleDepthMode::Disable)
-	{
-		desiredDepthEnabled = false;
-	}
-
-	if (batch.quadCount > 0 &&
-		(batch.texture != texture || batch.blendMode != desiredBlendMode || batch.depthEnabled != desiredDepthEnabled))
-	{
-		FlushParticleSpriteQuadBatch(batch);
-	}
-
-	if (currentBlendMode != desiredBlendMode)
-	{
-		ApplyParticleBlendMode(desiredBlendMode);
-		currentBlendMode = desiredBlendMode;
-	}
-
-	if (currentDepthEnabled != desiredDepthEnabled)
-	{
-		if (desiredDepthEnabled)
-		{
-			EnableDepthTest();
-		}
-		else
-		{
-			DisableDepthTest();
-		}
-
-		currentDepthEnabled = desiredDepthEnabled;
-	}
-
-	if (batch.vertices.empty())
-	{
-		batch.vertices.reserve(8192);
-	}
-
-	batch.texture = texture;
-	batch.blendMode = desiredBlendMode;
-	batch.depthEnabled = currentDepthEnabled;
-}
-
-void AppendParticleSpriteQuadVertex(std::vector<float>& vertices, const vec3_t position, const float uv[2], const float color[4])
-{
-	vertices.push_back(position[0]);
-	vertices.push_back(position[1]);
-	vertices.push_back(position[2]);
-	vertices.push_back(color[0]);
-	vertices.push_back(color[1]);
-	vertices.push_back(color[2]);
-	vertices.push_back(color[3]);
-	vertices.push_back(uv[0]);
-	vertices.push_back(uv[1]);
-}
-
-void QueueParticleSpriteQuadBatch(ParticleSpriteQuadBatch& batch,
-	int texture,
-	vec3_t position,
-	float width,
-	float height,
-	vec3_t light,
-	float rotation,
-	float u = 0.f,
-	float v = 0.f,
-	float uWidth = 1.f,
-	float vHeight = 1.f)
-{
-	vec3_t transformedPosition;
-	VectorTransform(position, CameraMatrix, transformedPosition);
-
-	const float x = transformedPosition[0];
-	const float y = transformedPosition[1];
-	const float z = transformedPosition[2];
-
-	width *= 0.5f;
-	height *= 0.5f;
-
-	vec3_t positions[4];
-	if (rotation == 0.f)
-	{
-		Vector(x - width, y - height, z, positions[0]);
-		Vector(x + width, y - height, z, positions[1]);
-		Vector(x + width, y + height, z, positions[2]);
-		Vector(x - width, y + height, z, positions[3]);
-	}
-	else
-	{
-		vec3_t localPositions[4];
-		Vector(-width, -height, z, localPositions[0]);
-		Vector(width, -height, z, localPositions[1]);
-		Vector(width, height, z, localPositions[2]);
-		Vector(-width, height, z, localPositions[3]);
-
-		vec3_t angle;
-		Vector(0.f, 0.f, rotation, angle);
-		float matrix[3][4];
-		AngleMatrix(angle, matrix);
-		for (int i = 0; i < 4; ++i)
-		{
-			VectorRotate(localPositions[i], matrix, positions[i]);
-			positions[i][0] += x;
-			positions[i][1] += y;
-		}
-	}
-
-	float texCoords[4][2];
-	texCoords[3][0] = u;
-	texCoords[3][1] = v;
-	texCoords[2][0] = u + uWidth;
-	texCoords[2][1] = v;
-	texCoords[1][0] = u + uWidth;
-	texCoords[1][1] = v + vHeight;
-	texCoords[0][0] = u;
-	texCoords[0][1] = v + vHeight;
-
-	float color[4] = { light[0], light[1], light[2], 1.f };
-	if (Bitmaps[texture].Components != 3 && texture != BITMAP_BLOOD + 1 && texture != BITMAP_FONT_HIT)
-	{
-		color[3] = light[0];
-	}
-
-	for (int i = 0; i < 4; ++i)
-	{
-		AppendParticleSpriteQuadVertex(batch.vertices, positions[i], texCoords[i], color);
-	}
-
-	++batch.quadCount;
-}
-
-void RenderParticleSpriteBatched(ParticleSpriteQuadBatch& batch,
-	ParticleSpriteBlendMode desiredBlendMode,
-	ParticleDepthMode desiredDepthMode,
-	ParticleSpriteBlendMode& currentBlendMode,
-	bool& currentDepthEnabled,
-	int texture,
-	vec3_t position,
-	float width,
-	float height,
-	vec3_t light,
-	float rotation = 0.f,
-	float u = 0.f,
-	float v = 0.f,
-	float uWidth = 1.f,
-	float vHeight = 1.f)
-{
-	PrepareParticleSpriteBatch(batch, texture, desiredBlendMode, desiredDepthMode, currentBlendMode, currentDepthEnabled);
-	QueueParticleSpriteQuadBatch(batch, texture, position, width, height, light, rotation, u, v, uWidth, vHeight);
-}
-#endif
 }
 
 vec3_t g_vParticleWind = { 0.0f, 0.0f, 0.0f };
@@ -959,7 +648,7 @@ int CreateParticle(int Type, vec3_t Position, vec3_t Angle, vec3_t Light, int Su
 					inter = (Light[0] - inter) / 15.0f;
 					Vector(0.f, inter, 0.f, o->Velocity);
 
-					//  »ö.
+					//  ìƒ‰.
 					Luminosity = (float)sinf(WorldTime * 0.002f) * 0.3f + 0.7f;
 					Vector(Luminosity, Luminosity * 0.5f, Luminosity * 0.5f, o->Light);
 				}
@@ -1339,7 +1028,7 @@ int CreateParticle(int Type, vec3_t Position, vec3_t Angle, vec3_t Light, int Su
 					o->Position[2] -= (20.f) * FPS_ANIMATION_FACTOR;
 					o->Gravity = (float)(rand() % 10 + 5) * 0.1f;
 				}
-				else if (o->SubType == 6)	// ¡Ý
+				else if (o->SubType == 6)	// â—Ž
 				{
 					o->LifeTime = 25;
 					o->Scale = (float)(rand() % 8 + 50) * 0.01f * Scale;
@@ -1384,7 +1073,7 @@ int CreateParticle(int Type, vec3_t Position, vec3_t Angle, vec3_t Light, int Su
 					o->Velocity[2] = -((1.2f) + ((float)(rand() % 20 - 10) * 0.025f));
 					o->Gravity = 2.f + ((float)(rand() % 20 - 10) * 0.05f);
 				}
-				else if (o->SubType == 10)	// BITMAP_FIRE_CURSEDLICH o->SubType == 1°ú ºñ½Á.
+				else if (o->SubType == 10)	// BITMAP_FIRE_CURSEDLICH o->SubType == 1ê³¼ ë¹„ìŠ·.
 				{
 					o->Position[0] += ((rand() % 10 - 5) * 0.2f) * FPS_ANIMATION_FACTOR;
 					o->Position[1] += ((rand() % 10 - 5) * 0.2f) * FPS_ANIMATION_FACTOR;
@@ -2986,7 +2675,7 @@ int CreateParticle(int Type, vec3_t Position, vec3_t Angle, vec3_t Light, int Su
 					VectorCopy(vSpeed, o->Velocity);
 
 					o->Alpha = 1.0f;
-					//o->Scale = (float)(rand()%20)/20.0f+1.0f;	//(1~2 20´Ü°è)
+					//o->Scale = (float)(rand()%20)/20.0f+1.0f;	//(1~2 20ë‹¨ê³„)
 					o->LifeTime = rand() % 30 + 20;
 					o->Angle[2] = (float)(rand() % 360);
 					o->Rotation = (float)(rand() % 360);
@@ -7380,18 +7069,18 @@ void MoveParticles()
 				{
 					o->Frame = (16 - o->LifeTime) / 4;
 
-					// ÇÃ·¹ÀÌ¾î ¸ðµ¨
+					// í”Œë ˆì´ì–´ ëª¨ë¸
 					BMD * pModel = &Models[o->Target->Type];
 					vec3_t vPos;
 
 					switch (o->SubType)
 					{
 					case 2:
-						// ÇÃ·¹ÀÌ¾î ¿Þ¼Õ
+						// í”Œë ˆì´ì–´ ì™¼ì†
 						pModel->TransformByObjectBone(vPos, o->Target, 37);
 						break;
 					case 3:
-						// ÇÃ·¹ÀÌ¾î ¿À¸¥¼Õ
+						// í”Œë ˆì´ì–´ ì˜¤ë¥¸ì†
 						pModel->TransformByObjectBone(vPos, o->Target, 28);
 						break;
 					}
@@ -9248,23 +8937,10 @@ void RenderParticles(BYTE byRenderOneMore)
 {
 	if (GetRenderEffect() == false) return;
 
-#if defined(__ANDROID__) || defined(MU_IOS)
-	ParticleSpriteQuadBatch spriteBatch;
-	ParticleSpriteBlendMode currentBlendMode = ParticleSpriteBlendMode::Unknown;
-	ParticleSpriteBlendMode desiredBlendMode = ParticleSpriteBlendMode::Unknown;
-	ParticleDepthMode desiredDepthMode = ParticleDepthMode::Keep;
-	const bool restoreDepthTest = DepthTestEnable;
-	bool currentDepthEnabled = restoreDepthTest;
-#define RENDER_PARTICLE_SPRITE(...) RenderParticleSpriteBatched(spriteBatch, desiredBlendMode, desiredDepthMode, currentBlendMode, currentDepthEnabled, __VA_ARGS__)
-#define PARTICLE_ENABLE_ALPHA_BLEND() do { } while (0)
-#define PARTICLE_ENABLE_ALPHA_BLEND_MINUS() do { } while (0)
-#define PARTICLE_ENABLE_ALPHA_BLEND3() do { } while (0)
-#else
 #define RENDER_PARTICLE_SPRITE(...) RenderSprite(__VA_ARGS__)
 #define PARTICLE_ENABLE_ALPHA_BLEND() EnableAlphaBlend()
 #define PARTICLE_ENABLE_ALPHA_BLEND_MINUS() EnableAlphaBlendMinus()
 #define PARTICLE_ENABLE_ALPHA_BLEND3() EnableAlphaBlend3()
-#endif
 
 	for (int i = 0; i < MAX_PARTICLES; i++)
 	{
@@ -9283,10 +8959,6 @@ void RenderParticles(BYTE byRenderOneMore)
 			BITMAP_t* pBitmap = Bitmaps.GetTexture(o->TexType);
 			float Width = pBitmap->Width * o->Scale;
 			float Height = pBitmap->Height * o->Scale;
-#if defined(__ANDROID__) || defined(MU_IOS)
-			desiredBlendMode = DetermineParticleBlendMode(o, pBitmap);
-			desiredDepthMode = DetermineParticleDepthMode(o);
-#else
 			if (pBitmap->Components == 3)
 			{
 				PARTICLE_ENABLE_ALPHA_BLEND();
@@ -9304,7 +8976,6 @@ void RenderParticles(BYTE byRenderOneMore)
 			{
 				DisableDepthTest();
 			}
-#endif
 			int Frame;
 			switch (o->Type)
 			{
@@ -9637,18 +9308,6 @@ void RenderParticles(BYTE byRenderOneMore)
 			}
 		}
 	}
-#if defined(__ANDROID__) || defined(MU_IOS)
-	FlushParticleSpriteQuadBatch(spriteBatch);
-	DisableAlphaBlend();
-	if (restoreDepthTest)
-	{
-		EnableDepthTest();
-	}
-	else
-	{
-		DisableDepthTest();
-	}
-#endif
 #undef RENDER_PARTICLE_SPRITE
 #undef PARTICLE_ENABLE_ALPHA_BLEND
 #undef PARTICLE_ENABLE_ALPHA_BLEND_MINUS

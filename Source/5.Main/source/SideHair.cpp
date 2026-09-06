@@ -12,6 +12,8 @@
 #include "zzzTexture.h"
 #include "SideHair.h"
 #include "ZzzCharacter.h"
+#include "BatchRenderer.h"
+#include "GPUContext.h"
 
 
 //////////////////////////////////////////////////////////////////////
@@ -124,36 +126,29 @@ void CSideHair::RenderLine( vec3_t v1, vec3_t v2, vec3_t c1, vec3_t c2)
 	//EnableAlphaTest();
 	//g_OpenglLib.DisableTexture();
     //g_OpenglLib.Disable(GL_CULL_FACE);
-	/*glBegin(GL_QUADS);
-	glTexCoord2f(0.f,0.f+fTextureMove);glVertex3f(p1[0]-Scale,p1[1],p1[2]);
-    glTexCoord2f(0.f,1.f-fTextureMove);glVertex3f(p2[0]-Scale,p2[1],p2[2]);
-    glTexCoord2f(1.f,1.f-fTextureMove);glVertex3f(p2[0]+Scale,p2[1],p2[2]);
-    glTexCoord2f(1.f,0.f+fTextureMove);glVertex3f(p1[0]+Scale,p1[1],p1[2]);
-	glEnd();
-	glBegin(GL_QUADS);
-    glTexCoord2f(0.f,0.f+fTextureMove);glVertex3f(p1[0],p1[1]-Scale,p1[2]);
-    glTexCoord2f(0.f,1.f-fTextureMove);glVertex3f(p2[0],p2[1]-Scale,p2[2]);
-    glTexCoord2f(1.f,1.f-fTextureMove);glVertex3f(p2[0],p2[1]+Scale,p2[2]);
-    glTexCoord2f(1.f,0.f+fTextureMove);glVertex3f(p1[0],p1[1]+Scale,p1[2]);
-	glEnd();
-	glBegin(GL_QUADS);
-    glTexCoord2f(0.f,0.f+fTextureMove);glVertex3f(p1[0],p1[1],p1[2]-Scale);
-    glTexCoord2f(0.f,1.f-fTextureMove);glVertex3f(p2[0],p2[1],p2[2]-Scale);
-    glTexCoord2f(1.f,1.f-fTextureMove);glVertex3f(p2[0],p2[1],p2[2]+Scale);
-    glTexCoord2f(1.f,0.f+fTextureMove);glVertex3f(p1[0],p1[1],p1[2]+Scale);
-	glEnd();*/
+
 	vec3_t vOrtho;
 	CrossProduct( m_vLight, d, vOrtho);
 	VectorNormalize( vOrtho);
 	VectorScale( vOrtho, 10.f, vOrtho);
-	glBegin(GL_QUADS);
-	//glColor3fv( c1);
-    glTexCoord2f(0.f,0.f+fTextureMove+fTextureV);glVertex3f(p1[0]-vOrtho[0],p1[1]-vOrtho[1],p1[2]-vOrtho[2]);
-	//glColor3fv( c2);
-    glTexCoord2f(0.f,1.f-fTextureMove+fTextureV);glVertex3f(p2[0]-vOrtho[0],p2[1]-vOrtho[1],p2[2]-vOrtho[2]);
-    glTexCoord2f(1.f,1.f-fTextureMove+fTextureV);glVertex3f(p2[0]+vOrtho[0],p2[1]+vOrtho[1],p2[2]+vOrtho[2]);
-	//glColor3fv( c1);
-    glTexCoord2f(1.f,0.f+fTextureMove+fTextureV);glVertex3f(p1[0]+vOrtho[0],p1[1]+vOrtho[1],p1[2]+vOrtho[2]);
-	glEnd();
-    //g_OpenglLib.Enable(GL_CULL_FACE);
+
+		vec3_t quadVerts[4];
+	Vector(p1[0]-vOrtho[0], p1[1]-vOrtho[1], p1[2]-vOrtho[2], quadVerts[0]);
+	Vector(p2[0]-vOrtho[0], p2[1]-vOrtho[1], p2[2]-vOrtho[2], quadVerts[1]);
+	Vector(p2[0]+vOrtho[0], p2[1]+vOrtho[1], p2[2]+vOrtho[2], quadVerts[2]);
+	Vector(p1[0]+vOrtho[0], p1[1]+vOrtho[1], p1[2]+vOrtho[2], quadVerts[3]);
+
+	vec3_t uvs[4];
+	Vector(0.f, 0.f + fTextureMove + fTextureV, 0.f, uvs[0]);
+	Vector(0.f, 1.f - fTextureMove + fTextureV, 0.f, uvs[1]);
+	Vector(1.f, 1.f - fTextureMove + fTextureV, 0.f, uvs[2]);
+	Vector(1.f, 0.f + fTextureMove + fTextureV, 0.f, uvs[3]);
+
+	vec4_t colors[4] = {
+		{ 1.f, 1.f, 1.f, 1.f },
+		{ 1.f, 1.f, 1.f, 1.f },
+		{ 1.f, 1.f, 1.f, 1.f },
+		{ 1.f, 1.f, 1.f, 1.f }
+	};
+	g_BatchRenderer.AddTerrainCustomQuad(TERRAIN_BATCH_BLEND, BITMAP_ROBE+4, 0, quadVerts, uvs, colors);
 }

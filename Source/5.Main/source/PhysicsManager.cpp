@@ -9,6 +9,8 @@
 #include "zzzEffect.h"
 #include "MapManager.h"
 #include "Protect.h"
+#include "BatchRenderer.h"
+#include "GPUContext.h"
 #define RENDER_CLOTH
 #define ADD_COLLISION
 
@@ -837,75 +839,58 @@ void CPhysicsCloth::Render( vec3_t *pvColor, int iLevel)
 
 void CPhysicsCloth::RenderFace( BOOL bFront, int iTexture, vec3_t *pvRenderPos)
 {
-	BindTexture( iTexture);	//BITMAP_ROBE
+	if (!pvRenderPos) return;
 
-	glBegin(GL_QUADS);
-	
-	if ( bFront)
+	vec4_t colors[4] = {
+		{ 1.f, 1.f, 1.f, 1.f },
+		{ 1.f, 1.f, 1.f, 1.f },
+		{ 1.f, 1.f, 1.f, 1.f },
+		{ 1.f, 1.f, 1.f, 1.f }
+	};
+
+	for ( int j = 0; j < m_iNumVer - 1; ++j)
 	{
-		for ( int j = 0; j < m_iNumVer - 1; ++j)
+		for ( int i = 0; i < m_iNumHor - 1; ++i)
 		{
-			for ( int i = 0; i < m_iNumHor - 1; ++i)
+			int idx00 = m_iNumHor * j + i;
+			int idx10 = m_iNumHor * j + i + 1;
+			int idx11 = m_iNumHor * (j + 1) + i + 1;
+			int idx01 = m_iNumHor * (j + 1) + i;
+
+			float u0 = (float)i / (float)(m_iNumHor - 1);
+			float u1 = (float)(i + 1) / (float)(m_iNumHor - 1);
+			float v0 = min(0.99f, (float)j / (float)(m_iNumVer - 1));
+			float v1 = min(0.99f, (float)(j + 1) / (float)(m_iNumVer - 1));
+
+			vec3_t qVerts[4];
+			vec3_t qUvs[4];
+
+			if (bFront)
 			{
-				RenderVertex( pvRenderPos, i, j);
-				RenderVertex( pvRenderPos, i+1, j);
-				RenderVertex( pvRenderPos, i+1, j+1);
-				RenderVertex( pvRenderPos, i, j+1);
+				VectorCopy(pvRenderPos[idx00], qVerts[0]); Vector(u0, v0, 0.f, qUvs[0]);
+				VectorCopy(pvRenderPos[idx10], qVerts[1]); Vector(u1, v0, 0.f, qUvs[1]);
+				VectorCopy(pvRenderPos[idx11], qVerts[2]); Vector(u1, v1, 0.f, qUvs[2]);
+				VectorCopy(pvRenderPos[idx01], qVerts[3]); Vector(u0, v1, 0.f, qUvs[3]);
 			}
+			else
+			{
+				VectorCopy(pvRenderPos[idx00], qVerts[0]); Vector(u0, v0, 0.f, qUvs[0]);
+				VectorCopy(pvRenderPos[idx01], qVerts[1]); Vector(u0, v1, 0.f, qUvs[1]);
+				VectorCopy(pvRenderPos[idx11], qVerts[2]); Vector(u1, v1, 0.f, qUvs[2]);
+				VectorCopy(pvRenderPos[idx10], qVerts[3]); Vector(u1, v0, 0.f, qUvs[3]);
+			}
+
+			g_BatchRenderer.AddTerrainCustomQuad(TERRAIN_BATCH_BLEND, iTexture, 0, qVerts, qUvs, colors);
 		}
 	}
-	else
-	{
-		for ( int j = 0; j < m_iNumVer - 1; ++j)
-		{
-			for ( int i = 0; i < m_iNumHor - 1; ++i)
-			{
-				RenderVertex( pvRenderPos, i, j);
-				RenderVertex( pvRenderPos, i, j+1);
-				RenderVertex( pvRenderPos, i+1, j+1);
-				RenderVertex( pvRenderPos, i+1, j);
-			}
-		}
-	}
-
-	glEnd();
 }
 
 void CPhysicsCloth::RenderVertex( vec3_t *pvRenderPos, int xVertex, int yVertex)
 {
-	int iVertex = m_iNumHor * yVertex + xVertex;
-	vec3_t *pvPos = &pvRenderPos[iVertex];
-	glTexCoord2f( ( float)xVertex / ( float)( m_iNumHor - 1), min( 0.99f, ( float)yVertex / ( float)( m_iNumVer - 1)));
-	glVertex3f( ( *pvPos)[0], ( *pvPos)[1], ( *pvPos)[2]);
 }
 
 void CPhysicsCloth::RenderCollisions( void)
 {
-#ifdef RENDER_COLLISION
-	glColor3f( 1.0f, 1.0f, 0.6f);
-	BindTexture( BITMAP_CLOUD);
-	CNode<CPhysicsCollision*> *pHead = m_lstCollision.FindHead();
-	for ( ; pHead; pHead = m_lstCollision.GetNext( pHead))
-	{
-		CPhysicsCollision *pCol = pHead->GetData();
-		if ( CLT_SPHERE == pCol->GetType())
-		{
-			CPhysicsColSphere *pColSph = ( CPhysicsColSphere*)pCol;
-
-			static GLUquadricObj *pQuad = NULL;
-			if ( NULL == pQuad)
-			{
-				pQuad = gluNewQuadric();
-			}
-			glPushMatrix();
-			vec3_t vCenter;
-			pColSph->GetCenter( vCenter);
-			glTranslatef( vCenter[0], vCenter[1], vCenter[2]);
-			gluSphere( pQuad, pColSph->GetRadius() - 2.0f, 20, 20);
-			glPopMatrix();
-		}
-	}
-#endif
 }
 
 void CPhysicsCloth::AddCollisionSphere( float fXPos, float fYPos, float fZPos, float fRadius, int iBone)

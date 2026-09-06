@@ -8,6 +8,9 @@
 #include "Input.h"
 
 #include "ZzzOpenglUtil.h"
+#include "ZzzTexture.h"
+#include "BatchRenderer.h"
+#include "GPUContext.h"
 
 #include <crtdbg.h>
 
@@ -216,7 +219,6 @@ BOOL CSprite::CursorInObject()
 	return PtInSprite(rInput.GetCursorX(), rInput.GetCursorY());
 }
 
-
 void CSprite::SetAction(int nStartFrame, int nEndFrame, double dDelayTime,
 						bool bRepeat)
 {
@@ -287,44 +289,45 @@ void CSprite::Render()
 	if (!m_bShow)
 		return;
 
-	if (-1 < m_nTexID)
+	float x = m_aScrCoord[LT].fX * m_fScaleX;
+	float y = (m_fScrHeight - m_aScrCoord[LT].fY) * m_fScaleY;
+	float w = (m_aScrCoord[RT].fX - m_aScrCoord[LT].fX) * m_fScaleX;
+	float h = (m_aScrCoord[LT].fY - m_aScrCoord[LB].fY) * m_fScaleY;
+
+	if (w <= 0.0f || h <= 0.0f)
+		return;
+
+	ImageInstance_t img{};
+	if (m_nTexID >= 0)
 	{
-		if (!TextureEnable) 
-		{
-			TextureEnable = true;
-			::glEnable(GL_TEXTURE_2D);
-		}
-
-		BindTexture(m_nTexID);
-
-		::glBegin(GL_TRIANGLE_FAN);
-
-		::glColor4ub(m_byRed, m_byGreen, m_byBlue, m_byAlpha);
-
-		for (int i = LT; i < POS_MAX; ++i)
-		{
-			::glTexCoord2f(m_aTexCoord[i].fTU, m_aTexCoord[i].fTV);
-			::glVertex2f(m_aScrCoord[i].fX * m_fScaleX,
-				m_aScrCoord[i].fY * m_fScaleY);
-		}
-
-		::glEnd();
+		BITMAP_t* pBitmap = Bitmaps.FindTexture(static_cast<GLuint>(m_nTexID));
+		img.Texture = (pBitmap && pBitmap->TextureNumber > 0) ? static_cast<int>(pBitmap->TextureNumber) : m_nTexID;
+		img.u = m_aTexCoord[LT].fTU;
+		img.v = m_aTexCoord[LT].fTV;
+		img.uWidth = m_aTexCoord[RT].fTU - m_aTexCoord[LT].fTU;
+		img.vHeight = m_aTexCoord[LB].fTV - m_aTexCoord[LT].fTV;
 	}
 	else
 	{
-		if (TextureEnable) 
-		{
-			TextureEnable = false;
-			::glDisable(GL_TEXTURE_2D);
-		}
-
-		::glBegin(GL_TRIANGLE_FAN);
-
-		::glColor4ub(m_byRed, m_byGreen, m_byBlue, m_byAlpha);
-		for (int i = LT; i < POS_MAX; ++i)
-			::glVertex2f(m_aScrCoord[i].fX * m_fScaleX,
-				m_aScrCoord[i].fY * m_fScaleY);
-
-		::glEnd();
+		img.Texture = -1;
+		img.u = 0.0f;
+		img.v = 0.0f;
+		img.uWidth = 1.0f;
+		img.vHeight = 1.0f;
 	}
+
+	img.x = x;
+	img.y = y;
+	img.width = w;
+	img.height = h;
+	img.color[0] = (float)m_byRed / 255.0f;
+	img.color[1] = (float)m_byGreen / 255.0f;
+	img.color[2] = (float)m_byBlue / 255.0f;
+	img.color[3] = (float)m_byAlpha / 255.0f;
+	img.rotation = 0.0f;
+	img.layer = 0;
+	img.RenderFlags = RENDER_ALPHA_BLEND_TYPE_NORMAL;
+	img.grayscale = false;
+
+	g_BatchRenderer.AddImage(img);
 }

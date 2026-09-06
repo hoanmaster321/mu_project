@@ -7,6 +7,11 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/type_ptr.hpp>
 
+typedef float vec_t;
+typedef vec_t vec2_t[2];
+typedef vec_t vec3_t[3];
+typedef vec_t vec4_t[4];
+
 // Forward declarations
 struct _Mesh_t;
 typedef struct _Mesh_t Mesh_t;
@@ -381,18 +386,18 @@ private:
 	void ClearMeshProxies();
 
 	// Shaders
-	GLuint m_TerrainProgram;
-	GLuint m_SpriteProgram;
-	GLuint m_ImageProgram;
+	uint32_t m_TerrainProgram;
+	uint32_t m_SpriteProgram;
+	uint32_t m_ImageProgram;
 
 	// GL 4.3 State
 	bool m_GL43Supported;
 
 	// Terrain Buffers
-	GLuint m_TerrainVAO;
-	GLuint m_TerrainVBO;
-	GLuint m_TerrainIBO;
-	GLuint m_TerrainUBO;
+	uint32_t m_TerrainVAO;
+	uint32_t m_TerrainVBO;
+	uint32_t m_TerrainIBO;
+	uint32_t m_TerrainUBO;
 	std::unordered_map<TerrainBatchKey, std::vector<TerrainVertex_t>> m_TerrainVerticesMap[TERRAIN_BATCH_COUNT];
 	std::unordered_map<TerrainBatchKey, std::vector<uint32_t>> m_TerrainIndicesMap[TERRAIN_BATCH_COUNT];
 
@@ -413,9 +418,9 @@ private:
 	} m_TerrainMRU;
 
 	// Sprite Buffers
-	GLuint m_SpriteVAO;
-	GLuint m_SpriteVBO;
-	GLuint m_SpriteUBO;
+	uint32_t m_SpriteVAO;
+	uint32_t m_SpriteVBO;
+	uint32_t m_SpriteUBO;
 	std::unordered_map<SpriteBatchKey, SpriteBatchGroup> m_SpriteBatch;
 	double m_LastSpritePruneTime;
 
@@ -432,9 +437,9 @@ private:
 	} m_SpriteMRU;
 
 	// Image Buffers
-	GLuint m_ImageVAO;
-	GLuint m_ImageVBO;
-	GLuint m_ImageUBO;
+	uint32_t m_ImageVAO;
+	uint32_t m_ImageVBO;
+	uint32_t m_ImageUBO;
 	std::vector<std::pair<ImageBatchKey, std::vector<GPUImageInstance>>> m_ImageBatch;
 	std::vector<ImageBatchBbox> m_ImageBatchBbox;
 	bool m_ScissorEnabled;

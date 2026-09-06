@@ -100,6 +100,7 @@ void EnableAlphaBlend3();
 void EnableAlphaBlend4();
 void BindTexture(int tex);
 void BindTextureStream(int tex);
+extern int CachTexture;
 void EndTextureStream();
 void BeginOpengl(int x=0,int y=0,int Width=640,int Height=480);
 void EndOpengl();
@@ -137,6 +138,8 @@ bool rand_fps_check(int reference_frames);
 void BDrawOutLine(int iPos_x, int iPos_y, int iWidth, int iHeight);
 void BRenderTabLine(float iPos_x, float iPos_y, float iTabWidth, float iTabHeight, int iTabNum, int iSelectNum);
 void GetDrawCircle(int ID, float X, float Y, float W, float CurrenX, float CurrenY, float SetScale, int ScaleSize, int ScalePosicion, float Alpha);
+float ConvertNoX(float x);
+float ConvertNoY(float y);
 
 void InitVSync();
 bool IsVSyncAvailable();

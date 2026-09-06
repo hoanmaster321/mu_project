@@ -14,9 +14,6 @@
 #include "DSPlaySound.h"
 #include "WSClient.h"
 #include "NewUISystem.h"
-#if defined(__ANDROID__) || defined(MU_IOS)
-#include "Platform/gl_compat.h"
-#endif
 #include <algorithm>
 #include <cstdint>
 #include <vector>
@@ -39,215 +36,6 @@ float UpdateAnimationFrame(float currentFrame, bool isVisible)
     return std::clamp(currentFrame, kSpriteFrameMin, kSpriteFrameMax);
 }
 
-#if defined(__ANDROID__) || defined(MU_IOS)
-enum class SpriteBatchBlendMode : uint8_t
-{
-    AlphaBlend,
-    AlphaBlendMinus,
-    AlphaTest,
-    AlphaBlend2,
-};
-
-struct SpriteQuadBatch
-{
-    std::vector<float> vertices;
-    int texture = -1;
-    SpriteBatchBlendMode blendMode = SpriteBatchBlendMode::AlphaBlend;
-    int quadCount = 0;
-};
-
-SpriteBatchBlendMode DetermineSpriteBlendMode(const OBJECT* o)
-{
-    if (o->Type == BITMAP_FORMATION_MARK || o->SubType == 2)
-    {
-        return SpriteBatchBlendMode::AlphaTest;
-    }
-
-    if (o->SubType == 1)
-    {
-        return SpriteBatchBlendMode::AlphaBlendMinus;
-    }
-
-    if (o->SubType == 3)
-    {
-        return SpriteBatchBlendMode::AlphaBlend2;
-    }
-
-    return SpriteBatchBlendMode::AlphaBlend;
-}
-
-void ApplySpriteBlendMode(SpriteBatchBlendMode mode)
-{
-    switch (mode)
-    {
-    case SpriteBatchBlendMode::AlphaBlend:
-        EnableAlphaBlend();
-        break;
-    case SpriteBatchBlendMode::AlphaBlendMinus:
-        EnableAlphaBlendMinus();
-        break;
-    case SpriteBatchBlendMode::AlphaTest:
-        EnableAlphaTest();
-        break;
-    case SpriteBatchBlendMode::AlphaBlend2:
-        EnableAlphaBlend2();
-        break;
-    }
-}
-
-void FlushSpriteQuadBatch(SpriteQuadBatch& batch)
-{
-    if (batch.quadCount <= 0 || batch.vertices.empty() || batch.texture < 0)
-    {
-        batch.vertices.clear();
-        batch.texture = -1;
-        batch.quadCount = 0;
-        return;
-    }
-
-    ApplySpriteBlendMode(batch.blendMode);
-    BindTexture(batch.texture);
-    GL_DrawQuadsBulk(batch.vertices.data(), batch.quadCount);
-
-    batch.vertices.clear();
-    batch.texture = -1;
-    batch.quadCount = 0;
-}
-
-void AppendSpriteBatchVertex(std::vector<float>& vertices, const vec3_t position, const float uv[2], const float color[4])
-{
-    vertices.push_back(position[0]);
-    vertices.push_back(position[1]);
-    vertices.push_back(position[2]);
-    vertices.push_back(color[0]);
-    vertices.push_back(color[1]);
-    vertices.push_back(color[2]);
-    vertices.push_back(color[3]);
-    vertices.push_back(uv[0]);
-    vertices.push_back(uv[1]);
-}
-
-void QueueSpriteQuadBatch(SpriteQuadBatch& batch, OBJECT* o)
-{
-    o->AnimationFrame = UpdateAnimationFrame(o->AnimationFrame, o->Visible);
-    float scale = o->AnimationFrame * o->Scale;
-
-    BITMAP_t* bitmap = Bitmaps.GetTexture(o->Type);
-    float width = bitmap->Width * scale;
-    float height = bitmap->Height * scale;
-
-    float u = 0.f;
-    float v = 0.f;
-    float uWidth = 1.f;
-    float vHeight = 1.f;
-    if (o->Type == BITMAP_FORMATION_MARK)
-    {
-        width = 64.f;
-        height = 64.f;
-        uWidth = 0.33f;
-        vHeight = 0.33f;
-        switch (o->SubType)
-        {
-        case 1:
-            u = 0.33f;
-            break;
-        case 2:
-            u = 0.66f;
-            break;
-        case 3:
-            v = 0.33f;
-            break;
-        case 4:
-            u = 0.33f;
-            v = 0.33f;
-            break;
-        case 5:
-            u = 0.66f;
-            v = 0.33f;
-            break;
-        case 6:
-            v = 0.66f;
-            break;
-        case 7:
-            u = 0.33f;
-            v = 0.66f;
-            break;
-        }
-    }
-
-    vec3_t transformedPosition;
-    VectorTransform(o->Position, CameraMatrix, transformedPosition);
-    float x = transformedPosition[0];
-    float y = transformedPosition[1];
-    float z = transformedPosition[2];
-    width *= 0.5f;
-    height *= 0.5f;
-
-    vec3_t positions[4];
-    if (o->Angle[2] == 0.f)
-    {
-        Vector(x - width, y - height, z, positions[0]);
-        Vector(x + width, y - height, z, positions[1]);
-        Vector(x + width, y + height, z, positions[2]);
-        Vector(x - width, y + height, z, positions[3]);
-    }
-    else
-    {
-        vec3_t localPositions[4];
-        Vector(-width, -height, z, localPositions[0]);
-        Vector(width, -height, z, localPositions[1]);
-        Vector(width, height, z, localPositions[2]);
-        Vector(-width, height, z, localPositions[3]);
-
-        vec3_t rotationAngle;
-        Vector(0.f, 0.f, o->Angle[2], rotationAngle);
-        float rotationMatrix[3][4];
-        AngleMatrix(rotationAngle, rotationMatrix);
-        for (int i = 0; i < 4; ++i)
-        {
-            VectorRotate(localPositions[i], rotationMatrix, positions[i]);
-            positions[i][0] += x;
-            positions[i][1] += y;
-        }
-    }
-
-    float texCoords[4][2];
-    TEXCOORD(texCoords[3], u, v);
-    TEXCOORD(texCoords[2], u + uWidth, v);
-    TEXCOORD(texCoords[1], u + uWidth, v + vHeight);
-    TEXCOORD(texCoords[0], u, v + vHeight);
-
-    float color[4] = { o->Light[0], o->Light[1], o->Light[2], 1.f };
-
-    if (o->Type == BITMAP_BLOOD + 1 || o->Type == BITMAP_FONT_HIT)
-    {
-        color[3] = 1.f;
-    }
-    else if (o->SubType == 0)
-    {
-        color[3] = o->Light[0];
-    }
-
-    const SpriteBatchBlendMode blendMode = DetermineSpriteBlendMode(o);
-    if (batch.quadCount > 0 && (batch.texture != o->Type || batch.blendMode != blendMode))
-    {
-        FlushSpriteQuadBatch(batch);
-    }
-
-    if (batch.vertices.empty())
-    {
-        batch.vertices.reserve(4096);
-    }
-
-    batch.texture = o->Type;
-    batch.blendMode = blendMode;
-    for (int i = 0; i < 4; ++i)
-    {
-        AppendSpriteBatchVertex(batch.vertices, positions[i], texCoords[i], color);
-    }
-    ++batch.quadCount;
-}
-#endif
 }
 
 OBJECT	Sprites   [MAX_SPRITES];
@@ -368,11 +156,6 @@ void RenderSprite(OBJECT *o,OBJECT *Owner)
 
 void RenderSprites ( BYTE byRenderOneMore )
 {
-#if defined(__ANDROID__) || defined(MU_IOS)
-    SpriteQuadBatch spriteBatch;
-    spriteBatch.vertices.reserve(4096);
-    const bool restoreDepthTest = DepthTestEnable;
-#endif
 	for(int i=0;i<MAX_SPRITES;i++)
 	{
 		OBJECT *o = &Sprites[i];
@@ -394,9 +177,6 @@ void RenderSprites ( BYTE byRenderOneMore )
 
 		if(o->Live)
 		{
-#if defined(__ANDROID__) || defined(MU_IOS)
-            QueueSpriteQuadBatch(spriteBatch, o);
-#else
             if( o->Type == BITMAP_FORMATION_MARK )
             {
                 EnableAlphaTest ();
@@ -418,7 +198,6 @@ void RenderSprites ( BYTE byRenderOneMore )
                 EnableAlphaBlend2();
 			}
     		RenderSprite(o,o->Owner);
-#endif
 
             if( byRenderOneMore == 0 || byRenderOneMore == 2 )
             {
@@ -426,18 +205,6 @@ void RenderSprites ( BYTE byRenderOneMore )
             }
 		}
 	}
-#if defined(__ANDROID__) || defined(MU_IOS)
-    FlushSpriteQuadBatch(spriteBatch);
-    DisableAlphaBlend();
-    if (restoreDepthTest)
-    {
-        EnableDepthTest();
-    }
-    else
-    {
-        DisableDepthTest();
-    }
-#endif
 }
 
 void CheckSprites()

@@ -33,6 +33,8 @@ void CErrorReport::WriteCurrentTime(BOOL) {}
 #include <imagehlp.h>
 #include "ErrorReport.h"
 
+CErrorReport g_ErrorReport;
+
 void DeleteSocket();
 
 #define XOR_KEY_SIZE	(16)
@@ -262,15 +264,8 @@ void CErrorReport::WriteSystemInfo( ER_SystemInfo *si)
 
 void CErrorReport::WriteOpenGLInfo( void)
 {
-	Write( "<OpenGL information>\r\n");
-	Write( "Vendor\t\t: %s\r\n", ( char*)glGetString( GL_VENDOR));
-	Write( "Render\t\t: %s\r\n", ( char*)glGetString( GL_RENDERER));
-	Write( "OpenGL version\t: %s\r\n", ( char*)glGetString( GL_VERSION));
-	GLint iResult[2];
-	glGetIntegerv( GL_MAX_TEXTURE_SIZE, iResult);
-	Write( "Max Texture size\t: %d x %d\r\n", iResult[0], iResult[0]);
-	glGetIntegerv( GL_MAX_VIEWPORT_DIMS, iResult);
-	Write( "Max Viewport size\t: %d x %d\r\n", iResult[0], iResult[1]);
+	Write( "<Graphics information>\r\n");
+	Write( "API\t\t: Vulkan\r\n");
 }
 
 void CErrorReport::WriteImeInfo( HWND hWnd)

@@ -542,148 +542,12 @@ namespace
 }
 #endif
 
-GLuint LoadShaderProgramFromFiles(const char* vertexPath, const char* fragmentPath)
-{
-	auto LoadShaderSource = [](const char* path) -> std::string {
-		std::ifstream file(path);
-		if (!file.is_open())
-		{
-			ErrorMessageBox("Failed to open shader: %s", path);
-			std::cerr << "Failed to open shader: " << path << std::endl;
-
-			return "";
-		}
-		std::stringstream buffer;
-		buffer << file.rdbuf();
-		return buffer.str();
-		};
-
-	std::string vertCode = LoadShaderSource(vertexPath);
-	const char* vertSrc = vertCode.c_str();
-	GLuint vertShader = glCreateShader(GL_VERTEX_SHADER);
-	glShaderSource(vertShader, 1, &vertSrc, nullptr);
-	glCompileShader(vertShader);
-
-	GLint success;
-	glGetShaderiv(vertShader, GL_COMPILE_STATUS, &success);
-	if (!success) {
-		char log[512];
-		glGetShaderInfoLog(vertShader, 512, nullptr, log);
-		ErrorMessageBox("Vertex shader error [ %s ] %s", vertexPath, log);
-		std::cerr << "Vertex shader error [" << vertexPath << "]: " << log << std::endl;
-	}
-
-	std::string fragCode = LoadShaderSource(fragmentPath);
-	const char* fragSrc = fragCode.c_str();
-	GLuint fragShader = glCreateShader(GL_FRAGMENT_SHADER);
-	glShaderSource(fragShader, 1, &fragSrc, nullptr);
-	glCompileShader(fragShader);
-
-	glGetShaderiv(fragShader, GL_COMPILE_STATUS, &success);
-	if (!success) {
-		char log[512];
-		glGetShaderInfoLog(fragShader, 512, nullptr, log);
-		ErrorMessageBox("Fragment shader error [ %s ] %s", fragmentPath, log);
-		std::cerr << "Fragment shader error [" << fragmentPath << "]: " << log << std::endl;
-	}
-
-	GLuint program = glCreateProgram();
-	glAttachShader(program, vertShader);
-	glAttachShader(program, fragShader);
-	glLinkProgram(program);
-
-	glGetProgramiv(program, GL_LINK_STATUS, &success);
-	if (!success) {
-		char log[512];
-		glGetProgramInfoLog(program, 512, nullptr, log);
-		ErrorMessageBox("Program link error %s", log);
-		std::cerr << "Program link error: " << log << std::endl;
-	}
-
-	glDeleteShader(vertShader);
-	glDeleteShader(fragShader);
-
-	return program;
-}
-int CountLoad = 0;
-GLuint LoadShaderProgramFromSource(const char* vertexSource, const char* fragmentSource, const char* debugName = NULL)
-{
-	// Compile vertex shader
-	GLuint vertShader = glCreateShader(GL_VERTEX_SHADER);
-	glShaderSource(vertShader, 1, &vertexSource, nullptr);
-	glCompileShader(vertShader);
-
-	GLint success;
-	glGetShaderiv(vertShader, GL_COMPILE_STATUS, &success);
-	if (!success) {
-		char log[4096];
-		GLsizei logLength = 0;
-		glGetShaderInfoLog(vertShader, sizeof(log), &logLength, log);
-		ErrorMessageBox("(%d) Vertex shader error %s", CountLoad, log);
-		std::cerr << "Vertex shader error: " << log << std::endl;
-	}
-
-	// Compile fragment shader
-	GLuint fragShader = glCreateShader(GL_FRAGMENT_SHADER);
-	glShaderSource(fragShader, 1, &fragmentSource, nullptr);
-	glCompileShader(fragShader);
-
-	glGetShaderiv(fragShader, GL_COMPILE_STATUS, &success);
-	if (!success) {
-		char log[4096];
-		GLsizei logLength = 0;
-		glGetShaderInfoLog(fragShader, sizeof(log), &logLength, log);
-		ErrorMessageBox("Fragment shader error %s", log);
-		std::cerr << "Fragment shader error: " << log << std::endl;
-	}
-
-	// Link program
-	GLuint program = glCreateProgram();
-	glAttachShader(program, vertShader);
-	glAttachShader(program, fragShader);
-	glLinkProgram(program);
-
-	glGetProgramiv(program, GL_LINK_STATUS, &success);
-	if (!success) {
-		char log[4096];
-		GLsizei logLength = 0;
-		glGetProgramInfoLog(program, sizeof(log), &logLength, log);
-		ErrorMessageBox("Program link error %s", log);
-		std::cerr << "Program link error: " << log << std::endl;
-	}
-
-	// Cleanup
-	glDeleteShader(vertShader);
-	glDeleteShader(fragShader);
-
-	return program;
-}
-
-GLuint LoadShaderProgramFromSource(const char* vertexSource, const char* fragmentSource)
-{
-	return LoadShaderProgramFromSource(vertexSource, fragmentSource, NULL);
-}
-
 void OGL330MODEL::Init()
 {
 	int count = sizeof(shaderSources) / sizeof(ShaderSource);
 	for (int i = 0; i < count; ++i)
 	{
-		CountLoad = i;
-		char vsPath[128], fsPath[128];
-		snprintf(vsPath, sizeof(vsPath), "Shaders\\%s.vert.glsl", shaderSources[i].name);
-		snprintf(fsPath, sizeof(fsPath), "Shaders\\%s.frag.glsl", shaderSources[i].name);
-		
-		std::ifstream testFile(vsPath);
-		if (testFile.is_open())
-		{
-			testFile.close();
-			shaderProgramMap[i] = LoadShaderProgramFromFiles(vsPath, fsPath);
-		}
-		else
-		{
-			shaderProgramMap[i] = LoadShaderProgramFromSource(shaderSources[i].vs, shaderSources[i].fs, shaderSources[i].name);
-		}
+		shaderProgramMap[i] = i + 1;
 	}
 }
 
@@ -711,19 +575,12 @@ void OGL330MODEL::ConvertOldMeshToVaoMesh(GLuint iModel, bool DelMesh)
 
 void OGL330MODEL::UseShader(GLuint shaderID)
 {
-
-	if (g_CurrentShaderID != shaderID)
-	{
-		glUseProgram(shaderID);
-		g_CurrentShaderID = shaderID;
-
-	}
+	g_CurrentShaderID = shaderID;
 }
 
 void OGL330MODEL::UnUseShader()
 {
-	glUseProgram(0);
-	g_CurrentShaderID = -1;
+	g_CurrentShaderID = 0;
 }
 
 void OGL330MODEL::SetTargetRender(OBJECT* pObj)
@@ -754,58 +611,13 @@ void OGL330MODEL::SetTargetRender(OBJECT* pObj)
 		GMMeshShader->Lock(false);
 	}
 }
-// Khai báo global hoặc static
-static UniformLocationCache uniformCache;
 
 void OGL330MODEL::SendUniform(GLuint shaderID,
 	const mvec4& bodyLight, const mvec4& lightPosition,
 	const mvec4& meshUV, const mvec4& setting1,
 	const mvec4& setting2, const bool enableLight)
 {
-	float ProjMatrix[16];
-	GetActiveProjectionMatrix(ProjMatrix);
-	float ViewMatrix[16];
-	GetActiveViewMatrix(ViewMatrix);
-
-	GLint loc;
-	if ((loc = uniformCache.GetLocation(shaderID, "uProj")) != -1)
-		glUniformMatrix4fv(loc, 1, GL_FALSE, ProjMatrix);
-	if ((loc = uniformCache.GetLocation(shaderID, "uView")) != -1)
-		glUniformMatrix4fv(loc, 1, GL_FALSE, ViewMatrix);
-	if ((loc = uniformCache.GetLocation(shaderID, "u_bodyLight")) != -1)
-		glUniform4f(loc, bodyLight.x, bodyLight.y, bodyLight.z, bodyLight.w);
-	if ((loc = uniformCache.GetLocation(shaderID, "u_lightPosition")) != -1)
-		glUniform4f(loc, lightPosition.x, lightPosition.y, lightPosition.z, lightPosition.w);
-	if ((loc = uniformCache.GetLocation(shaderID, "u_meshUV")) != -1)
-		glUniform4f(loc, meshUV.x, meshUV.y, meshUV.z, meshUV.w);
-	if ((loc = uniformCache.GetLocation(shaderID, "u_setting1")) != -1)
-		glUniform4f(loc, setting1.x, setting1.y, setting1.z, setting1.w);
-	if ((loc = uniformCache.GetLocation(shaderID, "u_setting2")) != -1)
-		glUniform4f(loc, setting2.x, setting2.y, setting2.z, setting2.w);
-	if ((loc = uniformCache.GetLocation(shaderID, "u_enableLight")) != -1)
-		glUniform1i(loc, enableLight ? 1 : 0);
-	if ((loc = uniformCache.GetLocation(shaderID, "uTexture")) != -1)
-		glUniform1i(loc, 0);
 }
-
-//void OGL330MODEL::SendUniform(GLuint shaderID, const mvec4& bodyLight, const mvec4& lightPosition, const mvec4& meshUV, const mvec4& setting1, const mvec4& setting2, const bool enableLight)
-//{
-//	float ProjMatrix[16];
-//	glGetFloatv(GL_PROJECTION_MATRIX, ProjMatrix);
-//	float ViewMatrix[16];
-//	glGetFloatv(GL_MODELVIEW_MATRIX, ViewMatrix);
-//
-//	GLint loc;
-//	if ((loc = glGetUniformLocation(shaderID, "uProj")) != -1) glUniformMatrix4fv(loc, 1, GL_FALSE, ProjMatrix);
-//	if ((loc = glGetUniformLocation(shaderID, "uView")) != -1) glUniformMatrix4fv(loc, 1, GL_FALSE, ViewMatrix);
-//	if ((loc = glGetUniformLocation(shaderID, "u_bodyLight")) != -1) glUniform4f(loc, bodyLight.x, bodyLight.y, bodyLight.z, bodyLight.w);
-//	if ((loc = glGetUniformLocation(shaderID, "u_lightPosition")) != -1) glUniform4f(loc, lightPosition.x, lightPosition.y, lightPosition.z, lightPosition.w);
-//	if ((loc = glGetUniformLocation(shaderID, "u_meshUV")) != -1) glUniform4f(loc, meshUV.x, meshUV.y, meshUV.z, meshUV.w);
-//	if ((loc = glGetUniformLocation(shaderID, "u_setting1")) != -1) glUniform4f(loc, setting1.x, setting1.y, setting1.z, setting1.w);
-//	if ((loc = glGetUniformLocation(shaderID, "u_setting2")) != -1) glUniform4f(loc, setting2.x, setting2.y, setting2.z, setting2.w);
-//	if ((loc = glGetUniformLocation(shaderID, "u_enableLight")) != -1) glUniform1i(loc, enableLight ? 1 : 0);
-//	if ((loc = glGetUniformLocation(shaderID, "uTexture")) != -1) glUniform1i(loc, 0);
-//}
 
 using namespace OGL330MODEL;
 

@@ -13,6 +13,7 @@
 #include "ZzzEffect.h"
 #include "DSPlaySound.h"
 #include "WSClient.h"
+#include "BatchRenderer.h"
 
 #define MAX_BLURS      100
 #define MAX_BLUR_TAILS 30
@@ -150,29 +151,44 @@ void RenderBlurs()
             if( Type>2 ) Type = Type - 3;
 			if(b->Number >= 2)
 			{
-				BindTexture(nTexture);
 				for(int j=0;j<b->Number-1;j++)
 				{
-      				glBegin(GL_TRIANGLE_FAN);
 					float Light;
 					float TexU;
 					if(b->Owner->Level == 0)
 						Light = (b->Number-j)/(float)b->Number;
 					else
 						Light = 1.f;
-					glColor3f(b->Light[0]*Light,b->Light[1]*Light,b->Light[2]*Light);
 					TexU = (j)/(float)b->Number;
-					glTexCoord2f(TexU,1.f);glVertex3fv(b->p1[j]);
-					glTexCoord2f(TexU,0.f);glVertex3fv(b->p2[j]);
+					float LightNext;
+					float TexUNext;
 					if(b->Owner->Level == 0)
-      					Light = (b->Number-(j+1))/(float)b->Number;
+						LightNext = (b->Number-(j+1))/(float)b->Number;
 					else
-						Light = 1.f;
-					glColor3f(b->Light[0]*Light,b->Light[1]*Light,b->Light[2]*Light);
-					TexU = (j+1)/(float)b->Number;
-					glTexCoord2f(TexU,0.f);glVertex3fv(b->p2[j+1]);
-					glTexCoord2f(TexU,1.f);glVertex3fv(b->p1[j+1]);
-    				glEnd();
+						LightNext = 1.f;
+					TexUNext = (j+1)/(float)b->Number;
+
+					vec3_t qverts[4];
+					vec3_t quvs[4];
+					vec4_t qcolors[4];
+
+					VectorCopy(b->p1[j], qverts[0]);
+					Vector(TexU, 1.f, 0.f, quvs[0]);
+					Vector4(b->Light[0]*Light, b->Light[1]*Light, b->Light[2]*Light, 1.f, qcolors[0]);
+
+					VectorCopy(b->p2[j], qverts[1]);
+					Vector(TexU, 0.f, 0.f, quvs[1]);
+					Vector4(b->Light[0]*Light, b->Light[1]*Light, b->Light[2]*Light, 1.f, qcolors[1]);
+
+					VectorCopy(b->p2[j+1], qverts[2]);
+					Vector(TexUNext, 0.f, 0.f, quvs[2]);
+					Vector4(b->Light[0]*LightNext, b->Light[1]*LightNext, b->Light[2]*LightNext, 1.f, qcolors[2]);
+
+					VectorCopy(b->p1[j+1], qverts[3]);
+					Vector(TexUNext, 1.f, 0.f, quvs[3]);
+					Vector4(b->Light[0]*LightNext, b->Light[1]*LightNext, b->Light[2]*LightNext, 1.f, qcolors[3]);
+
+					g_BatchRenderer.AddTerrainCustomQuad(TERRAIN_BATCH_BLEND, nTexture, 0, qverts, quvs, qcolors);
 				}
 			}
 		}
@@ -318,7 +334,6 @@ void RenderObjectBlurs()
             if( Type>2 ) Type = Type - 3;
 			if(b->Number >= 2)
 			{
-				BindTexture(nTexture);
 				for(int j=0;j<b->Number-1;j++)
 				{
 					float Data = 300.f;
@@ -329,20 +344,32 @@ void RenderObjectBlurs()
 						continue;
 					}
 
-      				glBegin(GL_TRIANGLE_FAN);
-					float Light;
-					float TexU;
-					Light = (b->Number-j)/(float)b->Number;
-					glColor3f(b->Light[0]*Light,b->Light[1]*Light,b->Light[2]*Light);
-					TexU = (j)/(float)b->Number;
-					glTexCoord2f(TexU,1.f);glVertex3fv(b->p1[j]);
-					glTexCoord2f(TexU,0.f);glVertex3fv(b->p2[j]);
-      				Light = (b->Number-(j+1))/(float)b->Number;
-					glColor3f(b->Light[0]*Light,b->Light[1]*Light,b->Light[2]*Light);
-					TexU = (j+1)/(float)b->Number;
-					glTexCoord2f(TexU,0.f);glVertex3fv(b->p2[j+1]);
-					glTexCoord2f(TexU,1.f);glVertex3fv(b->p1[j+1]);
-    				glEnd();
+					float Light = (b->Number-j)/(float)b->Number;
+					float TexU = (j)/(float)b->Number;
+					float LightNext = (b->Number-(j+1))/(float)b->Number;
+					float TexUNext = (j+1)/(float)b->Number;
+
+					vec3_t qverts[4];
+					vec3_t quvs[4];
+					vec4_t qcolors[4];
+
+					VectorCopy(b->p1[j], qverts[0]);
+					Vector(TexU, 1.f, 0.f, quvs[0]);
+					Vector4(b->Light[0]*Light, b->Light[1]*Light, b->Light[2]*Light, 1.f, qcolors[0]);
+
+					VectorCopy(b->p2[j], qverts[1]);
+					Vector(TexU, 0.f, 0.f, quvs[1]);
+					Vector4(b->Light[0]*Light, b->Light[1]*Light, b->Light[2]*Light, 1.f, qcolors[1]);
+
+					VectorCopy(b->p2[j+1], qverts[2]);
+					Vector(TexUNext, 0.f, 0.f, quvs[2]);
+					Vector4(b->Light[0]*LightNext, b->Light[1]*LightNext, b->Light[2]*LightNext, 1.f, qcolors[2]);
+
+					VectorCopy(b->p1[j+1], qverts[3]);
+					Vector(TexUNext, 1.f, 0.f, quvs[3]);
+					Vector4(b->Light[0]*LightNext, b->Light[1]*LightNext, b->Light[2]*LightNext, 1.f, qcolors[3]);
+
+					g_BatchRenderer.AddTerrainCustomQuad(TERRAIN_BATCH_BLEND, nTexture, 0, qverts, quvs, qcolors);
 				}
 			}
 		}
@@ -603,37 +630,36 @@ void RenderFlagFace(OBJECT *o,int x,int y,vec3_t Light,int Tex1,int Tex2)
 		v->light = (-v->normal[0]+v->normal[1])*0.5f+0.5f;
 	}
 
-	BindTexture(Tex2);
-	glBegin(GL_QUADS);
+	vec3_t qverts[4];
+	vec3_t quvs[4];
+	vec4_t qcolors[4];
 
 	for(int i=0;i<n;i++)
 	{
 		int vlist = f->vlist[i];
      	physics_vertex *v = &flag_vertex[vlist];
-		glTexCoord2f(TexCoord[i][0],TexCoord[i][1]);
-		glColor3f(Light[0]*v->light,Light[1]*v->light,Light[2]*v->light);
+		Vector(TexCoord[i][0], TexCoord[i][1], 0.f, quvs[i]);
+		Vector4(Light[0]*v->light, Light[1]*v->light, Light[2]*v->light, 1.f, qcolors[i]);
 		vec3_t p,Position;
 		Vector(v->p[0]+9.f,v->p[1]-12.f,v->p[2]-35.f,p);
 		Models[o->Type].TransformPosition(o->BoneTransform[19],p,Position,true);
-		glVertex3f(Position[0],Position[1],Position[2]);
+		VectorCopy(Position, qverts[i]);
 	}
-	glEnd();
+	g_BatchRenderer.AddTerrainCustomQuad(TERRAIN_BATCH_BLEND, Tex2, 0, qverts, quvs, qcolors);
 
-	BindTexture(Tex1);
-	glBegin(GL_QUADS);
-
-	for(int i=n-1;i>=0;i--)
+	for(int i=0;i<n;i++)
 	{
-		int vlist = f->vlist[i];
+		int srcIdx = n - 1 - i;
+		int vlist = f->vlist[srcIdx];
      	physics_vertex *v = &flag_vertex[vlist];
-		glTexCoord2f(TexCoord[i][0],TexCoord[i][1]);
-		glColor3f(Light[0]*v->light,Light[1]*v->light,Light[2]*v->light);
+		Vector(TexCoord[srcIdx][0], TexCoord[srcIdx][1], 0.f, quvs[i]);
+		Vector4(Light[0]*v->light, Light[1]*v->light, Light[2]*v->light, 1.f, qcolors[i]);
 		vec3_t p,Position;
 		Vector(v->p[0]+9.f,v->p[1]-12.f,v->p[2]-35.f,p);
 		Models[o->Type].TransformPosition(o->BoneTransform[19],p,Position,true);
-		glVertex3f(Position[0],Position[1],Position[2]);
+		VectorCopy(Position, qverts[i]);
 	}
-	glEnd();
+	g_BatchRenderer.AddTerrainCustomQuad(TERRAIN_BATCH_BLEND, Tex1, 0, qverts, quvs, qcolors);
 }
 
 void RenderFlag(OBJECT *o,vec3_t Light,int Tex1,int Tex2)

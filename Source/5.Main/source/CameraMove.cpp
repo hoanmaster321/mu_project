@@ -383,38 +383,6 @@ DWORD CCameraMove::GetCameraWalkState() const
 
 void CCameraMove::RenderWayPoint()
 {
-	glDisable(GL_DEPTH_TEST);
-	glDisable(GL_ALPHA_TEST);
-	glDisable(GL_TEXTURE_2D);
-	
-	glBegin(GL_QUADS);
-	glColor4f(1.0f,0.0f,0.0f,0.8f);
-	t_WayPointList::iterator iter = m_listWayPoint.begin();
-	for(; iter != m_listWayPoint.end(); iter++) {
-		WAYPOINT* pWayPoint = (*iter);
-		glNormal3f(0.0f, 0.0f, 1.0f);
-		glVertex3f(pWayPoint->fCameraX+50-10, pWayPoint->fCameraY+50-10, pWayPoint->fCameraZ);
-		glVertex3f(pWayPoint->fCameraX+50+10, pWayPoint->fCameraY+50-10, pWayPoint->fCameraZ);
-		glVertex3f(pWayPoint->fCameraX+50+10, pWayPoint->fCameraY+50+10, pWayPoint->fCameraZ);
-		glVertex3f(pWayPoint->fCameraX+50-10, pWayPoint->fCameraY+50+10, pWayPoint->fCameraZ);
-	}
-	glEnd();
-
-	glBegin(GL_LINE_STRIP);
-
-	glColor4f(1.0f,1.0f,1.0f,0.5f);
-	iter = m_listWayPoint.begin();
-	for(; iter != m_listWayPoint.end(); iter++) {
-		WAYPOINT* pWayPoint = (*iter);
-		glVertex3f(pWayPoint->fCameraX+50, pWayPoint->fCameraY+50, pWayPoint->fCameraZ);
-	}
-
-	glEnd();
-
-
-	glEnable(GL_DEPTH_TEST);
-	glEnable(GL_ALPHA_TEST);
-	glEnable(GL_TEXTURE_2D);
 }
 void CCameraMove::SetSelectedTile(int iTileIndex)
 {

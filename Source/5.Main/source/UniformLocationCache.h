@@ -1,21 +1,14 @@
-﻿#pragma once
+#pragma once
 #include <unordered_map>
 #include <string>
-#include "VulkanGLStub.h"
+#include "RenderState.h"
 
 // Cache location cua uniform theo shaderID + ten
 class UniformLocationCache {
 public:
     // Lay location, neu chua co thi goi glGetUniformLocation va cache lai
     GLint GetLocation(GLuint shaderID, const std::string& name) {
-        auto key = MakeKey(shaderID, name);
-        auto it = cache.find(key);
-        if (it != cache.end()) {
-            return it->second;
-        }
-        GLint loc = glGetUniformLocation(shaderID, name.c_str());
-        cache[key] = loc;
-        return loc;
+        return -1;
     }
 
     // Xoa cache khi can (vi du khi reload shader)

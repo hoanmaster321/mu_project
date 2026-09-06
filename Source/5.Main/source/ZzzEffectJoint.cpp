@@ -15,16 +15,13 @@
 #include "WSClient.h"
 #include "CSPetSystem.h"
 #include "GMBattleCastle.h"
-#if defined(__ANDROID__) || defined(MU_IOS)
-#include "Platform/gl_compat.h"
-#endif
+#include "BatchRenderer.h"
 #include <algorithm>
 #include <cstdint>
 #include <vector>
 
 extern float g_fBoneSave[10][3][4];
 
-#if defined(__ANDROID__) || defined(MU_IOS)
 namespace
 {
 struct JointQuadBatch
@@ -68,7 +65,7 @@ void QueueJointQuad(JointQuadBatch& batch,
     ++batch.quadCount;
 }
 
-void FlushJointQuadBatch(JointQuadBatch& batch, int texture)
+void FlushJointQuadBatch(JointQuadBatch& batch, int texture, int batchType = TERRAIN_BATCH_BLEND)
 {
     if (batch.quadCount <= 0 || batch.vertices.empty())
     {
@@ -77,8 +74,28 @@ void FlushJointQuadBatch(JointQuadBatch& batch, int texture)
         return;
     }
 
-    BindTexture(texture);
-    GL_DrawQuadsBulk(batch.vertices.data(), batch.quadCount);
+    const float* vData = batch.vertices.data();
+    for (int q = 0; q < batch.quadCount; ++q)
+    {
+        vec3_t verts[4];
+        vec3_t uvs[4];
+        vec4_t colors[4];
+        for (int i = 0; i < 4; ++i)
+        {
+            const float* v = vData + (q * 4 + i) * 9;
+            verts[i][0] = v[0];
+            verts[i][1] = v[1];
+            verts[i][2] = v[2];
+            colors[i][0] = v[3];
+            colors[i][1] = v[4];
+            colors[i][2] = v[5];
+            colors[i][3] = v[6];
+            uvs[i][0] = v[7];
+            uvs[i][1] = v[8];
+            uvs[i][2] = 0.0f;
+        }
+        g_BatchRenderer.AddTerrainCustomQuad(batchType, texture, 0, verts, uvs, colors);
+    }
     batch.vertices.clear();
     batch.quadCount = 0;
 }
@@ -115,7 +132,6 @@ void GetJointQuadColor(const JOINT* o, int tailIndex, float outColor[4])
     }
 }
 }
-#endif
 
 inline SpinLock* g_CreateJoint_lock = new SpinLock();
 void CreateJoint(int Type, vec3_t Position, vec3_t TargetPosition, vec3_t Angle, int SubType, OBJECT* Target, float Scale, short PKKey,
@@ -7121,29 +7137,8 @@ void RenderJoints(BYTE bRenderOneMore)
                 glColor3fv(o->Light);
             }
 
-#if defined(__ANDROID__) || defined(MU_IOS)
-            const bool useJointQuadBatch =
-                (o->Type == BITMAP_JOINT_THUNDER ||
-                    o->Type == BITMAP_JOINT_THUNDER + 1 ||
-                    o->TexType == BITMAP_INFERNO ||
-                    (o->Type == BITMAP_JOINT_FORCE && (o->SubType == 0 || o->SubType == 1)));
             JointQuadBatch jointBatch;
-            if (useJointQuadBatch)
-            {
-                jointBatch.vertices.reserve(static_cast<size_t>(o->NumTails) * 72u);
-            }
-#else
-            const bool useJointQuadBatch = false;
-#endif
-
-#if !defined(__ANDROID__) && !defined(MU_IOS)
-            BindTexture(o->TexType);
-#else
-            if (!useJointQuadBatch)
-            {
-                BindTexture(o->TexType);
-            }
-#endif
+            jointBatch.vertices.reserve(static_cast<size_t>(o->NumTails) * 72u);
 
             for (int j = 0; j < (int)o->NumTails; j++)
             {
@@ -7160,13 +7155,8 @@ void RenderJoints(BYTE bRenderOneMore)
                 auto currentTail = o->Tails[j];
                 auto nextTail = o->Tails[j + 1];
 
-#if defined(__ANDROID__) || defined(MU_IOS)
                 float jointColor[4] = { 1.f, 1.f, 1.f, 1.f };
-                if (useJointQuadBatch)
-                {
-                    GetJointQuadColor(o, j, jointColor);
-                }
-#endif
+                GetJointQuadColor(o, j, jointColor);
 
                 float Light1, Light2;
                 if (o->bTileMapping)
@@ -7216,35 +7206,21 @@ void RenderJoints(BYTE bRenderOneMore)
                     Luminosity *= powf(o->Light[0], FPS_ANIMATION_FACTOR);
                     glColor3f(Luminosity, Luminosity, Luminosity);
 
-#if defined(__ANDROID__) || defined(MU_IOS)
-                    if (useJointQuadBatch)
-                    {
-                        QueueJointQuad(
-                            jointBatch,
-                            currentTail[0],
-                            currentTail[1],
-                            nextTail[1],
-                            nextTail[0],
-                            Light1,
-                            0.f,
-                            Light1,
-                            1.f,
-                            Light2,
-                            1.f,
-                            Light2,
-                            0.f,
-                            jointColor);
-                    }
-                    else
-#endif
-                    {
-                        glBegin(GL_QUADS);
-                        glTexCoord2f(Light1, 0.f); glVertex3fv(currentTail[0]);
-                        glTexCoord2f(Light1, 1.f); glVertex3fv(currentTail[1]);
-                        glTexCoord2f(Light2, 1.f); glVertex3fv(nextTail[1]);
-                        glTexCoord2f(Light2, 0.f); glVertex3fv(nextTail[0]);
-                        glEnd();
-                    }
+                    QueueJointQuad(
+                        jointBatch,
+                        currentTail[0],
+                        currentTail[1],
+                        nextTail[1],
+                        nextTail[0],
+                        Light1,
+                        0.f,
+                        Light1,
+                        1.f,
+                        Light2,
+                        1.f,
+                        Light2,
+                        0.f,
+                        jointColor);
                 }
                 else
                 {
@@ -7385,22 +7361,19 @@ void RenderJoints(BYTE bRenderOneMore)
                     {
                         vec3_t t_bias;
                         VectorSubtract(o->Target->Position, o->StartPosition, t_bias);
-                        glMatrixMode(GL_MODELVIEW);
-                        glPushMatrix();
-                        glTranslatef(t_bias[0], t_bias[1], t_bias[2]);
 
-                        glBegin(GL_QUADS);
-                        glTexCoord2f(Light1, 1.f); glVertex3fv(currentTail[2]);
-                        glTexCoord2f(Light1, 0.f); glVertex3fv(currentTail[3]);
-                        glTexCoord2f(Light2, 0.f); glVertex3fv(o->Tails[j + 1][3]);
-                        glTexCoord2f(Light2, 1.f); glVertex3fv(o->Tails[j + 1][2]);
-                        glTexCoord2f(Light1, 0.f); glVertex3fv(currentTail[0]);
-                        glTexCoord2f(Light1, 1.f); glVertex3fv(currentTail[1]);
-                        glTexCoord2f(Light2, 1.f); glVertex3fv(o->Tails[j + 1][1]);
-                        glTexCoord2f(Light2, 0.f); glVertex3fv(o->Tails[j + 1][0]);
-                        glEnd();
+                        vec3_t p0, p1, p2, p3;
+                        VectorAdd(currentTail[2], t_bias, p0);
+                        VectorAdd(currentTail[3], t_bias, p1);
+                        VectorAdd(o->Tails[j + 1][3], t_bias, p2);
+                        VectorAdd(o->Tails[j + 1][2], t_bias, p3);
+                        QueueJointQuad(jointBatch, p0, p1, p2, p3, Light1, 1.f, Light1, 0.f, Light2, 0.f, Light2, 1.f, jointColor);
 
-                        glPopMatrix();
+                        VectorAdd(currentTail[0], t_bias, p0);
+                        VectorAdd(currentTail[1], t_bias, p1);
+                        VectorAdd(o->Tails[j + 1][1], t_bias, p2);
+                        VectorAdd(o->Tails[j + 1][0], t_bias, p3);
+                        QueueJointQuad(jointBatch, p0, p1, p2, p3, Light1, 0.f, Light1, 1.f, Light2, 1.f, Light2, 0.f, jointColor);
                         continue;
                     }
 #endif
@@ -7422,35 +7395,21 @@ void RenderJoints(BYTE bRenderOneMore)
 
                     if ((o->RenderFace & RENDER_FACE_ONE) == RENDER_FACE_ONE)
                     {
-#if defined(__ANDROID__) || defined(MU_IOS)
-                        if (useJointQuadBatch)
-                        {
-                            QueueJointQuad(
-                                jointBatch,
-                                currentTail[2],
-                                currentTail[3],
-                                nextTail[3],
-                                nextTail[2],
-                                L1,
-                                V2,
-                                L1,
-                                V1,
-                                L2,
-                                V1,
-                                L2,
-                                V2,
-                                jointColor);
-                        }
-                        else
-#endif
-                        {
-                            glBegin(GL_QUADS);
-                            glTexCoord2f(L1, V2); glVertex3fv(currentTail[2]);
-                            glTexCoord2f(L1, V1); glVertex3fv(currentTail[3]);
-                            glTexCoord2f(L2, V1); glVertex3fv(nextTail[3]);
-                            glTexCoord2f(L2, V2); glVertex3fv(nextTail[2]);
-                            glEnd();
-                        }
+                        QueueJointQuad(
+                            jointBatch,
+                            currentTail[2],
+                            currentTail[3],
+                            nextTail[3],
+                            nextTail[2],
+                            L1,
+                            V2,
+                            L1,
+                            V1,
+                            L2,
+                            V1,
+                            L2,
+                            V2,
+                            jointColor);
                     }
 
                     if ((o->RenderFace & RENDER_FACE_TWO) == RENDER_FACE_TWO)
@@ -7460,45 +7419,27 @@ void RenderJoints(BYTE bRenderOneMore)
                             L1 += Scroll * 2.f;
                             L2 += Scroll * 2.f;
                         }
-#if defined(__ANDROID__) || defined(MU_IOS)
-                        if (useJointQuadBatch)
-                        {
-                            QueueJointQuad(
-                                jointBatch,
-                                currentTail[0],
-                                currentTail[1],
-                                nextTail[1],
-                                nextTail[0],
-                                L1,
-                                V1,
-                                L1,
-                                V2,
-                                L2,
-                                V2,
-                                L2,
-                                V1,
-                                jointColor);
-                        }
-                        else
-#endif
-                        {
-                            glBegin(GL_QUADS);
-                            glTexCoord2f(L1, V1); glVertex3fv(currentTail[0]);
-                            glTexCoord2f(L1, V2); glVertex3fv(currentTail[1]);
-                            glTexCoord2f(L2, V2); glVertex3fv(nextTail[1]);
-                            glTexCoord2f(L2, V1); glVertex3fv(nextTail[0]);
-                            glEnd();
-                        }
+                        QueueJointQuad(
+                            jointBatch,
+                            currentTail[0],
+                            currentTail[1],
+                            nextTail[1],
+                            nextTail[0],
+                            L1,
+                            V1,
+                            L1,
+                            V2,
+                            L2,
+                            V2,
+                            L2,
+                            V1,
+                            jointColor);
                     }
                 }
             }
 
-#if defined(__ANDROID__) || defined(MU_IOS)
-            if (useJointQuadBatch)
-            {
-                FlushJointQuadBatch(jointBatch, o->TexType);
-            }
-#endif
+            int batchType = (o->RenderType == RENDER_TYPE_ALPHA_TEST) ? TERRAIN_BATCH_ALPHA : TERRAIN_BATCH_BLEND;
+            FlushJointQuadBatch(jointBatch, o->TexType, batchType);
 
             if (o->Type == BITMAP_JOINT_HEALING && o->SubType == 8)
             {

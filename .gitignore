@@ -23,6 +23,7 @@ Source_Server-Mobi/5.Main/boost_1_80_0/
 BuildLog/
 build/
 build-*/
+build_*/
 test-build-*/
 ClientBuild_*/
 .build/
