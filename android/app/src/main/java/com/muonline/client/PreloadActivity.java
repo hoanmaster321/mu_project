@@ -48,10 +48,7 @@ public class PreloadActivity extends Activity {
 
     private static final String TAG = "MuPreload";
     private static final String[] DATA_ZIP_URL_CANDIDATES = {
-        "http://192.168.1.117/update/data.zip",
-        "http://192.168.1.117:8080/update/data.zip",
-        "http://192.168.1.117/data.zip",
-        "http://192.168.1.117:8080/data.zip"
+        "http://192.168.1.117/data.zip"
     };
     private static final String BASIC_AUTH_USERNAME = "admin";
     private static final String BASIC_AUTH_PASSWORD = "openmu";
