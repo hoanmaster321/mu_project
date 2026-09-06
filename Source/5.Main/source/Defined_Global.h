@@ -53,7 +53,11 @@
 //===
 
 //======
+#if !defined(__ANDROID__) && !defined(MU_IOS)
 #define GetGPUUse								1 //Test GPU
+#else
+#define GetGPUUse								0
+#endif
 #define BTYPECUSTOMSS							6  //Phien Ban Season
 #define NEW_MASTER_SKILL_TREE					1	//Su Dung Master Skill
 

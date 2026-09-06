@@ -3,8 +3,6 @@
 ///////////////////////////////////////////////////////////////////////////////
 
 #include "stdafx.h"
-#include <gl\gl.h>
-#include <gl\glu.h>
 #include <math.h>
 #include <algorithm>
 #include <cstdint>
@@ -128,17 +126,17 @@ extern  float CameraDistance;
 static  float   g_fFrustumRange = -40.f;
 
 
-inline int TERRAIN_INDEX(int x,int y)
+int TERRAIN_INDEX(int x,int y)
 {
 	return (y)*TERRAIN_SIZE+(x);
 }
 
-inline int TERRAIN_INDEX_REPEAT(int x,int y)
+int TERRAIN_INDEX_REPEAT(int x,int y)
 {
 	return (y&TERRAIN_SIZE_MASK)*TERRAIN_SIZE+(x&TERRAIN_SIZE_MASK);
 }
 
-inline WORD TERRAIN_ATTRIBUTE(float x,float y)
+WORD TERRAIN_ATTRIBUTE(float x,float y)
 {
     int xf = (int)(x/TERRAIN_SCALE);
     int yf = (int)(y/TERRAIN_SCALE);

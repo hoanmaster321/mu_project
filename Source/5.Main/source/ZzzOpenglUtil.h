@@ -104,7 +104,7 @@ void EndTextureStream();
 void BeginOpengl(int x=0,int y=0,int Width=640,int Height=480);
 void EndOpengl();
 void UpdateMousePositionn();
-extern inline void TEXCOORD(float *c,float u,float v);
+void TEXCOORD(float *c,float u,float v);
 void RenderBox(float Matrix[3][4]);
 void RenderPlane3D(float Width,float Height,float Matrix[3][4]);
 void InitVBO();
@@ -143,3 +143,42 @@ bool IsVSyncAvailable();
 bool IsVSyncEnabled();
 void EnableVSync();
 void DisableVSync();
+
+#include <glm/glm.hpp>
+#include <glm/gtc/type_ptr.hpp>
+
+#ifndef min
+#define min(a,b) (((a) < (b)) ? (a) : (b))
+#endif
+#ifndef max
+#define max(a,b) (((a) > (b)) ? (a) : (b))
+#endif
+
+extern glm::mat4 g_CurrentProjectionMatrix;
+
+inline glm::mat4 GetActiveViewMatrix()
+{
+    glm::mat4 view(1.0f);
+    for (int r = 0; r < 3; ++r) {
+        for (int c = 0; c < 4; ++c) {
+            view[c][r] = CameraMatrix[r][c];
+        }
+    }
+    return view;
+}
+
+inline void GetActiveViewMatrix(float outMatrix[16])
+{
+    glm::mat4 v = GetActiveViewMatrix();
+    memcpy(outMatrix, glm::value_ptr(v), sizeof(float) * 16);
+}
+
+inline glm::mat4 GetActiveProjectionMatrix()
+{
+    return g_CurrentProjectionMatrix;
+}
+
+inline void GetActiveProjectionMatrix(float outMatrix[16])
+{
+    memcpy(outMatrix, glm::value_ptr(g_CurrentProjectionMatrix), sizeof(float) * 16);
+}

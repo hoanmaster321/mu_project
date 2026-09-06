@@ -24,6 +24,7 @@ BuildLog/
 build/
 build-*/
 test-build-*/
+ClientBuild_*/
 .build/
 **/Release/
 **/Debug/

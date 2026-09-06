@@ -2,27 +2,38 @@
 
 #if defined(__ANDROID__) || defined(MU_IOS)
 
-#include <SDL.h>
-
+#include <SDL3/SDL.h>
 #include <string>
 
-void MU_MobilePlatformInit();
-void MU_MobilePlatformShutdown();
+inline void MU_MobilePlatformInit() {}
+inline void MU_MobilePlatformShutdown() {}
 
-const Uint8* MU_MobileGetKeyboardState();
-void MU_MobileSetKeyState(SDL_Scancode scancode, bool isDown);
-void MU_MobileClearKeyboardState();
+inline const bool* MU_MobileGetKeyboardState() { return SDL_GetKeyboardState(nullptr); }
+inline void MU_MobileSetKeyState(SDL_Scancode scancode, bool isDown) {}
+inline void MU_MobileClearKeyboardState() {}
 
-void MU_MobileStartTextInput();
-void MU_MobileStopTextInput();
-bool MU_MobileIsTextInputActive();
-void MU_MobileSetTextInputRect(const SDL_Rect* rect);
+inline void MU_MobileStartTextInput() {
+    SDL_Window* w = SDL_GetKeyboardFocus();
+    if (w) SDL_StartTextInput(w);
+}
+inline void MU_MobileStopTextInput() {
+    SDL_Window* w = SDL_GetKeyboardFocus();
+    if (w) SDL_StopTextInput(w);
+}
+inline bool MU_MobileIsTextInputActive() {
+    SDL_Window* w = SDL_GetKeyboardFocus();
+    return w ? SDL_TextInputActive(w) : false;
+}
+inline void MU_MobileSetTextInputRect(const SDL_Rect* rect) {
+    SDL_Window* w = SDL_GetKeyboardFocus();
+    if (w && rect) SDL_SetTextInputArea(w, rect, 0);
+}
 
-std::string MU_MobileGetExternalDataPath();
-std::string MU_MobileGetInternalDataPath();
+inline std::string MU_MobileGetExternalDataPath() { return "/sdcard/Android/data/com.muonline.client/files"; }
+inline std::string MU_MobileGetInternalDataPath() { return "/data/data/com.muonline.client/files"; }
 
-const void* MU_MobileGetNativeWindow();
-const void* MU_MobileGetEglDisplay();
-const void* MU_MobileGetEglContext();
+inline const void* MU_MobileGetNativeWindow() { return nullptr; }
+inline const void* MU_MobileGetEglDisplay() { return nullptr; }
+inline const void* MU_MobileGetEglContext() { return nullptr; }
 
 #endif // defined(__ANDROID__) || defined(MU_IOS)

@@ -103,6 +103,9 @@
 #   define KHRONOS_APICALL IMPORT_C
 #elif defined(__ANDROID__)
 #   include <sys/cdefs.h>
+#   ifndef __NDK_FPABI__
+#       define __NDK_FPABI__
+#   endif
 #   define KHRONOS_APICALL __attribute__((visibility("default"))) __NDK_FPABI__
 #else
 #   define KHRONOS_APICALL

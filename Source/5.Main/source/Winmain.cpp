@@ -6,13 +6,18 @@
 #define WIN32_EXTRA_LEAN
 
 #include <locale.h>
+#if !defined(__ANDROID__) && !defined(MU_IOS)
 #include <zmouse.h>
+#endif
 #include "UIWindows.h"
 #include "UIManager.h"
 #include "ZzzOpenglUtil.h"
 #include "ZzzTexture.h"
 #include "ZzzOpenData.h"
 #include "ZzzScene.h"
+#include "VulkanSDL3Context.h"
+#include "GPUContext.h"
+#include "VulkanTextureManager.h"
 #include "ZzzBMD.h"
 #include "ZzzInfomation.h"
 #include "ZzzObject.h"
@@ -23,38 +28,34 @@
 #include "DSPlaySound.h"
 #include "wsclientinline.h"
 #include "Resource.h"
-#include <imm.h>
 #include "zzzpath.h"
 #include "Nprotect.h"
 #include "Local.h"
 #include "PersonalShopTitleImp.h"
 #include "./Utilities/Log/ErrorReport.h"
 #include "UIMapName.h"		// rozy
-#include "./ExternalObject/leaf/ExceptionHandler.h"
-#include "./Utilities/Dump/CrashReporter.h"
 #include "./Utilities/Log/muConsoleDebug.h"
 #include "ProtocolSend.h"
-#include "ProtectSysKey.h"
-
 #include "CBTMessageBox.h"
-#include "./ExternalObject/leaf/regkey.h"
-
 #include "CSChaosCastle.h"
 #include "GMHellas.h"
-#include <io.h>
 #include "Input.h"
 #include "./Time/Timer.h"
 #include "UIMng.h"
 //==Load BCustom
 #include "Protect.h"
-//Nvidia Update
+#include "GameCensorship.h"
+
+#if !defined(__ANDROID__) && !defined(MU_IOS)
+#include <imm.h>
+#include <io.h>
+#include "./ExternalObject/leaf/ExceptionHandler.h"
+#include "./Utilities/Dump/CrashReporter.h"
+#include "ProtectSysKey.h"
+#include "./ExternalObject/leaf/regkey.h"
 #include "nvapi.h"
 #include "NvApiDriverSettings.h"
-#ifdef MOVIE_DIRECTSHOW
-#include <dshow.h>
-#include "MovieScene.h"
-#endif // MOVIE_DIRECTSHOW
-#include "GameCensorship.h"
+#endif
 
 #include "w_MapHeaders.h"
 
@@ -119,7 +120,7 @@ int       RandomTable[100];
 
 char TextMu[]       = "mu.exe";
 
-CErrorReport g_ErrorReport;
+extern CErrorReport g_ErrorReport;
 
 BOOL g_bMinimizedEnabled = FALSE;
 int g_iScreenSaverOldValue = 60*15;
@@ -140,8 +141,19 @@ BOOL g_bUseWindowMode = TRUE;
 
 char Mp3FileName[256];
 
+#if !defined(__ANDROID__) && !defined(MU_IOS)
 #pragma comment(lib, "wzAudio.lib")
 #include <wzAudio.h>
+#else
+inline int wzAudioCreate(HWND) { return 1; }
+inline int wzAudioDestroy() { return 1; }
+inline int wzAudioPlay(const char*, int) { return 1; }
+inline int wzAudioStop() { return 1; }
+inline int wzAudioOption(int, int) { return 1; }
+inline int wzAudioGetStreamOffsetRange() { return 0; }
+inline int wzAudioSetVolume(int) { return 1; }
+#define WZAOPT_STOPBEFOREPLAY 0
+#endif
 
 void StopMp3(char *Name, BOOL bEnforce)
 {
@@ -416,9 +428,11 @@ void DestroyWindow()
 {
 	LogOut = true;
 	//. save volume level
+#if !defined(__ANDROID__) && !defined(MU_IOS)
 	leaf::CRegKey regkey;
 	regkey.SetKey(leaf::CRegKey::_HKEY_CURRENT_USER, "SOFTWARE\\Webzen\\Mu\\Config");
 	regkey.WriteDword("VolumeLevel", g_pOption->GetVolumeLevel());
+#endif
 	char string[10];
 	WritePrivateProfileStringA("Custom", "ShowName", itoa(mShowName, string, 10) , "./config.ini");
 	WritePrivateProfileStringA("Custom", "ShowHPBar", itoa(mShowHPBar, string, 10), "./config.ini");
@@ -912,6 +926,7 @@ LONG FAR PASCAL WndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
 
 bool CreateOpenglWindow()
 {
+#if !defined(__ANDROID__) && !defined(MU_IOS)
     PIXELFORMATDESCRIPTOR pfd;
 
     memset(&pfd, 0, sizeof(pfd));
@@ -963,35 +978,35 @@ bool CreateOpenglWindow()
 		MessageBox(NULL,GlobalText[4],"OpenGL Make Current Error.",MB_OK|MB_ICONEXCLAMATION);
 		return FALSE;
 	}
-	////===GLew
-	//if (glewInit() != GLEW_OK) {
-	//	KillGLWindow();
-	//	MessageBox(NULL, GlobalText[4], "glewInit() Make Current Error.", MB_OK | MB_ICONEXCLAMATION);
-	//	return FALSE;
-	//}
-	//InitVBO();
-	//====
 	ShowWindow(g_hWnd,SW_SHOW);
 	SetForegroundWindow(g_hWnd);
 	SetFocus(g_hWnd);
+#endif
+
+	// Initialize Native SDL3 + Vulkan Context
+	if (VulkanSDL3Context::Instance().Init("MU Online", WindowWidth, WindowHeight, false))
+	{
+		GPUContext::Instance().Init(VulkanSDL3Context::Instance().GetWindow(), WindowWidth, WindowHeight);
+	}
 	return true;
 }
+#if !defined(__ANDROID__) && !defined(MU_IOS)
 #include <shobjidl.h>
+#endif
 void SetUniqueAppID() {
-	
+#if !defined(__ANDROID__) && !defined(MU_IOS)
 	srand(static_cast<unsigned int>(time(nullptr)));
-
-	
 	int randomID = rand();
 	std::wstringstream appIDStream;
 	appIDStream << L"MyApp.UniqueWindowID" << randomID;
-
-	
 	SetCurrentProcessExplicitAppUserModelID(appIDStream.str().c_str());
+#endif
 }
 HWND StartWindow(HINSTANCE hCurrentInst,int nCmdShow)
 {
-
+#if defined(__ANDROID__) || defined(MU_IOS)
+    return (HWND)1;
+#else
    char *windowName = gProtect.m_MainInfo.WindowName;
    //SetUniqueAppID(); //
 
@@ -1113,6 +1128,7 @@ HWND StartWindow(HINSTANCE hCurrentInst,int nCmdShow)
 #endif //ENABLE_FULLSCREEN
 	
     return hWnd;
+#endif
 }
 
 char m_ID[11];
@@ -1387,7 +1403,7 @@ BOOL Util_CheckOption( char *lpszCommandLine, unsigned char cOption, char *lpszS
 	{
 		lpFound = ( unsigned char*)strchr( ( char*)( lpFound + 1), nFind);
 		if ( lpFound && ( *( lpFound + 1) == cComp[0] || *( lpFound + 1) == cComp[1]))
-		{	// ¹ß°ß
+		{	// 
 			if ( lpszString)
 			{
 				int nCount = 0;
@@ -1406,6 +1422,7 @@ BOOL Util_CheckOption( char *lpszCommandLine, unsigned char cOption, char *lpszS
 	return ( FALSE);
 }
 
+#if !defined(__ANDROID__) && !defined(MU_IOS)
 BOOL UpdateFile( char *lpszOld, char *lpszNew)
 {
 	SetFileAttributes(lpszOld, FILE_ATTRIBUTE_NORMAL);
@@ -1414,7 +1431,7 @@ BOOL UpdateFile( char *lpszOld, char *lpszNew)
 	DWORD dwStartTickCount = ::GetTickCount();
 	while(::GetTickCount() - dwStartTickCount < 5000) {
 		if ( CopyFile( lpszOld, lpszNew, FALSE))
-		{	// ¼º°ø
+		{
 			DeleteFile( lpszOld);
 			return ( TRUE);
 		}
@@ -1431,20 +1448,13 @@ BOOL KillExeProcess( char *lpszExe)
     BOOL bRet = FALSE; 
     PROCESSENTRY32 pe32 = { 0 }; 
  
-    //  Take a snapshot of all processes in the system. 
-
     hProcessSnap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0); 
-
+ 
     if (hProcessSnap == INVALID_HANDLE_VALUE) 
         return (FALSE); 
  
-    //  Fill in the size of the structure before using it. 
-
     pe32.dwSize = sizeof(PROCESSENTRY32); 
  
-    //  Walk the snapshot of the processes, and for each process, 
-    //  display information. 
-
     if (Process32First(hProcessSnap, &pe32)) 
     {
         do 
@@ -1462,14 +1472,13 @@ BOOL KillExeProcess( char *lpszExe)
         bRet = TRUE; 
     } 
     else 
-        bRet = FALSE;    // could not walk the list of processes 
+        bRet = FALSE;
  
-    // Do not forget to clean up the snapshot object. 
-
     CloseHandle (hProcessSnap);
 
 	return bRet;
 }
+#endif
 
 char g_lpszCmdURL[50];
 BOOL GetConnectServerInfo( PSTR szCmdLine, char *lpszURL, WORD *pwPort)
@@ -1927,6 +1936,7 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR szCmdLin
 	if(m_SoundOnOff)
 	{
 		InitDirectSound(g_hWnd);
+#if !defined(__ANDROID__) && !defined(MU_IOS)
 		leaf::CRegKey regkey;
 		regkey.SetKey(leaf::CRegKey::_HKEY_CURRENT_USER, "SOFTWARE\\Webzen\\Mu\\Config");
 		DWORD value;
@@ -1940,6 +1950,7 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR szCmdLin
 		
 		g_pOption->SetVolumeLevel(int(value));
 		SetEffectVolumeLevel(g_pOption->GetVolumeLevel());
+#endif
 	}
 
 	SetTimer(g_hWnd, HACK_TIMER, 20*1000, NULL);
@@ -2064,3 +2075,9 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR szCmdLin
     return msg.wParam;
 }
 
+#if defined(__ANDROID__) || defined(MU_IOS)
+extern "C" int SDL_main(int argc, char* argv[])
+{
+    return WinMain(nullptr, nullptr, (char*)"", 1);
+}
+#endif

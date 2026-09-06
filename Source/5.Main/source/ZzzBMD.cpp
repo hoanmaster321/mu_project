@@ -24,6 +24,9 @@
 #endif
 #include <algorithm>
 #include <limits>
+#include "GPUContext.h"
+#include "VulkanGLStub.h"
+#include "MU_OpenGL.h"
 
 static bool ReadWholeFileBytes(FILE* fp, unsigned char*& outData, int& outSize)
 {
@@ -3055,7 +3058,10 @@ void BMD::Release()
 #ifdef LDS_FIX_SETNULLALLOCVALUE_WHEN_BMDRELEASE
 	m_bCompletedAlloc = false;
 #endif // LDS_FIX_SETNULLALLOCVALUE_WHEN_BMDRELEASE
-
+#if CB_SHADER330_TEST
+	ReadMemoryGPU();
+	New_Meshs.clear();
+#endif
 }
 
 void BMD::FindNearTriangle( void)
@@ -3686,3 +3692,416 @@ void BMD::InterpolationTrans(float (*Mat1)[4], float (*TransMat2)[4], float _Sca
 	TransMat2[2][3] = TransMat2[2][3] - (TransMat2[2][3] - Mat1[2][3]) * (1-_Scale);
 }
 #endif //PBG_ADD_NEWCHAR_MONK_ITEM
+
+#if CB_SHADER330_TEST
+void BMD::LoadMeshToVAO()
+{
+	int i, j = 0;
+
+	if (New_Meshs.size()) New_Meshs.clear();
+
+	New_Meshs.reserve(NumMeshs);
+
+	for (i = 0; i < NumMeshs; ++i)
+	{
+		VAOMesh NewMesh;
+		Mesh_t* OldMesh = &Meshs[i];
+
+		NewMesh.NoneBlendMesh = OldMesh->NoneBlendMesh;
+		NewMesh.Texture = OldMesh->Texture;
+
+		NewMesh.IBuffer.reserve(OldMesh->NumTriangles * 3);
+		NewMesh.BoneContainer.reserve(NumBones);
+
+		ExtendVertex(OldMesh, &NewMesh);
+
+		NewMesh.IBuffer.shrink_to_fit();
+		NewMesh.BoneContainer.shrink_to_fit();
+
+		if (OldMesh->m_csTScript)
+		{
+			NewMesh.m_csTScript = new TextureScript(*(OldMesh->m_csTScript));
+		}
+
+		New_Meshs.push_back(NewMesh);
+	}
+}
+
+void BMD::UploadAllToGPU()
+{
+	ReadMemoryGPU();
+
+	for (size_t i = 0; i < New_Meshs.size(); ++i)
+	{
+		VAOMesh& NewMesh = New_Meshs[i];
+
+		glGenVertexArrays(1, &NewMesh.VAO);
+		glBindVertexArray(NewMesh.VAO);
+
+		glGenBuffers(1, &NewMesh.VBO);
+		glBindBuffer(GL_ARRAY_BUFFER, NewMesh.VBO);
+		glBufferData(GL_ARRAY_BUFFER, NewMesh.VBuffer.size() * sizeof(VertexBMD), &NewMesh.VBuffer[0], GL_STATIC_DRAW);
+
+		glGenBuffers(1, &NewMesh.IBO);
+		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, NewMesh.IBO);
+		glBufferData(GL_ELEMENT_ARRAY_BUFFER, NewMesh.IBuffer.size() * sizeof(GLuint), &NewMesh.IBuffer[0], GL_STATIC_DRAW);
+
+		glEnableVertexAttribArray(0);
+		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(VertexBMD), (void*)offsetof(VertexBMD, m_vPos));
+
+		glEnableVertexAttribArray(1);
+		glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(VertexBMD), (void*)offsetof(VertexBMD, m_vNorm));
+
+		glEnableVertexAttribArray(2);
+		glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, sizeof(VertexBMD), (void*)offsetof(VertexBMD, m_vTex));
+
+		glEnableVertexAttribArray(3);
+		glVertexAttribIPointer(3, 1, GL_UNSIGNED_INT, sizeof(VertexBMD), (void*)offsetof(VertexBMD, m_iBone));
+
+#if CBMu_ENABLE_GL_BMD_SKINNED_INSTANCED_BATCH
+		glDisableVertexAttribArray(4);
+		glVertexAttribI1ui(4, 0);
+#endif
+
+		NewMesh.VertexCount = NewMesh.VBuffer.size();
+		NewMesh.IndexCount = NewMesh.IBuffer.size();
+
+		if (GPUContext::Instance().IsInitialized())
+		{
+			GPUContext::Instance().CreateMeshBuffers(
+				NewMesh.VBuffer.data(), (uint32_t)(NewMesh.VBuffer.size() * sizeof(VertexBMD)),
+				NewMesh.IBuffer.data(), (uint32_t)(NewMesh.IBuffer.size() * sizeof(GLuint)),
+				NewMesh.vkVertexBuffer, NewMesh.vkVertexMemory,
+				NewMesh.vkIndexBuffer, NewMesh.vkIndexMemory);
+		}
+
+		NewMesh.VBuffer.clear();
+		NewMesh.VBuffer.reserve(1);
+
+		NewMesh.IBuffer.clear();
+		NewMesh.IBuffer.reserve(0);
+
+		glBindVertexArray(0);
+	}
+}
+
+void BMD::ReadMemoryGPU()
+{
+	for (unsigned int i = 0; i < New_Meshs.size(); ++i)
+	{
+		VAOMesh& NewMesh = New_Meshs[i];
+
+		if (NewMesh.VBO)
+		{
+			glBindBuffer(GL_ARRAY_BUFFER, NewMesh.VBO);
+			char* pStart = (char*)glMapBuffer(GL_ARRAY_BUFFER, GL_READ_ONLY);
+			if (pStart)
+			{
+				NewMesh.VBuffer.clear();
+				NewMesh.VBuffer.reserve(NewMesh.VertexCount);
+
+				for (unsigned int j = 0; j < NewMesh.VertexCount; ++j)
+				{
+					VertexBMD tUnit;
+					char* pCur = pStart + sizeof(VertexBMD) * j;
+					memcpy(&tUnit, pCur, sizeof(VertexBMD));
+					NewMesh.VBuffer.push_back(tUnit);
+				}
+
+				glUnmapBuffer(GL_ARRAY_BUFFER);
+				glDeleteBuffers(1, &NewMesh.VBO);
+				NewMesh.VBO = 0;
+			}
+		}
+
+		if (NewMesh.IBO)
+		{
+			glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, NewMesh.IBO);
+			char* pStart = (char*)glMapBuffer(GL_ELEMENT_ARRAY_BUFFER, GL_READ_ONLY);
+			if (pStart)
+			{
+				NewMesh.IBuffer.clear();
+				NewMesh.IBuffer.reserve(NewMesh.IndexCount);
+				for (unsigned int j = 0; j < NewMesh.IndexCount; ++j)
+				{
+					unsigned int tIdx;
+					char* pCur = pStart + sizeof(unsigned int) * j;
+					memcpy(&tIdx, pCur, sizeof(unsigned int));
+					NewMesh.IBuffer.push_back(tIdx);
+				}
+
+				glUnmapBuffer(GL_ELEMENT_ARRAY_BUFFER);
+				glDeleteBuffers(1, &NewMesh.IBO);
+				NewMesh.IBO = 0;
+			}
+		}
+
+		if (NewMesh.m_csTScript)
+		{
+			SAFE_DELETE(NewMesh.m_csTScript);
+		}
+
+		if (NewMesh.VAO)
+		{
+			glDeleteVertexArrays(1, &NewMesh.VAO);
+			NewMesh.VAO = 0;
+		}
+
+		if (GPUContext::Instance().IsInitialized())
+		{
+			GPUContext::Instance().DestroyMeshBuffers(
+				NewMesh.vkVertexBuffer, NewMesh.vkVertexMemory,
+				NewMesh.vkIndexBuffer, NewMesh.vkIndexMemory);
+		}
+	}
+}
+
+void BMD::ExtendVertex(Mesh_t* oM, VAOMesh* nM)
+{
+	int i, j = 0;
+	Temp_Vec tbuf;
+	tbuf.reserve(oM->NumVertices);
+
+	for (i = 0; i < oM->NumVertices; ++i)
+		tbuf.push_back(TempVertex(i, -1, -1));
+
+	for (i = 0; i < oM->NumTriangles; ++i)
+	{
+		Triangle_t* pTri = (Triangle_t*)&oM->Triangles[i];
+
+		for (j = 0; j < 3; ++j)
+		{
+			short vIndex = pTri->VertexIndex[j];
+			short tIndex = pTri->TexCoordIndex[j];
+			short nIndex = pTri->NormalIndex[j];
+
+			if (tbuf[vIndex].t == -1)
+			{
+				tbuf[vIndex].t = tIndex;
+				tbuf[vIndex].n = nIndex;
+				nM->IBuffer.push_back((unsigned int)vIndex);
+			}
+			else if ((tbuf[vIndex].t == tIndex) && (tbuf[vIndex].n == nIndex))
+			{
+				nM->IBuffer.push_back((unsigned int)vIndex);
+			}
+			else
+			{
+				nM->IBuffer.push_back(tbuf.size());
+				tbuf.push_back(TempVertex(vIndex, tIndex, nIndex));
+			}
+		}
+	}
+
+	VertexBMD Nvertex;
+	nM->VBuffer.reserve(tbuf.size());
+	for (i = 0; i < tbuf.size(); ++i)
+	{
+		TempVertex& tp = tbuf[i];
+		bool isbone = false;
+		short indexBone = oM->Vertices[tp.v].Node;
+		VectorCopy(oM->Vertices[tp.v].Position, Nvertex.m_vPos);
+
+		for (j = 0; j < nM->BoneContainer.size(); ++j)
+		{
+			if (nM->BoneContainer[j] == indexBone)
+			{
+				isbone = true;
+				break;
+			}
+		}
+
+		if (isbone)
+		{
+			Nvertex.m_iBone = j * 3;
+		}
+		else
+		{
+			nM->BoneContainer.push_back(indexBone);
+			Nvertex.m_iBone = (nM->BoneContainer.size() - 1) * 3;
+		}
+
+		for (j = 0; j < 2; ++j) Nvertex.m_vTex[j] = 0.f;
+		if (tp.t >= 0)
+		{
+			Nvertex.m_vTex[0] = oM->TexCoords[tp.t].TexCoordU;
+			Nvertex.m_vTex[1] = oM->TexCoords[tp.t].TexCoordV;
+		}
+
+		Vector(0.f, 0.f, 0.f, Nvertex.m_vNorm);
+		if (tp.n >= 0 && tp.n < oM->NumNormals && oM->Normals != NULL)
+		{
+			VectorCopy(oM->Normals[tp.n].Normal, Nvertex.m_vNorm);
+		}
+
+		nM->VBuffer.push_back(Nvertex);
+	}
+
+	tbuf.clear();
+}
+
+void BMD::TranstoVertices(vec3_t(*outVertex)[MAX_VERTICES], float(*matBone)[3][4], bool Translate)
+{
+	for (int i = 0; i < NumMeshs; i++)
+	{
+		Mesh_t* m = &Meshs[i];
+
+		for (int j = 0; j < m->NumVertices; j++)
+		{
+			Vertex_t* v = &m->Vertices[j];
+			float* vp = outVertex[i][j];
+			short node = v->Node;
+			if (node < 0 || node >= NumBones || node >= MAX_BONES)
+			{
+				VectorCopy(v->Position, vp);
+				if (Translate) VectorScale(vp, BodyScale, vp);
+				if (Translate) VectorAdd(vp, BodyOrigin, vp);
+				continue;
+			}
+
+			if (BoneScale == 1.f)
+			{
+				VectorTransform(v->Position, matBone[node], vp);
+				if (Translate)
+					VectorScale(vp, BodyScale, vp);
+			}
+			else
+			{
+				VectorRotate(v->Position, matBone[node], vp);
+				vp[0] = vp[0] * BoneScale + matBone[node][0][3];
+				vp[1] = vp[1] * BoneScale + matBone[node][1][3];
+				vp[2] = vp[2] * BoneScale + matBone[node][2][3];
+
+				if (Translate)
+					VectorScale(vp, BodyScale, vp);
+			}
+
+			if (Translate)
+				VectorAdd(vp, BodyOrigin, vp);
+		}
+	}
+}
+
+void BMD::OutAllAnimVertices(vec3_t(*outVertex)[MAX_VERTICES], const OBJECT& oSelf)
+{
+	if (NumBones < 1) return;
+
+	if (NumBones > MAX_BONES) return;
+
+	vec34_t* arrBonesTMLocal;
+
+	vec3_t		Temp;
+	int			iBoneCount = NumBones;
+
+	arrBonesTMLocal = new vec34_t[NumBones];
+	Vector(0.0f, 0.0f, 0.0f, Temp);
+
+	memset(arrBonesTMLocal, 0, sizeof(vec34_t) * NumBones);
+
+	Animation(arrBonesTMLocal, oSelf.AnimationFrame, oSelf.PriorAnimationFrame, oSelf.PriorAction, const_cast<OBJECT&>(oSelf).Angle, Temp, false, false);
+
+	TranstoVertices(outVertex, arrBonesTMLocal, true);
+
+	delete[] arrBonesTMLocal;
+}
+
+#if CBMu_ENABLE_GL_BMD_BONE_UNIFORM_CACHE
+namespace
+{
+	GLint CBMu_GetBMDBoneUniformLocation(GLuint shaderID)
+	{
+		static std::unordered_map<GLuint, GLint> s_BoneUniformLocations;
+		std::unordered_map<GLuint, GLint>::iterator iter = s_BoneUniformLocations.find(shaderID);
+		if (iter != s_BoneUniformLocations.end())
+		{
+			return iter->second;
+		}
+
+		const GLint location = glGetUniformLocation(shaderID, "u_Bones");
+		s_BoneUniformLocations[shaderID] = location;
+		return location;
+	}
+}
+#endif
+
+bool _VAOMesh::GetPackedBonesDirect(const float* Bone, bool bTrans, const vec3_t vTrans, float Scale, bool AppScale, float ReqScale, float* outPacked)
+{
+	if (!Bone || !outPacked) return false;
+	if (BoneContainer.empty()) return true;
+
+	float resultScale = bTrans ? Scale : 1.0f;
+	vec3_t trans = { 0.f, 0.f, 0.f };
+	if (bTrans) VectorCopy(vTrans, trans);
+
+	const float preTransScale = resultScale;
+	if (AppScale) resultScale = ReqScale * resultScale;
+
+	size_t w = 0;
+	for (size_t i = 0; i < BoneContainer.size(); ++i)
+	{
+		const int boneIdx = (int)BoneContainer[i];
+
+		const bool invalid = (boneIdx < 0);
+		const int matBase = invalid ? 0 : boneIdx * 12;
+
+		for (int r = 0; r < 3; ++r)
+		{
+			if (invalid)
+			{
+				outPacked[w + 0] = (r == 0) ? 1.f : 0.f;
+				outPacked[w + 1] = (r == 1) ? 1.f : 0.f;
+				outPacked[w + 2] = (r == 2) ? 1.f : 0.f;
+				outPacked[w + 3] = trans[r];
+			}
+			else
+			{
+				const float* m = Bone + matBase + r * 4;
+
+				outPacked[w + 0] = m[0] * resultScale;
+				outPacked[w + 1] = m[1] * resultScale;
+				outPacked[w + 2] = m[2] * resultScale;
+
+				const float tScale = AppScale ? preTransScale : resultScale;
+				outPacked[w + 3] = m[3] * tScale + trans[r];
+			}
+			w += 4;
+		}
+	}
+	return true;
+}
+
+bool _VAOMesh::GetPackedBones(const float* Bone, bool bTrans, const vec3_t vTrans, float Scale, bool AppScale, float ReqScale, std::vector<float>& outPacked)
+{
+	if (!Bone) return false;
+	if (BoneContainer.empty()) return true;
+
+	const size_t rowsNeeded = BoneContainer.size() * 3;
+	outPacked.resize(rowsNeeded * 4);
+
+	return GetPackedBonesDirect(Bone, bTrans, vTrans, Scale, AppScale, ReqScale, outPacked.data());
+}
+
+bool _VAOMesh::SendIndexBone(GLuint Shaderid, const float* Bone, bool bTrans, vec3_t vTrans, float Scale, bool AppScale, float ReqScale)
+{
+	if (!Bone) return false;
+	if (BoneContainer.empty()) return true;
+
+	constexpr int kMaxRows = 256;
+	const size_t rowsNeeded = BoneContainer.size() * 3;
+	if (rowsNeeded > (size_t)kMaxRows) return false;
+
+#if CBMu_ENABLE_GL_BMD_BONE_UNIFORM_CACHE
+	const GLint baseLoc = CBMu_GetBMDBoneUniformLocation(Shaderid);
+#else
+	const GLint baseLoc = glGetUniformLocation(Shaderid, "u_Bones");
+#endif
+	if (baseLoc < 0) return false;
+
+	static std::vector<float> cbmuPackedBoneScratch;
+	if (!GetPackedBones(Bone, bTrans, vTrans, Scale, AppScale, ReqScale, cbmuPackedBoneScratch))
+		return false;
+
+	glUniform4fv(baseLoc, (GLsizei)rowsNeeded, cbmuPackedBoneScratch.data());
+	return true;
+}
+#endif

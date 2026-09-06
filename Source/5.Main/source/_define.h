@@ -672,3 +672,11 @@ enum struct STORAGE_TYPE
 #define BUFFTIMEINDEX( timetype )		static_cast<eBuffTimeType>(timetype)
 #define ITEMINDEX( type, index )        static_cast<DWORD>((type*MAX_ITEM_INDEX)+index)
 
+#ifndef CB_SHADER330_TEST
+#define CB_SHADER330_TEST 1
+#endif
+#ifndef CB_SHADER330_LOADLOCAL
+#define CB_SHADER330_LOADLOCAL 1
+#endif
+
+

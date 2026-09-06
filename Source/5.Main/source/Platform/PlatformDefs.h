@@ -29,7 +29,7 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <netdb.h>
-#include <SDL.h>
+#include <SDL3/SDL.h>
 #include <android/log.h>
 #include "MobilePlatform.h"
 #include "MobileTime.h"
@@ -156,6 +156,7 @@ typedef void (*INTERNET_STATUS_CALLBACK)(HINTERNET, DWORD_PTR, DWORD, void*, DWO
 
 // ── Pointer types ─────────────────────────────────────────────────────────
 typedef char*           LPSTR;
+typedef char*           PSTR;
 typedef const char*     LPCSTR;
 typedef wchar_t*        LPWSTR;
 typedef const wchar_t*  LPCWSTR;
@@ -430,7 +431,6 @@ inline FILE* _wfopen_android(const wchar_t* path, const wchar_t* mode) {
 }
 
 // ── Time ───────────────────────────────────────────────────────────────────
-#include <SDL.h>
 inline DWORD    GetTickCount()    { return static_cast<DWORD>(MU_MobileGetTicks()); }
 inline uint64_t GetTickCount64()  { return static_cast<uint64_t>(MU_MobileGetTicks()); }
 inline DWORD    timeGetTime()     { return static_cast<DWORD>(MU_MobileGetTicks()); }  // winmm
@@ -1154,21 +1154,25 @@ inline bool AndroidInjectUtf8ToFocusedTextInput(const char* textUtf8)
     return handled;
 }
 
-#ifndef SDL_StartTextInput
+#ifdef SDL_StartTextInput
+#undef SDL_StartTextInput
+#endif
 #define SDL_StartTextInput() MU_MobileStartTextInput()
-#endif
 
-#ifndef SDL_StopTextInput
+#ifdef SDL_StopTextInput
+#undef SDL_StopTextInput
+#endif
 #define SDL_StopTextInput() MU_MobileStopTextInput()
-#endif
 
-#ifndef SDL_IsTextInputActive
-#define SDL_IsTextInputActive() (MU_MobileIsTextInputActive() ? SDL_TRUE : SDL_FALSE)
+#ifdef SDL_IsTextInputActive
+#undef SDL_IsTextInputActive
 #endif
+#define SDL_IsTextInputActive() (MU_MobileIsTextInputActive() ? true : false)
 
-#ifndef SDL_SetTextInputRect
+#ifdef SDL_SetTextInputRect
+#undef SDL_SetTextInputRect
+#endif
 #define SDL_SetTextInputRect(rect) MU_MobileSetTextInputRect(rect)
-#endif
 
 inline int   MessageBox(HWND, LPCSTR txt, LPCSTR cap, UINT) {
     ALOGW("MessageBox [%s]: %s", cap ? cap : "", txt ? txt : "");
@@ -1266,7 +1270,9 @@ inline BOOL  PostMessage(HWND handle, UINT message, WPARAM wParam, LPARAM lParam
 {
     return SendMessage(handle, message, wParam, lParam);
 }
-inline void  SetTimer(HWND, UINT_PTR id, UINT ms, void*)  {}
+typedef void (*TIMERPROC)(HWND, UINT, UINT_PTR, DWORD);
+template <typename T = TIMERPROC>
+inline UINT_PTR SetTimer(HWND, UINT_PTR, UINT, T = nullptr)  { return 1; }
 inline void  KillTimer(HWND, UINT_PTR id)              {}
 // DeleteObject defined later with proper AndroidGDI implementation
 inline HGDIOBJ GetStockObject(int)                  { return nullptr; }
@@ -1291,7 +1297,7 @@ inline SHORT GetAsyncKeyState(int key)
         break;
     }
 
-    const Uint8* keyboardState = MU_MobileGetKeyboardState();
+    const bool* keyboardState = MU_MobileGetKeyboardState();
     if (!keyboardState)
     {
         return 0;
@@ -1299,7 +1305,7 @@ inline SHORT GetAsyncKeyState(int key)
 
     auto keyDown = [&](SDL_Scancode scancode) -> SHORT
     {
-        return (scancode != SDL_SCANCODE_UNKNOWN && keyboardState[scancode] != 0)
+        return (scancode != SDL_SCANCODE_UNKNOWN && keyboardState[scancode])
             ? static_cast<SHORT>(0x8000)
             : static_cast<SHORT>(0);
     };
@@ -1409,8 +1415,83 @@ inline BOOL  SetTextColor(HDC hdc, DWORD c)  { AndroidSetTextColor(hdc, c); retu
 // WGL stubs → SDL_GL handles context on Android
 inline BOOL  wglMakeCurrent(HDC, HGLRC)             { return TRUE; }
 inline BOOL  wglDeleteContext(HGLRC)                { return TRUE; }
+inline HGLRC wglCreateContext(HDC)                  { return (HGLRC)1; }
 inline HDC   GetDC(HWND)                            { return nullptr; }
 inline BOOL  ReleaseDC(HWND, HDC)                   { return TRUE; }
+
+#ifndef FILE_SHARE_READ
+#define FILE_SHARE_READ 0x00000001
+#endif
+#ifndef FILE_SHARE_WRITE
+#define FILE_SHARE_WRITE 0x00000002
+#endif
+
+#ifndef WSAGETSELECTEVENT
+#define WSAGETSELECTEVENT(lParam) LOWORD(lParam)
+#endif
+#ifndef WSAGETSELECTERROR
+#define WSAGETSELECTERROR(lParam) HIWORD(lParam)
+#endif
+
+#ifndef WHITE_BRUSH
+#define WHITE_BRUSH 0
+#endif
+#ifndef BLACK_BRUSH
+#define BLACK_BRUSH 4
+#endif
+
+#ifndef WM_SIZE
+#define WM_SIZE 0x0005
+#endif
+#ifndef SIZE_RESTORED
+#define SIZE_RESTORED 0
+#endif
+#ifndef SIZE_MINIMIZED
+#define SIZE_MINIMIZED 1
+#endif
+#ifndef SIZE_MAXIMIZED
+#define SIZE_MAXIMIZED 2
+#endif
+
+#ifndef PM_NOREMOVE
+#define PM_NOREMOVE 0x0000
+#endif
+#ifndef PM_REMOVE
+#define PM_REMOVE 0x0001
+#endif
+
+typedef struct tagMSG {
+    HWND        hwnd;
+    UINT        message;
+    WPARAM      wParam;
+    LPARAM      lParam;
+    DWORD       time;
+    POINT       pt;
+} MSG, *PMSG, *LPMSG;
+
+inline BOOL PeekMessage(MSG* lpMsg, HWND, UINT, UINT, UINT)
+{
+    SDL_PumpEvents();
+    SDL_Event ev;
+    if (SDL_PollEvent(&ev))
+    {
+        if (ev.type == SDL_EVENT_QUIT)
+        {
+            if (lpMsg) { lpMsg->message = WM_QUIT; lpMsg->wParam = 0; lpMsg->lParam = 0; }
+            return TRUE;
+        }
+    }
+    return FALSE;
+}
+
+inline BOOL GetMessage(MSG* lpMsg, HWND, UINT, UINT)
+{
+    if (lpMsg && lpMsg->message == WM_QUIT) return FALSE;
+    return FALSE;
+}
+
+inline BOOL TranslateMessage(const MSG*) { return TRUE; }
+inline LRESULT DispatchMessage(const MSG*) { return 0; }
 
 // Path helper: convert wide path → UTF-8 with \ → / (must be before any user)
 inline void AndroidConvertPath(const wchar_t* wpath, char* cpath, size_t n) {
@@ -1582,8 +1663,11 @@ inline BOOL CloseHandle(HANDLE hFile) {
 
 // Version info → not available on Android
 inline DWORD GetFileVersionInfoSize(LPCWSTR, DWORD*) { return 0; }
+inline DWORD GetFileVersionInfoSize(LPCSTR, DWORD*) { return 0; }
 inline BOOL  GetFileVersionInfo(LPCWSTR, DWORD, DWORD, void*) { return FALSE; }
+inline BOOL  GetFileVersionInfo(LPCSTR, DWORD, DWORD, void*) { return FALSE; }
 inline BOOL  VerQueryValue(void*, LPCWSTR, LPVOID*, UINT*) { return FALSE; }
+inline BOOL  VerQueryValue(void*, LPCSTR, LPVOID*, UINT*) { return FALSE; }
 
 // IME stubs
 inline HIMC  ImmGetContext(HWND)                      { return nullptr; }
@@ -1635,8 +1719,7 @@ inline int _ultoa_s(unsigned long value, char* buffer, int radix) { return _ulto
 #ifndef GL_CURRENT_COLOR
 #define GL_CURRENT_COLOR 0x0B00
 #endif
-inline void glColor4fv(const float* v) { if (v) { } }
-inline void glVertex4fv(const float*) {}
+inline BOOL SwapBuffers(HDC) { return TRUE; }
 
 // ── lstrlen / lstrcmpi / lstrcmp / lstrcpy ────────────────────────────────
 #ifdef lstrlen
@@ -1752,6 +1835,10 @@ inline BOOL DeleteFile(LPCWSTR path) {
     return (::unlink(cpath) == 0) ? TRUE : FALSE;
 }
 inline BOOL DeleteFileA(LPCSTR path) { return path ? (::unlink(path) == 0 ? TRUE : FALSE) : FALSE; }
+inline BOOL DeleteFile(LPCSTR path) { return DeleteFileA(path); }
+inline BOOL CopyFileA(LPCSTR, LPCSTR, BOOL) { return TRUE; }
+inline BOOL CopyFileW(LPCWSTR, LPCWSTR, BOOL) { return TRUE; }
+#define CopyFile CopyFileA
 // SetFilePointer
 #define FILE_BEGIN   0
 #define FILE_CURRENT 1
@@ -2360,7 +2447,23 @@ inline DWORD GetCurrentDirectoryW(DWORD nBufLen, LPWSTR lpBuffer) {
     lpBuffer[len] = L'\0';
     return static_cast<DWORD>(len);
 }
-#define GetCurrentDirectory GetCurrentDirectoryW
+inline DWORD GetCurrentDirectoryA(DWORD nBufLen, LPSTR lpBuffer) {
+    char cwd[MAX_PATH] = {};
+    if (!getcwd(cwd, sizeof(cwd))) {
+        if (lpBuffer && nBufLen > 0) {
+            lpBuffer[0] = '\0';
+        }
+        return 0;
+    }
+    const size_t len = strlen(cwd);
+    if (!lpBuffer || nBufLen == 0) {
+        return static_cast<DWORD>(len);
+    }
+    strncpy(lpBuffer, cwd, nBufLen - 1);
+    lpBuffer[nBufLen - 1] = '\0';
+    return static_cast<DWORD>(strlen(lpBuffer));
+}
+#define GetCurrentDirectory GetCurrentDirectoryA
 
 // ── _wtoi64 → wide string to int64 ───────────────────────────────────────
 inline long long _wtoi64(const wchar_t* s) { return (long long)wcstoll(s, nullptr, 10); }
@@ -2497,7 +2600,8 @@ inline DWORD GetFileAttributesW(LPCWSTR path) {
 #define GetFileAttributes GetFileAttributesW
 // ── SetFileAttributes → no-op on Android ────────────────────────────────
 inline BOOL SetFileAttributesW(LPCWSTR, DWORD) { return FALSE; }
-#define SetFileAttributes SetFileAttributesW
+inline BOOL SetFileAttributesA(LPCSTR, DWORD) { return FALSE; }
+#define SetFileAttributes SetFileAttributesA
 
 // ── GetModuleFileName → returns empty on Android ─────────────────────────
 inline DWORD GetModuleFileNameW(HMODULE, LPWSTR buf, DWORD n) {
@@ -2538,6 +2642,7 @@ inline DWORD GetModuleFileNameW(HMODULE, LPWSTR buf, DWORD n) {
 // ── INI file API → no-op stubs (Android uses SDL prefs or json) ──────────
 inline UINT GetPrivateProfileIntW(LPCWSTR, LPCWSTR, INT def, LPCWSTR) { return (UINT)def; }
 inline UINT GetPrivateProfileIntA(LPCSTR, LPCSTR, INT def, LPCSTR) { return (UINT)def; }
+inline BOOL WritePrivateProfileStringA(LPCSTR, LPCSTR, LPCSTR, LPCSTR) { return FALSE; }
 inline BOOL WritePrivateProfileStringW(LPCWSTR, LPCWSTR, LPCWSTR, LPCWSTR) { return FALSE; }
 inline DWORD GetPrivateProfileStringA(LPCSTR, LPCSTR key, LPCSTR def, LPSTR buf, DWORD n, LPCSTR) { if (!buf || n == 0) return 0; strncpy(buf, def ? def : "", n - 1); buf[n - 1] = 0; return (DWORD)strlen(buf); }
 inline DWORD GetPrivateProfileStringW(LPCWSTR, LPCWSTR key, LPCWSTR def, LPWSTR buf, DWORD n, LPCWSTR) {
@@ -2545,7 +2650,7 @@ inline DWORD GetPrivateProfileStringW(LPCWSTR, LPCWSTR key, LPCWSTR def, LPWSTR 
     return def ? (DWORD)wcslen(def) : 0;
 }
 #define GetPrivateProfileInt    GetPrivateProfileIntA
-#define WritePrivateProfileString WritePrivateProfileStringW
+#define WritePrivateProfileString WritePrivateProfileStringA
 #define GetPrivateProfileString GetPrivateProfileStringA
 
 // ── DATA_BLOB (DPAPI) stub ────────────────────────────────────────────────

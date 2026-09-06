@@ -2,6 +2,7 @@
 ///////////////////////////////////////////////////////////////////////////////
 
 #include "stdafx.h"
+#include "GPUContext.h"
 #include "UIManager.h"
 #include "GuildCache.h"
 #include "ZzzOpenglUtil.h"
@@ -2453,6 +2454,10 @@ bool RenderMainScene()
 		glClearColor(0/256.f,0/256.f,0/256.f,1.f);
 	}
 
+	if (GPUContext::Instance().IsInitialized()) {
+		GPUContext::Instance().BeginFrame();
+	}
+
 	BeginOpengl(0,0,Width,Height);
 
 	CreateFrustrum((float)Width / 640.0f, (float)Height / 480.0f, pos);
@@ -2950,8 +2955,11 @@ void MainScene(HDC hDC)
 
 		if (Success)
 		{
-			//glFlush();
-			SwapBuffers(hDC);
+			if (GPUContext::Instance().IsInitialized()) {
+				GPUContext::Instance().Present();
+			} else {
+				SwapBuffers(hDC);
+			}
 		}
 
 		const float current_frame_time_ms = current_tick_count - last_render_tick_count;

@@ -141,12 +141,13 @@ if exist "%APP_DIR%\src\main\jniLibs" (
     echo [-] Xoa cac file *.bak trong jniLibs...
     del /s /q "%APP_DIR%\src\main\jniLibs\*.bak" 2>nul
 )
-for /d %%d in ("%CLIENT_DIR%\build-android-*") do (
-    if exist "%%d\" (
-        echo [-] Xoa thu muc build tam: %%d
-        rd /s /q "%%d" 2>nul
-    )
-)
+:: Giu lai build cache de bien dich nhanh hon (Ninja tu dong xu ly incremental build)
+:: for /d %%d in ("%CLIENT_DIR%\build-android-*") do (
+::     if exist "%%d\" (
+::         echo [-] Xoa thu muc build tam: %%d
+::         rd /s /q "%%d" 2>nul
+::     )
+:: )
 echo [V] Don rac hoan tat.
 
 :: ============================================================================
@@ -282,16 +283,22 @@ cmake -B "%BUILD_DIR%" -S "%CLIENT_DIR%" -G "Ninja" ^
     -DCMAKE_TOOLCHAIN_FILE="%TOOLCHAIN%" ^
     -DANDROID_ABI="%CURR_ABI%" ^
     -DANDROID_PLATFORM="android-28" ^
-    -DCMAKE_BUILD_TYPE="Release"
+    -DCMAKE_BUILD_TYPE="Release" ^
+    -DCMAKE_SHARED_LINKER_FLAGS="-Wl,-z,max-page-size=16384"
 
 if errorlevel 1 exit /b 1
 
 cmake --build "%BUILD_DIR%" -j %NUMBER_OF_PROCESSORS%
 if errorlevel 1 exit /b 1
 
+if exist "%BUILD_DIR%\_deps\sdl3-build\libSDL3.so" (
+    copy /y "%BUILD_DIR%\_deps\sdl3-build\libSDL3.so" "%APP_DIR%\src\main\jniLibs\%CURR_ABI%\libSDL3.so" >nul
+)
+
 if exist "%STRIP_EXE%" (
-    echo [*] Dang strip debug symbol giam dung luong libmain.so...
-    "%STRIP_EXE%" --strip-all "%DEST_SO%"
+    echo [*] Dang strip debug symbol giam dung luong libmain.so va libSDL3.so...
+    if exist "%DEST_SO%" "%STRIP_EXE%" --strip-all "%DEST_SO%"
+    if exist "%APP_DIR%\src\main\jniLibs\%CURR_ABI%\libSDL3.so" "%STRIP_EXE%" --strip-all "%APP_DIR%\src\main\jniLibs\%CURR_ABI%\libSDL3.so"
 )
 
 echo [V] Da build va copy: %DEST_SO%

@@ -24,6 +24,8 @@ extern int DisplayHeightExt;
 extern int DisplayWinExt;
 extern int DisplayWinReal;
 
+glm::mat4 g_CurrentProjectionMatrix(1.0f);
+
 int     OpenglWindowX;     
 int     OpenglWindowY;     
 int     OpenglWindowWidth; 
@@ -738,6 +740,7 @@ void BeginOpengl(int x,int y,int Width,int Height )
     glViewport2(x,y,Width,Height);
 
 	gluPerspective2(CameraFOV,((float)Width/(float)Height),CameraViewNear,CameraViewFar*1.4f);
+	g_CurrentProjectionMatrix = glm::perspective(glm::radians(CameraFOV), ((float)Width / (float)Height), CameraViewNear, CameraViewFar * 1.4f);
     
 	glMatrixMode(GL_MODELVIEW);
 	glPushMatrix();
@@ -1031,7 +1034,7 @@ BOOL InitGLMultisample(HINSTANCE hInstance, HWND hWnd, PIXELFORMATDESCRIPTOR pfd
 // render util
 ///////////////////////////////////////////////////////////////////////////////
 
-inline void TEXCOORD(float *c,float u,float v)
+void TEXCOORD(float *c,float u,float v)
 {
 	c[0] = u;
 	c[1] = v;

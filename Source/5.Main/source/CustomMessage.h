@@ -25,7 +25,7 @@ public:
 	CUSTOM_MESSAGE_INFO* GetInfoEng(int index);
 	CUSTOM_MESSAGE_INFO* GetInfoVtm(int index);
 	char* GetMessage(int index);
-	char* GetMessageA(int index) { return this->GetMessage(index); }
+	char* GetMessageA(int index) { return GetMessage(index); }
 	char * GetMessageB(int index); // Text.bmd
 public:
 	char m_DefaultMessage[128];

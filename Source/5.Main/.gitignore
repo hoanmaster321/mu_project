@@ -19,5 +19,6 @@
 *.iobj
 .build/
 *.txt
+!CMakeLists.txt
 *.jpg
 build/bin/x86/Global Debug/Main.exe

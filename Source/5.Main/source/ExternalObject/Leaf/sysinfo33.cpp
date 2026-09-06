@@ -1,6 +1,6 @@
 #include "stdafx.h"
 
-#include "sysinfo.h"
+#include "sysinfo33.h"
 #include "rdtsc.h"
 
 bool leaf::GetOSInfoString(OUT std::string& osinfo)
@@ -328,7 +328,7 @@ void leaf::GetCPUInfoString(OUT std::string& cpuinfo)
 	}	//. switch(iBrand)
 	
 	// ¼Óµµ
-	__int64 llFreq = GetCPUFrequency( 50) / 1000000;
+	__int64 llFreq = leaf::GetCPUFrequency( 50) / 1000000;
 	char szFreq[24] = {0, };
 	if(llFreq > 1000) {
 		double fFreq = double(llFreq) / 1000.f;

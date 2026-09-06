@@ -20,7 +20,7 @@
 #include "CharacterManager.h"
 
 #if defined(__ANDROID__) || defined(MU_IOS)
-#include <SDL.h>
+#include <SDL3/SDL.h>
 #endif
 
 #define	CMW_OK		0
@@ -31,9 +31,9 @@ extern float g_fScreenRate_y;
 extern int g_iChatInputType;
 extern CUITextInputBox* g_pSingleTextInputBox;
 #if defined(__ANDROID__) || defined(MU_IOS)
-extern bool    g_charNameInputActive;
-extern wchar_t g_charNameBuf[11];
-extern int     g_charNameLen;
+bool    g_charNameInputActive = false;
+wchar_t g_charNameBuf[11] = {};
+int     g_charNameLen = 0;
 #endif
 
 void MoveCharacterCamera(vec3_t Origin,vec3_t Position,vec3_t Angle);

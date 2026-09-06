@@ -4,7 +4,7 @@
 //#include "HackCheck.h"
 #include "Protocol.h"
 
-#define TYPE_MAINSS		0  //1 Là SS6 1.04E, 0 là SRC Main
+#define TYPE_MAINSS		0  //1 L SS6 1.04E, 0 l SRC Main
 #if(TYPE_MAINSS==1)
 extern DWORD FrameValue;
 extern DWORD SpeedValue;
@@ -32,6 +32,57 @@ extern DWORD ViewAddEnergy;
 extern DWORD ViewAddLeadership;
 extern DWORD ViewPhysiSpeed;
 extern DWORD ViewMagicSpeed;
+#endif
+
+#if defined(__ANDROID__) || defined(MU_IOS)
+void SetAPIDATA_SEND(DATA_SEND) {}
+void CBAnihack_Work() {}
+void CBAnihack_Init() {}
+void CBAnihack_Attack() {}
+void CBAnihack_Recv(BYTE*) {}
+
+DWORD  API_TypeMain = 0;
+DWORD  API_CharLevel = 0;
+DWORD  API_CharWeaponFirstSlot = 0;
+DWORD  API_CharWeaponSecondSlot = 0;
+DWORD  API_CharHelmSlot = 0;
+DWORD  API_CharArmorSlot = 0;
+DWORD  API_CharPantsSlot = 0;
+DWORD  API_CharGlovesSlot = 0;
+DWORD  API_CharBootsSlot = 0;
+DWORD  API_CharWingsSlot = 0;
+DWORD  API_CharPetSlot = 0;
+DWORD  API_CharAnimationID = 0;
+DWORD  API_CharActiveMagic = 0;
+
+static DWORD s_dummyZero = 0;
+DWORD* API_GameState = &s_dummyZero;
+DWORD* API_FrameValue = &s_dummyZero;
+DWORD* API_SpeedValue = &s_dummyZero;
+DWORD* API_MainTickCount = &s_dummyZero;
+DWORD* API_SyncTickCount = &s_dummyZero;
+DWORD* API_CountModifier = &s_dummyZero;
+DWORD* API_DelayModifier = &s_dummyZero;
+DWORD* API_HasteModifier = &s_dummyZero;
+DWORD* API_SleepModifier = &s_dummyZero;
+DWORD* API_SpeedModifier1 = &s_dummyZero;
+DWORD* API_SpeedModifier2 = &s_dummyZero;
+DWORD* API_ModelModifier1 = &s_dummyZero;
+DWORD* API_ModelModifier2 = &s_dummyZero;
+DWORD* API_ModelModifier3 = &s_dummyZero;
+DWORD* API_ViewPoint = &s_dummyZero;
+DWORD* API_ViewStrength = &s_dummyZero;
+DWORD* API_ViewDexterity = &s_dummyZero;
+DWORD* API_ViewVitality = &s_dummyZero;
+DWORD* API_ViewEnergy = &s_dummyZero;
+DWORD* API_ViewLeadership = &s_dummyZero;
+DWORD* API_ViewAddStrength = &s_dummyZero;
+DWORD* API_ViewAddDexterity = &s_dummyZero;
+DWORD* API_ViewAddVitality = &s_dummyZero;
+DWORD* API_ViewAddEnergy = &s_dummyZero;
+DWORD* API_ViewAddLeadership = &s_dummyZero;
+DWORD* API_ViewPhysiSpeed = &s_dummyZero;
+DWORD* API_ViewMagicSpeed = &s_dummyZero;
 #endif
 
 APICB gAPICB;

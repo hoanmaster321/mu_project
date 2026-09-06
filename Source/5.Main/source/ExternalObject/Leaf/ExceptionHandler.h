@@ -2,6 +2,17 @@
 #ifndef _EXCEPTION_HANDLER_H_
 #define _EXCEPTION_HANDLER_H_
 
+#if defined(__ANDROID__) || defined(MU_IOS)
+#include <string>
+namespace leaf {
+	typedef bool (*EXCEPTION_CALLBACK)(void* pExceptionInfo);
+	inline bool AttachExceptionHandler(const std::string& dmpfile, bool bSecondChance = false) { return true; }
+	inline bool AttachExceptionHandler(EXCEPTION_CALLBACK pfCallback, bool bSecondChance = false) { return true; }
+	inline bool DetachExceptionHandler() { return true; }
+	inline bool IsContinueExceptionToSecondChance() { return false; }
+	inline bool SaveExceptionDumpFile(const std::string& filename, void* pContext, void* pExceptionInfo = NULL) { return true; }
+}
+#else
 #include "sysinfo.h"
 #include "callstackdmp.h"
 
@@ -173,5 +184,6 @@ namespace leaf {
 	};
 
 }
+#endif // !defined(__ANDROID__) && !defined(MU_IOS)
 
 #endif // _EXCEPTION_HANDLER_H_

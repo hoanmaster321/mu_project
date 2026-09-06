@@ -53,24 +53,25 @@ typedef void*          HPEN;
 typedef void*          HINSTANCE;
 typedef void*          HMENU;
 
-// ── Function declarations (defined in AndroidGDI.cpp) ────────────────────
+// ── Function declarations (inline stubs - zero SDL_ttf dependency) ────────────────────
+inline void    AndroidGDI_Init(int /*defaultFontSizePx*/) {}
+inline void    AndroidGDI_Shutdown() {}
 
-// Font initialisation — call once from android_main after working dir is set
-void  AndroidGDI_Init(int defaultFontSizePx);
-void  AndroidGDI_Shutdown();
-
-// GDI implementations
-HBITMAP AndroidCreateDIBSection(const void* bmiPtr, void** ppvBits);
-HDC     AndroidCreateCompatibleDC(HDC src);
-HFONT   AndroidCreateFont(int height, int weight);   // weight: FW_NORMAL=400, FW_SEMIBOLD=600, FW_BOLD=700
-HGDIOBJ AndroidSelectObject(HDC hdc, HGDIOBJ obj);
-void    AndroidSelectBitmap(HDC hdc, HBITMAP bmp);
-void    AndroidSelectFont(HDC hdc, HFONT font);
-bool    AndroidTextOut(HDC hdc, int x, int y, const wchar_t* text, int len);
-bool    AndroidGetTextExtentPoint32(HDC hdc, const wchar_t* text, int len, int* outW, int* outH);
-void    AndroidSetTextColor(HDC hdc, uint32_t colorref);
-void    AndroidSetBkColor(HDC hdc, uint32_t colorref);
-bool    AndroidDeleteDC(HDC hdc);
-bool    AndroidDeleteObject(HGDIOBJ obj);
+inline HBITMAP AndroidCreateDIBSection(const void* /*bmiPtr*/, void** ppvBits) { if (ppvBits) *ppvBits = nullptr; return nullptr; }
+inline HDC     AndroidCreateCompatibleDC(HDC /*src*/) { static AndroidDC dummyDC{}; return &dummyDC; }
+inline HFONT   AndroidCreateFont(int /*height*/, int /*weight*/) { static AndroidFont dummyFont{}; return &dummyFont; }
+inline HGDIOBJ AndroidSelectObject(HDC /*hdc*/, HGDIOBJ obj) { return obj; }
+inline void    AndroidSelectBitmap(HDC hdc, HBITMAP bmp) { if (hdc) hdc->bmp = bmp; }
+inline void    AndroidSelectFont(HDC hdc, HFONT font) { if (hdc) hdc->font = font; }
+inline bool    AndroidTextOut(HDC /*hdc*/, int /*x*/, int /*y*/, const wchar_t* /*text*/, int /*len*/) { return true; }
+inline bool    AndroidGetTextExtentPoint32(HDC /*hdc*/, const wchar_t* /*text*/, int len, int* outW, int* outH) {
+    if (outW) *outW = (len > 0 ? len : 1) * 8;
+    if (outH) *outH = 14;
+    return true;
+}
+inline void    AndroidSetTextColor(HDC hdc, uint32_t colorref) { if (hdc) hdc->textColor = colorref; }
+inline void    AndroidSetBkColor(HDC hdc, uint32_t colorref) { if (hdc) hdc->bgColor = colorref; }
+inline bool    AndroidDeleteDC(HDC /*hdc*/) { return true; }
+inline bool    AndroidDeleteObject(HGDIOBJ /*obj*/) { return true; }
 
 #endif // __ANDROID__

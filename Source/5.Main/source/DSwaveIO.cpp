@@ -1,6 +1,8 @@
 #include "stdafx.h"
 #include "DSwaveIO.h"
 
+#if !defined(__ANDROID__) && !defined(MU_IOS)
+
 //////////////////////////////////////////////////////////////////////
 // Construction/Destruction
 //////////////////////////////////////////////////////////////////////
@@ -242,3 +244,4 @@ bool waveIO::WriteWaveHeader(char *szFilename, PCMWAVEFORMAT wf, int nWaveDataSi
 
 	return true;
 }
+#endif // !defined(__ANDROID__) && !defined(MU_IOS)

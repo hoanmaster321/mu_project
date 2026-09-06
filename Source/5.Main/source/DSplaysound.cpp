@@ -11,6 +11,26 @@
 // Copyright (c) 1999 Microsoft Corp. All rights reserved.
 //-----------------------------------------------------------------------------
 #include "stdafx.h"
+#include "DSPlaySound.h"
+
+#if defined(__ANDROID__) || defined(MU_IOS)
+bool                    g_EnableSound    = false;
+bool                    g_Enable3DSound  = false;
+int                  	SoundLoadCount   = 0;
+
+HRESULT InitDirectSound( HWND hDlg ) { return S_OK; }
+void    SetEnableSound ( bool b ) { g_EnableSound = b; }
+void    FreeDirectSound() {}
+void    LoadWaveFile(int Buffer,TCHAR* strFileName,int BufferChannel, bool Enable3DSound) {}
+HRESULT PlayBuffer(int Buffer,OBJECT *Object,BOOL bLooped) { return S_OK; }
+void    StopBuffer(int Buffer,BOOL bResetPosition) {}
+void    AllStopSound(void) {}
+void    Set3DSoundPosition() {}
+HRESULT ReleaseBuffer(int Buffer) { return S_OK; }
+HRESULT RestoreBuffers(int Buffer,int Channel) { return S_OK; }
+void	SetVolume(int Buffer, long vol) {}
+void	SetMasterVolume(long vol) {}
+#else
 #include <objbase.h>
 //#include <initguid.h>
 #include <commdlg.h>
@@ -571,3 +591,4 @@ void Set3DSoundPosition()
 		}
 	}
 }
+#endif // !defined(__ANDROID__) && !defined(MU_IOS)

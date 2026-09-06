@@ -26,6 +26,7 @@
 #define RENDER_CHROME6      0x00010000
 #define RENDER_CHROME7      0x00020000
 #define RENDER_DOPPELGANGER 0x00040000
+#define RENDER_CHROME8      0x00080000
 #define RENDER_WAVE_EXT		0x10000000
 #define RENDER_BYSCRIPT		0x80000000
 #define RNDEXT_WAVE			1
@@ -164,6 +165,57 @@ typedef struct _Mesh_t
 
 } Mesh_t;
 
+#if CB_SHADER330_TEST
+#include "volk.h"
+#include "VulkanGLStub.h"
+#include <vector>
+
+typedef struct _VertexBMD
+{
+	vec3_t m_vPos;
+	vec3_t m_vNorm;
+	vec2_t m_vTex;
+	GLuint m_iBone;
+} VertexBMD;
+
+typedef struct _VAOMesh
+{
+	bool   NoneBlendMesh;
+	short  Texture;
+	GLuint VAO, VBO, IBO, VertexCount, IndexCount;
+	VkBuffer vkVertexBuffer = VK_NULL_HANDLE;
+	VkDeviceMemory vkVertexMemory = VK_NULL_HANDLE;
+	VkBuffer vkIndexBuffer = VK_NULL_HANDLE;
+	VkDeviceMemory vkIndexMemory = VK_NULL_HANDLE;
+	TextureScript* m_csTScript;
+	std::vector<VertexBMD> VBuffer;
+	std::vector<GLuint> IBuffer;
+	std::vector<short> BoneContainer;
+
+	bool SendIndexBone(GLuint Shaderid, const float* Bone, bool bTrans, vec3_t vTrans, float Scale, bool AppScale = false, float ReqScale = 0.0f);
+	bool GetPackedBones(const float* Bone, bool bTrans, const vec3_t vTrans, float Scale, bool AppScale, float ReqScale, std::vector<float>& outPacked);
+	bool GetPackedBonesDirect(const float* Bone, bool bTrans, const vec3_t vTrans, float Scale, bool AppScale, float ReqScale, float* outPacked);
+
+	_VAOMesh() : NoneBlendMesh(true), Texture(0), VAO(0), VBO(0), IBO(0), VertexCount(0), IndexCount(0),
+		vkVertexBuffer(VK_NULL_HANDLE), vkVertexMemory(VK_NULL_HANDLE), vkIndexBuffer(VK_NULL_HANDLE), vkIndexMemory(VK_NULL_HANDLE),
+		m_csTScript(NULL)
+	{
+		VBuffer.clear(); IBuffer.clear(); BoneContainer.clear();
+	}
+} VAOMesh;
+
+typedef struct _TempVertex
+{
+	short v, t, n;
+	_TempVertex() : v(-1), t(-1), n(-1) {}
+	_TempVertex(short x, short y, short z) : v(x), t(y), n(z) {}
+} TempVertex;
+
+typedef std::vector<TempVertex> Temp_Vec;
+
+typedef std::vector<VAOMesh> ShaderMesh;
+#endif
+
 class BMD
 {
 public:
@@ -216,6 +268,10 @@ public:
 	char				iBillType;
 
 	bool				m_bCompletedAlloc;
+#if CB_SHADER330_TEST
+	float				m_fRequestScale;
+	ShaderMesh			New_Meshs;
+#endif
 	
 	BMD() : NumBones(0), NumActions(0), NumMeshs(0), 
 		Meshs(NULL), Bones(NULL), Actions(NULL), Textures(NULL), IndexTexture(NULL)
@@ -227,6 +283,9 @@ public:
 		iBillType = -1;
 		bOffLight = false;
 		m_bCompletedAlloc = false;
+#if CB_SHADER330_TEST
+		m_fRequestScale = 1.0f;
+#endif
 	}
 
 ~BMD();
@@ -238,6 +297,14 @@ public:
 	bool Save2(char *DirName,char *FileName);
 	void Release();
     void CreateBoundingBox();
+#if CB_SHADER330_TEST
+	void LoadMeshToVAO();
+	void UploadAllToGPU();
+	void ReadMemoryGPU();
+	void ExtendVertex(Mesh_t* oM, VAOMesh* nM);
+	void TranstoVertices(vec3_t(*outVertex)[MAX_VERTICES], float(*matBone)[3][4], bool Translate = false);
+	void OutAllAnimVertices(vec3_t(*outVertex)[MAX_VERTICES], const OBJECT& oSelf);
+#endif
 
     //transform
 #ifdef PBG_ADD_NEWCHAR_MONK_ANI

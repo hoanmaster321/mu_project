@@ -2,6 +2,26 @@
 //
 //////////////////////////////////////////////////////////////////////
 
+#if defined(__ANDROID__) || defined(MU_IOS)
+#include "stdafx.h"
+#include "ErrorReport.h"
+#include <cstdarg>
+
+CErrorReport g_ErrorReport;
+CErrorReport::CErrorReport() : m_hFile(nullptr), m_iKey(0) {}
+CErrorReport::~CErrorReport() {}
+void CErrorReport::Clear() {}
+void CErrorReport::Create(char*) {}
+void CErrorReport::Destroy() {}
+void CErrorReport::CutHead() {}
+char* CErrorReport::CheckHeadToCut(char*, DWORD) { return nullptr; }
+BOOL CErrorReport::WriteFile(HANDLE, void*, DWORD, LPDWORD, LPOVERLAPPED) { return TRUE; }
+void CErrorReport::WriteDebugInfoStr(char*) {}
+void CErrorReport::Write(const char*, ...) {}
+void CErrorReport::HexWrite(void*, int) {}
+void CErrorReport::AddSeparator() {}
+void CErrorReport::WriteCurrentTime(BOOL) {}
+#else
 #define DIRECTINPUT_VERSION 0x0800
 
 #include "stdafx.h"
@@ -981,3 +1001,5 @@ void GetSystemInfo( ER_SystemInfo *si)
 	wsprintf( si->m_lpszDxVersion, "Direct-X %d.%d", dwDX >> 8, dwDX & 0xFF);
 }
 
+
+#endif // !defined(__ANDROID__) && !defined(MU_IOS)

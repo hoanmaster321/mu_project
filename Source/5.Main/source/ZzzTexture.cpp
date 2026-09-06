@@ -34,6 +34,9 @@ METHODDEF(void) my_error_exit (j_common_ptr cinfo)
 
 bool WriteJpeg(char *filename,int Width,int Height,unsigned char *Buffer,int quality)
 {
+#if defined(__ANDROID__) || defined(MU_IOS)
+	return false;
+#else
 	struct jpeg_compress_struct cinfo;
 	struct jpeg_error_mgr jerr;
 	FILE * outfile;
@@ -70,6 +73,7 @@ bool WriteJpeg(char *filename,int Width,int Height,unsigned char *Buffer,int qua
 	fclose(outfile);
 	jpeg_destroy_compress(&cinfo);
 	return TRUE;
+#endif
 }
 
 void SaveImage(int HeaderSize,char *Ext,char *filename,BYTE *PakBuffer,int Size)

@@ -1,4 +1,4 @@
-﻿// stdafx.h : include file for standard system include files,
+// stdafx.h : include file for standard system include files,
 #pragma once
 
 //warining
@@ -49,6 +49,15 @@
 #include <WinSock2.h>
 #include <mmsystem.h>
 #include <shellapi.h>
+
+// Pure Native Vulkan - eliminate legacy Windows WGL OpenGL32 imports
+#define wglMakeCurrent(hDC, hRC)        (TRUE)
+#define wglCreateContext(hDC)           ((HGLRC)1)
+#define wglDeleteContext(hRC)           (TRUE)
+#define wglGetCurrentDC()               ((HDC)1)
+#define wglGetProcAddress(name)         (nullptr)
+#else
+#include "Platform/PlatformDefs.h"
 #endif
 
 //c runtime
@@ -89,15 +98,20 @@
 #pragma warning( pop )
 #endif
 
-//opengl
-#if defined(__ANDROID__) || defined(MU_IOS)
-#include "Platform/PlatformDefs.h"
-#include "Platform/PlatformGL.h"
-#else
-#define GLEW_STATIC
-#include <gl/glew.h>
-#include <gl/gl.h>
+// FreeType & Vulkan Native & SDL3
+#include <ft2build.h>
+#include FT_FREETYPE_H
+
+#if defined(WIN32) || defined(_WIN32)
+#define VK_USE_PLATFORM_WIN32_KHR
+#elif defined(__ANDROID__)
+#define VK_USE_PLATFORM_ANDROID_KHR
 #endif
+#define VK_NO_PROTOTYPES
+#include "volk.h"
+#include <SDL3/SDL.h>
+#include <SDL3/SDL_vulkan.h>
+#include "VulkanGLStub.h"
 
 //patch
 //winmain
