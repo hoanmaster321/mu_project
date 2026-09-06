@@ -136,6 +136,7 @@ public:
 	bool Convert_Format(const unicode::t_string& filename);
 
 	void Manage();
+	void UploadAllTexturesToVulkan();
 	
 	inline BITMAP_t& operator [] (GLuint uiBitmapIndex) { return *GetTexture(uiBitmapIndex); }
 

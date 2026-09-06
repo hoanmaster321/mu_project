@@ -279,53 +279,45 @@ inline void gluOrtho2D(float left, float right, float bottom, float top) {
 }
 
 // ============================================================================
-// State Control Wrappers & Texture Operations
+// State Control Wrappers & Vulkan Native Operations
 // ============================================================================
+
+// Bridge functions implemented in GPUContext.cpp
+void VulkanSetClearColor(float r, float g, float b, float a);
+void VulkanClearDepthBuffer();
+void VulkanSetViewport(float x, float y, float width, float height);
+void VulkanSetScissor(int32_t x, int32_t y, uint32_t width, uint32_t height);
+
 inline void glEnable(GLenum) {}
 inline void glDisable(GLenum) {}
 inline void glAlphaFunc(GLenum, float) {}
 inline void glDepthFunc(GLenum) {}
 inline void glDepthMask(GLboolean) {}
 inline void glBlendFunc(GLenum, GLenum) {}
-inline void glCullFace(GLenum) {}
-inline void glFrontFace(GLenum) {}
 inline void glPolygonMode(GLenum, GLenum) {}
-inline void glClear(GLbitfield) {}
-inline void glClearColor(float, float, float, float) {}
 inline void glFlush() {}
-inline void glViewport(GLint, GLint, GLsizei, GLsizei) {}
-inline void glScissor(GLint, GLint, GLsizei, GLsizei) {}
 inline void glFogf(GLenum, float) {}
 inline void glFogfv(GLenum, const float*) {}
-inline void glFogi(GLenum, GLint) {}
-inline void glLightfv(GLenum, GLenum, const float*) {}
-inline void glBindTexture(GLenum, GLuint) {}
-inline void glActiveTexture(GLenum) {}
-inline void glTexParameteri(GLenum, GLenum, GLint) {}
-inline void glTexEnvf(GLenum, GLenum, float) {}
-inline void glTexEnvi(GLenum, GLenum, GLint) {}
-inline void glTexEnvfv(GLenum, GLenum, const float*) {}
-inline void glPixelStorei(GLenum, GLint) {}
-inline void glTexImage2D(GLenum, GLint, GLint, GLsizei, GLsizei, GLint, GLenum, GLenum, const void*) {}
-inline void glTexSubImage2D(GLenum, GLint, GLint, GLint, GLsizei, GLsizei, GLenum, GLenum, const void*) {}
 inline void glReadPixels(GLint, GLint, GLsizei, GLsizei, GLenum, GLenum, void*) {}
-inline void glUseProgram(GLuint) {}
-inline void glBindVertexArray(GLuint) {}
-inline void glBindBuffer(GLenum, GLuint) {}
-inline void glDeleteBuffers(GLsizei, const GLuint*) {}
-inline void glDeleteVertexArrays(GLsizei, const GLuint*) {}
-inline void glDeleteProgram(GLuint) {}
-inline void glDeleteShader(GLuint) {}
-inline void glGetIntegerv(GLenum, GLint* params) { if (params) *params = 0; }
 inline const GLubyte* glGetString(GLenum) { return (const GLubyte*)"Vulkan Native"; }
 
-inline void glGenTextures(GLsizei n, GLuint* textures) {
-    static std::atomic<GLuint> s_NextId{ 1 };
-    if (textures) {
-        for (GLsizei i = 0; i < n; ++i) textures[i] = s_NextId.fetch_add(1);
+inline void glClear(GLbitfield mask) {
+    if (mask & GL_DEPTH_BUFFER_BIT) {
+        VulkanClearDepthBuffer();
     }
 }
-inline void glDeleteTextures(GLsizei, const GLuint*) {}
+
+inline void glClearColor(float r, float g, float b, float a) {
+    VulkanSetClearColor(r, g, b, a);
+}
+
+inline void glViewport(GLint x, GLint y, GLsizei width, GLsizei height) {
+    VulkanSetViewport(static_cast<float>(x), static_cast<float>(y), static_cast<float>(width), static_cast<float>(height));
+}
+
+inline void glScissor(GLint x, GLint y, GLsizei width, GLsizei height) {
+    VulkanSetScissor(x, y, static_cast<uint32_t>(width), static_cast<uint32_t>(height));
+}
 
 #if !defined(__ANDROID__) && !defined(MU_IOS)
 // High performance timer available globally across Windows & Android

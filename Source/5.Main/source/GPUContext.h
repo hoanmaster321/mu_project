@@ -557,12 +557,25 @@ private:
     };
     std::vector<DeferredImageDraw> m_deferredImageDraws;
 
+    struct DeferredViewport {
+        float x, y, width, height;
+    };
+    std::vector<DeferredViewport> m_deferredViewports;
+
+    struct DeferredScissor {
+        int32_t x, y;
+        uint32_t width, height;
+    };
+    std::vector<DeferredScissor> m_deferredScissors;
+
     enum class DeferredCmdType : uint8_t {
         Terrain,
         Mesh,
         Sprite,
         Image,
-        ClearDepth
+        ClearDepth,
+        SetViewport,
+        SetScissor
     };
     struct DeferredCommand {
         DeferredCmdType type;

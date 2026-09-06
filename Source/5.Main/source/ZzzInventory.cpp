@@ -3,6 +3,8 @@
 
 #include "stdafx.h"
 #include "UIManager.h"
+#include "GPUContext.h"
+#include "VulkanTextureManager.h"
 #include "ZzzOpenglUtil.h"
 #include "ZzzBMD.h"
 #include "ZzzLodTerrain.h"
@@ -13671,9 +13673,10 @@ void CreateGuildMark( int nMarkIndex, bool blend )
 		}
 	}
 
-	glBindTexture(GL_TEXTURE_2D,b->TextureNumber);
-
-    glTexImage2D(GL_TEXTURE_2D,0,b->Components,Width,Height,0,GL_RGBA,GL_UNSIGNED_BYTE,b->Buffer);
+	if (GPUContext::Instance().IsInitialized() && b->Buffer && Width > 0 && Height > 0)
+	{
+		VulkanTextureManager::Instance().CreateTextureWithId(b->BitmapIndex, (uint32_t)Width, (uint32_t)Height, 4, b->Buffer, false, true);
+	}
 }
 
 void BCreateGuildMark(BYTE* MarkBuffer, bool blend)
@@ -13730,9 +13733,10 @@ void BCreateGuildMark(BYTE* MarkBuffer, bool blend)
 		}
 	}
 
-	glBindTexture(GL_TEXTURE_2D, b->TextureNumber);
-
-	glTexImage2D(GL_TEXTURE_2D, 0, b->Components, Width, Height, 0, GL_RGBA, GL_UNSIGNED_BYTE, b->Buffer);
+	if (GPUContext::Instance().IsInitialized() && b->Buffer && Width > 0 && Height > 0)
+	{
+		VulkanTextureManager::Instance().CreateTextureWithId(b->BitmapIndex, (uint32_t)Width, (uint32_t)Height, 4, b->Buffer, false, true);
+	}
 }
 
 
@@ -13812,9 +13816,10 @@ void CreateCastleMark ( int Type, BYTE* buffer, bool blend )
             offset += 4;
 		}
 	}
-    glBindTexture(GL_TEXTURE_2D,b->TextureNumber);
-
-    glTexImage2D(GL_TEXTURE_2D,0,3,Width,Height,0,GL_RGBA,GL_UNSIGNED_BYTE,b->Buffer);
+	if (GPUContext::Instance().IsInitialized() && b->Buffer && Width > 0 && Height > 0)
+	{
+		VulkanTextureManager::Instance().CreateTextureWithId(b->BitmapIndex, (uint32_t)Width, (uint32_t)Height, 4, b->Buffer, false, true);
+	}
 }
 
 
@@ -13867,9 +13872,10 @@ void RenderGuildColor(float x,float y,int SizeX,int SizeY,int Index)
 		}
 	}
 
-	glBindTexture(GL_TEXTURE_2D,b->TextureNumber);
-
-    glTexImage2D(GL_TEXTURE_2D,0,b->Components,Width,Height,0,GL_RGBA,GL_UNSIGNED_BYTE,b->Buffer);
+	if (GPUContext::Instance().IsInitialized() && b->Buffer && Width > 0 && Height > 0)
+	{
+		VulkanTextureManager::Instance().CreateTextureWithId(b->BitmapIndex, (uint32_t)Width, (uint32_t)Height, 4, b->Buffer, false, true);
+	}
     RenderBitmap(BITMAP_GUILD,x,y,(float)SizeX,(float)SizeY);
 }
 

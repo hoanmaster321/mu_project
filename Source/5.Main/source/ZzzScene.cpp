@@ -1663,6 +1663,9 @@ void LoadingScene(HDC hDC)
 	}
 
     FogEnable = false;
+	if (GPUContext::Instance().IsInitialized()) {
+		GPUContext::Instance().BeginFrame();
+	}
 #if(WIDE_SCREEN)
 	::BeginOpengl(0, 0, GetWindowsX(), GetWindowsY());
 #else
@@ -1676,8 +1679,12 @@ void LoadingScene(HDC hDC)
 
 	::EndBitmap();
 	::EndOpengl();
-	::glFlush();
-	::SwapBuffers(hDC);
+	if (GPUContext::Instance().IsInitialized()) {
+		GPUContext::Instance().Present();
+	} else {
+		::glFlush();
+		::SwapBuffers(hDC);
+	}
 
 	SAFE_DELETE(rUIMng.m_pLoadingScene);
 
@@ -3815,7 +3822,6 @@ void Scene(HDC hDC)
 {
 	//::Sleep(1);
     g_render_lock->lock();
-    wglMakeCurrent(hDC, g_hRC);
     try
     {
         g_Luminosity = sinf(WorldTime * 0.004f) * 0.15f + 0.6f;
@@ -3872,7 +3878,6 @@ void Scene(HDC hDC)
 #endif
     }
 
-    wglMakeCurrent(nullptr, nullptr);
     g_render_lock->unlock();
 }
 

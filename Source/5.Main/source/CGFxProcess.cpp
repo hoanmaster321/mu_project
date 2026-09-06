@@ -425,8 +425,6 @@ void GFxProcess::GFxRender()
 			glPushAttrib(GL_ALL_ATTRIB_BITS);
 			glDisable(GL_FRAGMENT_PROGRAM_ARB);
 			glDisable(GL_VERTEX_PROGRAM_ARB);
-			glBindBuffer(GL_ARRAY_BUFFER, 0);
-			glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
 
 			if(temp->Render())
 			{

@@ -228,19 +228,12 @@ GLvoid KillGLWindow(GLvoid)
 	//}
 	if (g_hRC)
 	{
-		wglMakeCurrent(nullptr, nullptr);
-		if (!wglDeleteContext(g_hRC))
-		{
-			g_ErrorReport.Write("GL - Release Rendering Context Failed\r\n");
-			MessageBox(NULL, "Release Rendering Context Failed.", "Error", MB_OK | MB_ICONINFORMATION);
-		}
-
 		g_hRC = NULL;
 	}
 	if (g_hDC && !ReleaseDC(g_hWnd,g_hDC))
 	{
-		g_ErrorReport.Write( "GL - OpenGL Release Error\r\n");
-		MessageBox(NULL,"OpenGL Release Error.","Error",MB_OK | MB_ICONINFORMATION);
+		g_ErrorReport.Write( "Release DC Error\r\n");
+		MessageBox(NULL,"Release DC Error.","Error",MB_OK | MB_ICONINFORMATION);
 		g_hDC=NULL;
 	}
 
@@ -926,62 +919,17 @@ LONG FAR PASCAL WndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
 
 bool CreateOpenglWindow()
 {
-#if !defined(__ANDROID__) && !defined(MU_IOS)
-    PIXELFORMATDESCRIPTOR pfd;
-
-    memset(&pfd, 0, sizeof(pfd));
-    pfd.nSize        = sizeof(pfd);
-    pfd.nVersion     = 1;
-    pfd.dwFlags      = PFD_DRAW_TO_WINDOW | PFD_SUPPORT_OPENGL | PFD_DOUBLEBUFFER;
-    pfd.iPixelType   = PFD_TYPE_RGBA;
-    pfd.cColorBits   = 16;
-	pfd.cDepthBits   = 16;
-
 	if (!(g_hDC=GetDC(g_hWnd)))
 	{
-		g_ErrorReport.Write( "OpenGL Get DC Error - ErrorCode : %d\r\n", GetLastError());
+		g_ErrorReport.Write( "Get DC Error - ErrorCode : %d\r\n", GetLastError());
 		KillGLWindow();
-		MessageBox(NULL,GlobalText[4],"OpenGL Get DC Error.",MB_OK|MB_ICONEXCLAMATION);
+		MessageBox(NULL,GlobalText[4],"Get DC Error.",MB_OK|MB_ICONEXCLAMATION);
 		return FALSE;
 	}
 
-	GLuint PixelFormat;
-
-	if (!(PixelFormat=ChoosePixelFormat(g_hDC,&pfd)))
-	{
-		g_ErrorReport.Write( "OpenGL Choose Pixel Format Error - ErrorCode : %d\r\n", GetLastError());
-		KillGLWindow();
-		MessageBox(NULL,GlobalText[4],"OpenGL Choose Pixel Format Error.",MB_OK|MB_ICONEXCLAMATION);
-		return FALSE;
-	}
-
-	if(!SetPixelFormat(g_hDC,PixelFormat,&pfd))
-	{
-		g_ErrorReport.Write( "OpenGL Set Pixel Format Error - ErrorCode : %d\r\n", GetLastError());
-		KillGLWindow();
-		MessageBox(NULL,GlobalText[4],"OpenGL Set Pixel Format Error.",MB_OK|MB_ICONEXCLAMATION);
-		return FALSE;
-	}
-
-	if (!(g_hRC=wglCreateContext(g_hDC)))
-	{
-		g_ErrorReport.Write( "OpenGL Create Context Error - ErrorCode : %d\r\n", GetLastError());
-		KillGLWindow();
-		MessageBox(NULL,GlobalText[4],"OpenGL Create Context Error.",MB_OK|MB_ICONEXCLAMATION);
-		return FALSE;
-	}
-
-	if(!wglMakeCurrent(g_hDC,g_hRC))
-	{
-		g_ErrorReport.Write( "OpenGL Make Current Error - ErrorCode : %d\r\n", GetLastError());
-		KillGLWindow();
-		MessageBox(NULL,GlobalText[4],"OpenGL Make Current Error.",MB_OK|MB_ICONEXCLAMATION);
-		return FALSE;
-	}
 	ShowWindow(g_hWnd,SW_SHOW);
 	SetForegroundWindow(g_hWnd);
 	SetFocus(g_hWnd);
-#endif
 
 	// Initialize Native SDL3 + Vulkan Context
 	if (VulkanSDL3Context::Instance().Init("MU Online", WindowWidth, WindowHeight, false))

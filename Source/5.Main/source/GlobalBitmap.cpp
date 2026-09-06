@@ -7,6 +7,8 @@
 #include "GlobalBitmap.h"
 #include "./Utilities/Log/ErrorReport.h"
 #include "./Utilities/Log/muConsoleDebug.h"
+#include "GPUContext.h"
+#include "VulkanTextureManager.h"
 
 #if defined(__ANDROID__) || defined(MU_IOS)
 #include <vector>
@@ -435,7 +437,10 @@ void CGlobalBitmap::UnloadImage(GLuint uiBitmapIndex, bool bForce)
 
 		if(--pBitmap->Ref == 0 || bForce)
 		{
-			glDeleteTextures( 1, &(pBitmap->TextureNumber));
+			if (GPUContext::Instance().IsInitialized())
+			{
+				VulkanTextureManager::Instance().DestroyTexture(uiBitmapIndex);
+			}
 
 			m_dwUsedTextureMemory -= (DWORD)(pBitmap->Width * pBitmap->Height * pBitmap->Components);
 
@@ -469,6 +474,10 @@ void CGlobalBitmap::UnloadAllImages()
 			g_ErrorReport.Write("Bitmap %s(RefCount= %d)\r\n", pBitmap->FileName, pBitmap->Ref);
 		}
 #endif // _DEBUG
+		if (GPUContext::Instance().IsInitialized())
+		{
+			VulkanTextureManager::Instance().DestroyTexture((*mi).first);
+		}
 		delete [] pBitmap->Buffer;
 		delete pBitmap;
 	}
@@ -677,13 +686,13 @@ bool CGlobalBitmap::OpenJpeg(GLuint uiBitmapIndex, const std::string& filename, 
 
 	m_mapBitmap.insert(type_bitmap_map::value_type(uiBitmapIndex, pNewBitmap));
 
-	glGenTextures(1, &(pNewBitmap->TextureNumber));
-	glBindTexture(GL_TEXTURE_2D, pNewBitmap->TextureNumber);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, Width, Height, 0, GL_RGB, GL_UNSIGNED_BYTE, pNewBitmap->Buffer);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, uiFilter);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, uiFilter);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, uiWrapMode);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, uiWrapMode);
+	pNewBitmap->TextureNumber = uiBitmapIndex;
+	if (GPUContext::Instance().IsInitialized() && pNewBitmap->Buffer && Width > 0 && Height > 0)
+	{
+		const bool linear = (uiFilter == GL_LINEAR || uiFilter == GL_LINEAR_MIPMAP_LINEAR || uiFilter == GL_LINEAR_MIPMAP_NEAREST);
+		const bool clamp = (uiWrapMode == GL_CLAMP || uiWrapMode == GL_CLAMP_TO_EDGE);
+		VulkanTextureManager::Instance().CreateTextureWithId(uiBitmapIndex, Width, Height, 3, pNewBitmap->Buffer, linear, clamp);
+	}
 
 	if(filename.find("World74") != std::string::npos || filename.find("MU-logo_g") != std::string::npos)
 	{
@@ -757,19 +766,13 @@ bool CGlobalBitmap::OpenJpeg(GLuint uiBitmapIndex, const std::string& filename, 
 
 		m_mapBitmap.insert(type_bitmap_map::value_type(uiBitmapIndex, pNewBitmap));
 		
-		glGenTextures( 1, &(pNewBitmap->TextureNumber));
-
-		glBindTexture(GL_TEXTURE_2D, pNewBitmap->TextureNumber);
-
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, Width, Height, 0, GL_RGB, GL_UNSIGNED_BYTE, pNewBitmap->Buffer);
-
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, uiFilter);
-
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, uiFilter);
-
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, uiWrapMode);
-
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, uiWrapMode);
+		pNewBitmap->TextureNumber = uiBitmapIndex;
+		if (GPUContext::Instance().IsInitialized() && pNewBitmap->Buffer && Width > 0 && Height > 0)
+		{
+			const bool linear = (uiFilter == GL_LINEAR || uiFilter == GL_LINEAR_MIPMAP_LINEAR || uiFilter == GL_LINEAR_MIPMAP_NEAREST);
+			const bool clamp = (uiWrapMode == GL_CLAMP || uiWrapMode == GL_CLAMP_TO_EDGE);
+			VulkanTextureManager::Instance().CreateTextureWithId(uiBitmapIndex, Width, Height, pNewBitmap->Components, pNewBitmap->Buffer, linear, clamp);
+		}
 	}
 	(void) jpeg_finish_decompress(&cinfo);
 	jpeg_destroy_decompress(&cinfo);
@@ -898,21 +901,13 @@ bool CGlobalBitmap::OpenTga(GLuint uiBitmapIndex, const std::string& filename, G
 
 	m_mapBitmap.insert(type_bitmap_map::value_type(uiBitmapIndex, pNewBitmap));
 	
-	glGenTextures( 1, &(pNewBitmap->TextureNumber));
-
-	glBindTexture(GL_TEXTURE_2D, pNewBitmap->TextureNumber);
-
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, Width, Height, 0, GL_RGBA, GL_UNSIGNED_BYTE, pNewBitmap->Buffer);
-
-    glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
-
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, uiFilter);
-
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, uiFilter);
-
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, uiWrapMode);
-
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, uiWrapMode);
+	pNewBitmap->TextureNumber = uiBitmapIndex;
+	if (GPUContext::Instance().IsInitialized() && pNewBitmap->Buffer && Width > 0 && Height > 0)
+	{
+		const bool linear = (uiFilter == GL_LINEAR || uiFilter == GL_LINEAR_MIPMAP_LINEAR || uiFilter == GL_LINEAR_MIPMAP_NEAREST);
+		const bool clamp = (uiWrapMode == GL_CLAMP || uiWrapMode == GL_CLAMP_TO_EDGE);
+		VulkanTextureManager::Instance().CreateTextureWithId(uiBitmapIndex, Width, Height, pNewBitmap->Components, pNewBitmap->Buffer, linear, clamp);
+	}
 
 	return true;
 }
@@ -1044,3 +1039,28 @@ void CGlobalBitmap::my_error_exit(j_common_ptr cinfo)
 	(*cinfo->err->output_message) (cinfo);
 	longjmp(myerr->setjmp_buffer, 1);
 }
+
+void CGlobalBitmap::UploadAllTexturesToVulkan()
+{
+	if (!GPUContext::Instance().IsInitialized()) return;
+	for (auto& pair : m_mapBitmap)
+	{
+		BITMAP_t* pBitmap = pair.second;
+		if (pBitmap && pBitmap->Buffer && pBitmap->Width > 0 && pBitmap->Height > 0)
+		{
+			if (!VulkanTextureManager::Instance().HasTexture(pair.first))
+			{
+				VulkanTextureManager::Instance().CreateTextureWithId(
+					pair.first,
+					(uint32_t)pBitmap->Width,
+					(uint32_t)pBitmap->Height,
+					(uint32_t)pBitmap->Components,
+					pBitmap->Buffer,
+					true,
+					false
+				);
+			}
+		}
+	}
+}
+

@@ -49,13 +49,6 @@
 #include <WinSock2.h>
 #include <mmsystem.h>
 #include <shellapi.h>
-
-// Pure Native Vulkan - eliminate legacy Windows WGL OpenGL32 imports
-#define wglMakeCurrent(hDC, hRC)        (TRUE)
-#define wglCreateContext(hDC)           ((HGLRC)1)
-#define wglDeleteContext(hRC)           (TRUE)
-#define wglGetCurrentDC()               ((HDC)1)
-#define wglGetProcAddress(name)         (nullptr)
 #else
 #include "Platform/PlatformDefs.h"
 #endif

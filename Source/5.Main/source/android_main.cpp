@@ -1,4 +1,4 @@
-﻿// =============================================================================
+// =============================================================================
 // android_main.cpp
 // sokol_app entry point for Android â€” replaces Winmain.cpp on Android platform.
 //
@@ -80,6 +80,7 @@ static void android_set_data_dir_early()
 // Game systems
 #include "GameConfig/GameConfig.h"
 #include "ZzzOpenglUtil.h"
+#include "VulkanTextureManager.h"
 #include "ZzzTexture.h"
 #include "ZzzOpenData.h"
 #include "ZzzScene.h"
@@ -5451,13 +5452,7 @@ static UITexture LoadUITextureAsset(const char* assetPath)
         return tex;
     }
 
-    glGenTextures(1, &tex.id);
-    glBindTexture(GL_TEXTURE_2D, tex.id);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
+    tex.id = VulkanTextureManager::Instance().CreateTexture(w, h, 4, pixels, true, true);
     stbi_image_free(pixels);
 
     tex.w = w; tex.h = h;
@@ -5481,39 +5476,21 @@ static void EnsureUITextures()
     g_uiTex_setting   = LoadUITextureAsset("ui/setting.png");
 }
 
-// Draw a PNG icon at the given UI rect â€” NO background, NO border.
+// Draw a PNG icon at the given UI rect — NO background, NO border.
 // Renders the texture as-is with correct alpha transparency.
 // If the texture hasn't loaded yet, draws nothing.
 static void DrawIconButton(float uiX, float uiY, float uiW, float uiH,
-                           const UITexture& tex, float alpha = 1.0f,
-                           float bgR = 0.0f, float bgG = 0.0f, float bgB = 0.0f)
+                           const UITexture& tex, float alpha = 1.0f)
 {
-    if (tex.id == 0) return;  // texture not loaded â€” skip entirely
+    if (tex.id == 0) return;
 
     const float sx  = UiToScreenX(uiX);
     const float sw  = UiToScreenX(uiX + uiW) - sx;
-    const float syB = static_cast<float>(WindowHeight) - UiToScreenY(uiY + uiH);
-    const float syT = static_cast<float>(WindowHeight) - UiToScreenY(uiY);
+    const float sy  = UiToScreenY(uiY);
+    const float sh  = UiToScreenY(uiY + uiH) - sy;
 
-    // RenderNumber may have left GL_TEXTURE_2D enabled with an atlas bound â€” reset it.
-    glDisable(GL_TEXTURE_2D);
-    glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-
-    // Draw PNG texture directly â€” no background, no border
-    glEnable(GL_TEXTURE_2D);
-    glBindTexture(GL_TEXTURE_2D, tex.id);
     glColor4f(1.0f, 1.0f, 1.0f, alpha);
-    glBegin(GL_TRIANGLE_FAN);
-    glTexCoord2f(0.0f, 0.0f); glVertex2f(sx,      syB);
-    glTexCoord2f(1.0f, 0.0f); glVertex2f(sx + sw, syB);
-    glTexCoord2f(1.0f, 1.0f); glVertex2f(sx + sw, syT);
-    glTexCoord2f(0.0f, 1.0f); glVertex2f(sx,      syT);
-    glEnd();
-    glDisable(GL_TEXTURE_2D);
-
-    // Restore additive blend expected by the rest of the virtual pad
-    glBlendFunc(GL_ONE, GL_ONE);
+    RenderBitmap(tex.id, sx, sy, sw, sh, 0.0f, 0.0f, 1.0f, 1.0f, false, false);
 }
 
 static void DrawIconButtonUv(float uiX, float uiY, float uiW, float uiH,
@@ -5525,25 +5502,11 @@ static void DrawIconButtonUv(float uiX, float uiY, float uiW, float uiH,
 
     const float sx  = UiToScreenX(uiX);
     const float sw  = UiToScreenX(uiX + uiW) - sx;
-    const float syB = static_cast<float>(WindowHeight) - UiToScreenY(uiY + uiH);
-    const float syT = static_cast<float>(WindowHeight) - UiToScreenY(uiY);
+    const float sy  = UiToScreenY(uiY);
+    const float sh  = UiToScreenY(uiY + uiH) - sy;
 
-    glDisable(GL_TEXTURE_2D);
-    glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-
-    glEnable(GL_TEXTURE_2D);
-    glBindTexture(GL_TEXTURE_2D, tex.id);
     glColor4f(1.0f, 1.0f, 1.0f, alpha);
-    glBegin(GL_TRIANGLE_FAN);
-    glTexCoord2f(u0,      v0);      glVertex2f(sx,      syB);
-    glTexCoord2f(u0 + uW, v0);      glVertex2f(sx + sw, syB);
-    glTexCoord2f(u0 + uW, v0 + vH); glVertex2f(sx + sw, syT);
-    glTexCoord2f(u0,      v0 + vH); glVertex2f(sx,      syT);
-    glEnd();
-    glDisable(GL_TEXTURE_2D);
-
-    glBlendFunc(GL_ONE, GL_ONE);
+    RenderBitmap(tex.id, sx, sy, sw, sh, u0, v0, uW, vH, false, false);
 }
 
 static void DrawVirtualTopRightTextButton(const AndroidUiRect& rect, const TCHAR* label, bool active)

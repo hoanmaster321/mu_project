@@ -4,6 +4,8 @@
 #include "stdafx.h"
 #include "CComGem.h"
 #include "UIControls.h"
+#include "GPUContext.h"
+#include "VulkanTextureManager.h"
 #if defined(__ANDROID__) || defined(MU_IOS)
 #include <SDL3/SDL.h>
 #endif
@@ -81,14 +83,18 @@ void UploadFontBitmapRegion(BITMAP_t* bitmap, int uploadWidth, int uploadHeight)
 	{
 		uploadHeight = (int)bitmap->Height;
 	}
-#if defined(__ANDROID__) || defined(MU_IOS)
-	glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
-	glPixelStorei(GL_UNPACK_ROW_LENGTH, (GLint)bitmap->Width);
-	glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, uploadWidth, uploadHeight, GL_RGBA, GL_UNSIGNED_BYTE, bitmap->Buffer);
-	glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
-#else
-	glTexImage2D(GL_TEXTURE_2D, 0, bitmap->Components, (int)bitmap->Width, (int)bitmap->Height, 0, GL_RGBA, GL_UNSIGNED_BYTE, bitmap->Buffer);
-#endif
+	if (GPUContext::Instance().IsInitialized())
+	{
+		VulkanTextureManager::Instance().CreateTextureWithId(
+			bitmap->BitmapIndex,
+			(uint32_t)bitmap->Width,
+			(uint32_t)bitmap->Height,
+			(uint32_t)bitmap->Components,
+			bitmap->Buffer,
+			false,
+			true
+		);
+	}
 }
 }
 
@@ -2855,7 +2861,6 @@ void CUIRenderTextOriginal::UploadText(int sx,int sy,int Width,int Height)
 	}
 	if (Width > 0 && Height > 0 && sx + Width > 0 && sy + Height > 0)
 	{
-		glBindTexture(GL_TEXTURE_2D, b->TextureNumber);
 		UploadFontBitmapRegion(b, sourceWidth, sourceHeight);
 		float TextureUWidth = (Width + 0.01f) / b->Width;
 		float TextureVHeight = (Height + 0.01f) / b->Height;
@@ -3590,7 +3595,6 @@ void CUITextInputBox::UploadText(int sx,int sy,int Width,int Height)
 	}
 	if(Width > 0 && Height > 0 && sx+Width > 0 && sy+Height > 0)
 	{
-		glBindTexture(GL_TEXTURE_2D,b->TextureNumber);
 		UploadFontBitmapRegion(b, sourceWidth, sourceHeight);
 		float TextureUWidth = (Width+0.01f)/b->Width;
 		float TextureVHeight = (Height+0.01f)/b->Height;

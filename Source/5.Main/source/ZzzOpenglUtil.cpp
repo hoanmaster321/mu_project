@@ -350,9 +350,6 @@ void BindTexture(int tex)
 	if (tex >= 0)
 	{
 		BITMAP_t* b = &Bitmaps[tex];
-#ifdef SHADER_VERSION_TEST
-		glActiveTexture(GL_TEXTURE0);
-#endif 
 		texture = b->TextureNumber;
 	}
 	else
@@ -365,8 +362,6 @@ void BindTexture(int tex)
 		CachTexture = tex;
 #if CBMu_ENABLE_GL_STATE_CACHE
 		g_CBMuGLStateCache.SetTexture2D(texture);
-#else
-		glBindTexture(GL_TEXTURE_2D, texture);
 #endif
 	}
 	else
@@ -887,169 +882,6 @@ void UpdateMousePositionn()
 	VectorIRotate(vPos, CameraMatrix, MousePosition);
 }
 
-#ifdef LDS_ADD_MULTISAMPLEANTIALIASING
-#include "wglext.h"
-BOOL IsGLExtensionSupported(const char* extension)
-{
-	const size_t extlen = strlen(extension);
-	const char* supported = NULL;
-
-
-	PROC wglGetExtString = wglGetProcAddress("wglGetExtensionsStringARB");
-
-	if (wglGetExtString)
-		supported = ((char* (__stdcall*)(HDC))wglGetExtString)(wglGetCurrentDC());
-
-
-	if (supported == NULL)
-		supported = (char*)glGetString(GL_EXTENSIONS);
-
-
-	if (supported == NULL)
-		return FALSE;
-
-
-	for (const char* p = supported; ; p++)
-	{
-
-		p = strstr(p, extension);
-
-		if (p == NULL)
-			return FALSE;
-
-		if ((p == supported || p[-1] == ' ') && (p[extlen] == '\0' || p[extlen] == ' '))
-			return TRUE;
-	}
-}
-
-BOOL InitGLMultisample(HINSTANCE hInstance, HWND hWnd, PIXELFORMATDESCRIPTOR pfd, int iRequestMSAAValue, int& OutiPixelFormat)
-{
-	BOOL bIsGLMultisampleSupported = FALSE;
-
-#if defined(_DEBUG)
-	CheckGLError(__FILE__, __LINE__);
-#endif 
-
-
-	if (!IsGLExtensionSupported("WGL_ARB_multisample"))
-	{
-		bIsGLMultisampleSupported = FALSE;
-		return FALSE;
-	}
-
-#if defined(_DEBUG)
-	CheckGLError(__FILE__, __LINE__);
-#endif 
-
-	PFNWGLCHOOSEPIXELFORMATARBPROC wglChoosePixelFormatARB = (PFNWGLCHOOSEPIXELFORMATARBPROC)wglGetProcAddress("wglChoosePixelFormatARB");
-	if (!wglChoosePixelFormatARB)
-	{
-		bIsGLMultisampleSupported = FALSE;
-		return FALSE;
-	}
-
-#if defined(_DEBUG)
-	CheckGLError(__FILE__, __LINE__);
-#endif 
-
-
-	HDC hDC = GetDC(hWnd);
-
-	int		valid;
-	UINT	numFormats;
-	float	fAttributes[] = { 0,0 };
-
-
-
-
-
-
-	int iAttributes[] =
-	{
-		WGL_DRAW_TO_WINDOW_ARB,GL_TRUE,
-			WGL_SUPPORT_OPENGL_ARB,GL_TRUE,
-			WGL_ACCELERATION_ARB,WGL_FULL_ACCELERATION_ARB,
-			WGL_COLOR_BITS_ARB,24,
-			WGL_ALPHA_BITS_ARB,8,
-			WGL_DEPTH_BITS_ARB,16,
-			WGL_STENCIL_BITS_ARB,0,
-			WGL_DOUBLE_BUFFER_ARB,GL_TRUE,
-			WGL_SAMPLE_BUFFERS_ARB,GL_TRUE,
-			WGL_SAMPLES_ARB, iRequestMSAAValue,
-			0,0
-	};
-
-#if defined(_DEBUG)
-	CheckGLError(__FILE__, __LINE__);
-#endif 
-
-
-	valid = wglChoosePixelFormatARB(hDC, iAttributes, fAttributes, 1, &OutiPixelFormat, &numFormats);
-
-#if defined(_DEBUG)
-	CheckGLError(__FILE__, __LINE__);
-#endif 
-
-
-	if (valid && numFormats >= 1)
-	{
-		bIsGLMultisampleSupported = TRUE;
-		ReleaseDC(hWnd, hDC);
-		return bIsGLMultisampleSupported;
-	}
-
-#if defined(_DEBUG)
-	CheckGLError(__FILE__, __LINE__);
-#endif 
-
-
-	iAttributes[19] = 2;
-	valid = wglChoosePixelFormatARB(hDC, iAttributes, fAttributes, 1, &OutiPixelFormat, &numFormats);
-	if (valid && numFormats >= 1)
-	{
-		bIsGLMultisampleSupported = TRUE;
-		ReleaseDC(hWnd, hDC);
-		return bIsGLMultisampleSupported;
-	}
-
-#if defined(_DEBUG)
-	CheckGLError(__FILE__, __LINE__);
-#endif 
-
-	ReleaseDC(hWnd, hDC);
-	return  bIsGLMultisampleSupported;
-}
-
-void SetEnableMultisample()
-{
-	if (TRUE == g_bSupportedMSAA)
-	{
-		glEnable(GL_MULTISAMPLE_ARB);
-	}
-
-#if defined(_DEBUG)
-	CheckGLError(__FILE__, __LINE__);
-#endif 
-}
-
-void SetDisableMultisample()
-{
-	if (TRUE == g_bSupportedMSAA)
-	{
-		glDisable(GL_MULTISAMPLE_ARB);
-	}
-
-#if defined(_DEBUG)
-	CheckGLError(__FILE__, __LINE__);
-#endif 
-}
-
-#endif 
-
-
-
-
-
 void TEXCOORD(float* c, float u, float v)
 {
 	c[0] = u;
@@ -1437,9 +1269,6 @@ float RenderNumberHQ(float x, float y, int Num, float Width, float Height)
 void BeginBitmap()
 {
 	FlushSpriteBatch();
-	glUseProgram(0);
-	glBindVertexArray(0);
-	glBindBuffer(GL_ARRAY_BUFFER, 0);
 
 	glMatrixMode(GL_PROJECTION);
 	glPushMatrix();
@@ -2305,46 +2134,17 @@ void CollisionDetectRotate(float centerX, float centerY, float angle, float& x, 
 
 #ifdef V_SYNCRONIZE
 
-
-typedef BOOL(WINAPI* PFNWGLSWAPINTERVALEXTPROC_LOCAL)(int interval);
-typedef const char* (WINAPI* PFNWGLGETEXTENSIONSSTRINGEXTPROC_LOCAL)(void);
-
 bool _isVSyncEnabled = false;
-bool _isVSyncAvailable = false;
-static PFNWGLSWAPINTERVALEXTPROC_LOCAL s_wglSwapIntervalEXT = nullptr;
-
-bool WGLExtensionSupported(const char* extension_name)
-{
-	PFNWGLGETEXTENSIONSSTRINGEXTPROC_LOCAL _wglGetExtensionsStringEXT = (PFNWGLGETEXTENSIONSSTRINGEXTPROC_LOCAL)wglGetProcAddress("wglGetExtensionsStringEXT");
-	if (!_wglGetExtensionsStringEXT) return false;
-	const char* exts = _wglGetExtensionsStringEXT();
-	if (!exts || strstr(exts, extension_name) == nullptr)
-	{
-		return false;
-	}
-	return true;
-}
+bool _isVSyncAvailable = true;
 
 void InitVSync()
 {
-	_isVSyncAvailable = WGLExtensionSupported("WGL_EXT_swap_control");
-	if (_isVSyncAvailable)
-	{
-		s_wglSwapIntervalEXT = (PFNWGLSWAPINTERVALEXTPROC_LOCAL)wglGetProcAddress("wglSwapIntervalEXT");
-	}
-	if (s_wglSwapIntervalEXT == nullptr)
-	{
-		_isVSyncAvailable = false;
-	}
+	_isVSyncAvailable = true;
 }
 
 void SetVSync(bool enable)
 {
-	if (_isVSyncAvailable && s_wglSwapIntervalEXT)
-	{
-		s_wglSwapIntervalEXT(enable ? 1 : 0);
-		_isVSyncEnabled = enable;
-	}
+	_isVSyncEnabled = enable;
 }
 
 bool IsVSyncAvailable()

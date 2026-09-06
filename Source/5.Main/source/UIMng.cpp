@@ -4,6 +4,7 @@
 
 #include "stdafx.h"
 #include "UIMng.h"
+#include "GPUContext.h"
 #include "Input.h"
 #include "Sprite.h"
 #include "GaugeBar.h"
@@ -160,6 +161,9 @@ void CUIMng::ReleaseTitleSceneUI()
 
 void CUIMng::RenderTitleSceneUI(HDC hDC, DWORD dwNow, DWORD dwTotal)
 {
+	if (GPUContext::Instance().IsInitialized()) {
+		GPUContext::Instance().BeginFrame();
+	}
 #if(WIDE_SCREEN)
 	::BeginOpengl(0, 0, GetWindowsX(), GetWindowsY());
 #else
@@ -188,8 +192,12 @@ void CUIMng::RenderTitleSceneUI(HDC hDC, DWORD dwNow, DWORD dwTotal)
 
 	::EndBitmap();
 	::EndOpengl();
-	::glFlush();
-	::SwapBuffers(hDC);
+	if (GPUContext::Instance().IsInitialized()) {
+		GPUContext::Instance().Present();
+	} else {
+		::glFlush();
+		::SwapBuffers(hDC);
+	}
 }
 
 void CUIMng::Create()

@@ -7,6 +7,7 @@
 #include "New_RenderBMD.h"
 #include "EmbeddedShaders.h"
 #include "ZzzTexture.h"
+#include "GlobalBitmap.h"
 #include "./Utilities/Log/ErrorReport.h"
 #include <iostream>
 #include <fstream>
@@ -110,6 +111,7 @@ bool GPUContext::Init(SDL_Window* window, int width, int height)
     }
 
     m_initialized = true;
+    Bitmaps.UploadAllTexturesToVulkan();
     std::cout << "[GPUContext] Native Vulkan rendering engine initialized successfully (" << width << "x" << height << ")." << std::endl;
     return true;
 }
@@ -1616,6 +1618,8 @@ bool GPUContext::BeginFrame()
     m_deferredMeshDraws.clear();
     m_deferredSpriteDraws.clear();
     m_deferredImageDraws.clear();
+    m_deferredViewports.clear();
+    m_deferredScissors.clear();
     if (m_deferredCommands.capacity() < 512) m_deferredCommands.reserve(512);
     if (m_deferredTerrainDraws.capacity() < 64) m_deferredTerrainDraws.reserve(64);
     if (m_deferredMeshDraws.capacity() < 256) m_deferredMeshDraws.reserve(256);
@@ -1891,24 +1895,6 @@ void GPUContext::OnResize(int width, int height)
         m_height = height;
         RecreateSwapchain();
     }
-}
-
-void GPUContext::SetViewport(float x, float y, float width, float height)
-{
-    if (!m_frameActive) return;
-    VkViewport vp{ x, y, width, height, 0.0f, 1.0f };
-    vkCmdSetViewport(m_commandBuffers[m_currentFrame], 0, 1, &vp);
-}
-
-void GPUContext::SetScissor(int32_t x, int32_t y, uint32_t width, uint32_t height)
-{
-    if (!m_frameActive) return;
-    VkRect2D sc{ {x, y}, {width, height} };
-    vkCmdSetScissor(m_commandBuffers[m_currentFrame], 0, 1, &sc);
-}
-
-void GPUContext::SetRenderState(const GPURenderState& state)
-{
 }
 
 TerrainVertex_t* GPUContext::AllocateTerrainVertexBuffer(uint32_t vertexCount, uint32_t& outVertOffset)
@@ -2713,6 +2699,28 @@ void GPUContext::ClearDepthBuffer()
     m_deferredCommands.push_back(dcmd);
 }
 
+void GPUContext::SetViewport(float x, float y, float width, float height)
+{
+    if (!m_frameActive) return;
+    DeferredViewport vp{ x, y, width, height };
+    uint32_t idx = static_cast<uint32_t>(m_deferredViewports.size());
+    m_deferredViewports.push_back(vp);
+    m_deferredCommands.push_back({ DeferredCmdType::SetViewport, idx });
+}
+
+void GPUContext::SetScissor(int32_t x, int32_t y, uint32_t width, uint32_t height)
+{
+    if (!m_frameActive) return;
+    DeferredScissor sc{ x, y, width, height };
+    uint32_t idx = static_cast<uint32_t>(m_deferredScissors.size());
+    m_deferredScissors.push_back(sc);
+    m_deferredCommands.push_back({ DeferredCmdType::SetScissor, idx });
+}
+
+void GPUContext::SetRenderState(const GPURenderState& state)
+{
+}
+
 void GPUContext::ReplayMeshRange(size_t cmdStart, size_t cmdEnd)
 {
     FrameResource& res = m_frameResources[m_currentFrame];
@@ -2893,6 +2901,20 @@ void GPUContext::ReplayDeferredCommands()
                     vkCmdClearAttachments(cmd, 1, &clearAttachment, 1, &clearRect);
                 }
                 break;
+            case DeferredCmdType::SetViewport:
+                if (dcmd.index < m_deferredViewports.size()) {
+                    const auto& v = m_deferredViewports[dcmd.index];
+                    VkViewport vp{ v.x, v.y, v.width, v.height, 0.0f, 1.0f };
+                    vkCmdSetViewport(cmd, 0, 1, &vp);
+                }
+                break;
+            case DeferredCmdType::SetScissor:
+                if (dcmd.index < m_deferredScissors.size()) {
+                    const auto& s = m_deferredScissors[dcmd.index];
+                    VkRect2D sc{ { s.x, s.y }, { s.width, s.height } };
+                    vkCmdSetScissor(cmd, 0, 1, &sc);
+                }
+                break;
         }
     }
 
@@ -2901,6 +2923,8 @@ void GPUContext::ReplayDeferredCommands()
     m_deferredMeshDraws.clear();
     m_deferredSpriteDraws.clear();
     m_deferredImageDraws.clear();
+    m_deferredViewports.clear();
+    m_deferredScissors.clear();
 }
 
 // ============================================================================
@@ -3363,3 +3387,31 @@ void GPUContext::CleanupClothCompute()
     m_clothComputeInitialized = false;
 }
 
+// Bridge functions for native Vulkan viewport, scissor, clear operations
+void VulkanSetClearColor(float r, float g, float b, float a)
+{
+    if (GPUContext::Instance().IsInitialized()) {
+        GPUContext::Instance().SetClearColor(r, g, b, a);
+    }
+}
+
+void VulkanClearDepthBuffer()
+{
+    if (GPUContext::Instance().IsInitialized()) {
+        GPUContext::Instance().ClearDepthBuffer();
+    }
+}
+
+void VulkanSetViewport(float x, float y, float width, float height)
+{
+    if (GPUContext::Instance().IsInitialized()) {
+        GPUContext::Instance().SetViewport(x, y, width, height);
+    }
+}
+
+void VulkanSetScissor(int32_t x, int32_t y, uint32_t width, uint32_t height)
+{
+    if (GPUContext::Instance().IsInitialized()) {
+        GPUContext::Instance().SetScissor(x, y, width, height);
+    }
+}

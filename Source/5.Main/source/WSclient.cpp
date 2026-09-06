@@ -12192,7 +12192,6 @@ void ProtocolCompiler( CWsctlc *pSocketClient, int iTranslation, int iParam)
 	//	return;
 	//== Fix FPS
 	g_protocol_lock->lock();
-	wglMakeCurrent(g_hDC, g_hRC);
 	int HeadCode;
 	int Size = 0;
 #if defined(__ANDROID__) || defined(MU_IOS)
@@ -12325,7 +12324,6 @@ void ProtocolCompiler( CWsctlc *pSocketClient, int iTranslation, int iParam)
 			}
 		}
 	}
-	wglMakeCurrent(nullptr, nullptr);
 	g_protocol_lock->unlock();
 }
 

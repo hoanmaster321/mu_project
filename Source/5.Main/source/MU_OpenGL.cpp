@@ -54,15 +54,6 @@ bool OGL330::IsShader()
 
 void OGL330::SwitchStatePipeline()
 {
-	if (!IsShader()) 
-	{
-		return;
-	}
-
-	glBindBuffer(GL_ARRAY_BUFFER, 0);
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
-	glBindVertexArray(0);
-	glUseProgram(0);
 }
 
 void OGL330::Release()

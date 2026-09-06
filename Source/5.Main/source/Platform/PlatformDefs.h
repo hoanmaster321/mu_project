@@ -1412,10 +1412,6 @@ inline void  EndPaint(HWND, const PAINTSTRUCT*)      {}
 inline BOOL  SetBkColor(HDC hdc, DWORD c)    { AndroidSetBkColor(hdc, c);   return TRUE; }
 inline BOOL  SetTextColor(HDC hdc, DWORD c)  { AndroidSetTextColor(hdc, c); return TRUE; }
 
-// WGL stubs → SDL_GL handles context on Android
-inline BOOL  wglMakeCurrent(HDC, HGLRC)             { return TRUE; }
-inline BOOL  wglDeleteContext(HGLRC)                { return TRUE; }
-inline HGLRC wglCreateContext(HDC)                  { return (HGLRC)1; }
 inline HDC   GetDC(HWND)                            { return nullptr; }
 inline BOOL  ReleaseDC(HWND, HDC)                   { return TRUE; }
 

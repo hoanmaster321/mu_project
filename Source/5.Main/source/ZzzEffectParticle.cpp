@@ -9068,10 +9068,8 @@ void RenderParticles(BYTE byRenderOneMore)
 			case BITMAP_ADV_SMOKE + 1:
 				if (o->SubType == 2)
 				{
-					glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_ADD);
 					PARTICLE_ENABLE_ALPHA_BLEND3();
 					RENDER_PARTICLE_SPRITE(o->TexType, o->Position, Width, Height, o->Light, o->Rotation);
-					glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
 				}
 				else
 				{

@@ -27,14 +27,20 @@ CGMFontLayer::~CGMFontLayer()
 
 	if (BitmapFontIndex != -1)
 	{
-		glDeleteTextures(1, &BitmapFontIndex);
+		if (GPUContext::Instance().IsInitialized())
+		{
+			VulkanTextureManager::Instance().DestroyTexture(BitmapFontIndex);
+		}
 	}
 
 	for (int i = 0; i < MAX_LINE_FONT; i++)
 	{
 		if (NormalFont[i].BitmapIndex != -1)
 		{
-			glDeleteTextures(1, &NormalFont[i].BitmapIndex);
+			if (GPUContext::Instance().IsInitialized())
+			{
+				VulkanTextureManager::Instance().DestroyTexture(NormalFont[i].BitmapIndex);
+			}
 		}
 		NormalFont[i].PakBuffer.clear();
 	}
@@ -54,20 +60,11 @@ _FT_Bitmap* CGMFontLayer::GetULongChar(FT_ULong charcode)
 
 void CGMFontLayer::runtime_load_bitmap(GLuint* textures, GLsizei _width, GLsizei _height, BYTE* data)
 {
-	if ((*textures) != -1)
+	static GLuint s_nextFontTexId = 55000;
+	if (*textures == (GLuint)-1 || *textures == 0)
 	{
-		glDeleteTextures(1, textures);
+		*textures = s_nextFontTexId++;
 	}
-	glGenTextures(1, textures);
-	glBindTexture(GL_TEXTURE_2D, *textures);
-	glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_ALPHA, _width, _height, 0, GL_ALPHA, GL_UNSIGNED_BYTE, data);
-
-	glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, 0x812D);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, 0x812D);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 
 	if (GPUContext::Instance().IsInitialized() && data && _width > 0 && _height > 0)
 	{
@@ -155,8 +152,6 @@ void CGMFontLayer::runtime_font_property(HDC hdc, HFONT hFont, DWORD dwTable, FT
 	}
 #endif
 
-	glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
-
 	FT_Set_Pixel_Sizes(face, 0, PixelSize);
 
 	FontType->metrics_height = (face->size->metrics.height >> 6);
@@ -243,8 +238,6 @@ void CGMFontLayer::runtime_font_property(const char* file_base, FT_Library libra
 	{
 		return;
 	}
-
-	glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
 
 	FT_Set_Pixel_Sizes(face, 0, PixelSize);
 
