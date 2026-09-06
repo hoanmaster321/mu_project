@@ -1,10 +1,10 @@
 @echo off
-title Start MuServer - 192.168.99.200
+title Start MuServer - 192.168.1.117
 color 0A
 
 echo =====================================
 echo        STARTING MU SERVER
-echo        IP: 192.168.99.200
+echo        IP: 192.168.1.117
 echo =====================================
 echo.
 

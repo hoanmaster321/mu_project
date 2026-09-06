@@ -335,8 +335,8 @@ else()
 
     # Output Directory
     set_target_properties(${PROJECT_NAME} PROPERTIES
-        RUNTIME_OUTPUT_DIRECTORY_RELEASE "${CMAKE_CURRENT_SOURCE_DIR}/../../ClientBuild_192.168.99.200"
-        RUNTIME_OUTPUT_DIRECTORY_DEBUG "${CMAKE_CURRENT_SOURCE_DIR}/../../ClientBuild_192.168.99.200"
+        RUNTIME_OUTPUT_DIRECTORY_RELEASE "${CMAKE_CURRENT_SOURCE_DIR}/../../ClientBuild_192.168.1.117"
+        RUNTIME_OUTPUT_DIRECTORY_DEBUG "${CMAKE_CURRENT_SOURCE_DIR}/../../ClientBuild_192.168.1.117"
     )
 endif()
 
@@ -411,7 +411,13 @@ if(WIN32)
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
             $<TARGET_FILE:SDL3::SDL3-shared>
             $<TARGET_FILE_DIR:${PROJECT_NAME}>
-        COMMENT "Copying SDL3.dll to output directory"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            $<TARGET_FILE:${PROJECT_NAME}>
+            "${CMAKE_CURRENT_SOURCE_DIR}/../../Client/Main.exe"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            $<TARGET_FILE:SDL3::SDL3-shared>
+            "${CMAKE_CURRENT_SOURCE_DIR}/../../Client/SDL3.dll"
+        COMMENT "Copying Main.exe and SDL3.dll to output directories"
     )
 endif()
 

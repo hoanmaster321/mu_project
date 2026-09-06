@@ -41,7 +41,7 @@ if errorlevel 1 (
 echo.
 echo ================================================================================
 echo [V] BIEN DICH THANH CONG!
-echo Output: G:\mu_project\ClientBuild_192.168.99.200\Main.exe
+echo Output: G:\mu_project\ClientBuild_192.168.1.117\Main.exe
 echo ================================================================================
 pause
 exit /b 0

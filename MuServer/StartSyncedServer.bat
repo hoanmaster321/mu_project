@@ -1,5 +1,5 @@
 @echo off
-title Start Synced MuServer - 192.168.99.200
+title Start Synced MuServer - 192.168.1.117
 color 0A
 set "MUSERVER=D:\takumi\MuServer"
 
@@ -30,5 +30,5 @@ timeout /t 3 /nobreak >nul
 echo [5/5] GameServer
 start "GameServer" /D "%MUSERVER%\4.GameServer\Sub 1\GameServer" "%MUSERVER%\4.GameServer\Sub 1\GameServer\GameServer.exe"
 
-echo Done. Use client: D:\takumi\ClientBuild_192.168.99.200\StartClient.bat
+echo Done. Use client: D:\takumi\ClientBuild_192.168.1.117\StartClient.bat
 pause
