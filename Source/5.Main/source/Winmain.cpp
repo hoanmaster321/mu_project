@@ -1519,7 +1519,7 @@ bool ExceptionCallback(_EXCEPTION_POINTERS* pExceptionInfo )
 }
 #endif
 char* szServerIpAddress = "192.168.1.117";
-WORD g_ServerPort = 44405;
+WORD g_ServerPort = 63000;
 BYTE Version[SIZE_PROTOCOLVERSION] = { '1' + 1, '0' + 2, '4' + 3, '0' + 4, '5' + 5 };
 BYTE Serial[SIZE_PROTOCOLSERIAL + 1] = { "TbYehR2hFUPBKgZj" };
 #if (GetGPUUse)

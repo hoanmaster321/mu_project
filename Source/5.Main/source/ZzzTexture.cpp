@@ -10,10 +10,8 @@
 #include "Jpeglib.h"
 #include "ProtocolSend.h"
 
-#if defined(__ANDROID__) || defined(MU_IOS)
 #include <vector>
 #include "turbojpeg.h"
-#endif
 
 CGlobalBitmap Bitmaps;
 
@@ -126,7 +124,6 @@ void SaveImage(int HeaderSize,char *Ext,char *filename,BYTE *PakBuffer,int Size)
 
 bool OpenJpegBuffer(char *filename,float *BufferFloat)
 {
-#if defined(__ANDROID__) || defined(MU_IOS)
 	if(filename == NULL || BufferFloat == NULL)
 	{
 		return false;
@@ -227,83 +224,6 @@ bool OpenJpegBuffer(char *filename,float *BufferFloat)
 		OutputDebugStringA(szDebugOutput);
 	}
 	return true;
-#else
-	struct jpeg_decompress_struct cinfo;
-	struct my_error_mgr jerr;
-	FILE * infile;		
-	JSAMPARRAY buffer;	
-	int row_stride;	
-	
-	char FileName[256];
-
-	char NewFileName[256];
-	int iTextcnt = 0;
-	for(int i=0;i<(int)strlen(filename);i++)
-	{
-		iTextcnt = i;
-		NewFileName[i] = filename[i];
-		if(filename[i]=='.') break;
-	}
-	NewFileName[iTextcnt+1] = NULL;
-	strcpy(FileName,"Data\\");
-    strcat(FileName,NewFileName);
-	strcat(FileName,"OZJ");
-
-	if((infile = fopen(FileName, "rb")) == NULL) 
-	{
-		char Text[256];
-    	sprintf(Text,"%s - File not exist.",FileName);
-		g_ErrorReport.Write( Text);
-		g_ErrorReport.Write( "\r\n");
-		MessageBox(g_hWnd,Text,NULL,MB_OK);
-		SendMessage(g_hWnd,WM_DESTROY,0,0);
-		return false;
-	}
-
-	fseek(infile,24,SEEK_SET);
-	
-	cinfo.err = jpeg_std_error(&jerr.pub);
-	jerr.pub.error_exit = my_error_exit;
-	if (setjmp(jerr.setjmp_buffer)) 
-	{
-		jpeg_destroy_decompress(&cinfo);
-		fclose(infile);
-		return false;
-	}
-	jpeg_create_decompress(&cinfo);
-	
-	jpeg_stdio_src(&cinfo, infile);
-	
-	(void) jpeg_read_header(&cinfo, TRUE);
-	
-	(void) jpeg_start_decompress(&cinfo);
-	row_stride = cinfo.output_width * cinfo.output_components;
-	buffer = (*cinfo.mem->alloc_sarray)((j_common_ptr) &cinfo, JPOOL_IMAGE, row_stride, 1);
-	
-	unsigned char *Buffer = (unsigned char*) new BYTE [cinfo.output_width*cinfo.output_height*cinfo.output_components];
-	while (cinfo.output_scanline < cinfo.output_height) 
-	{
-		(void) jpeg_read_scanlines(&cinfo, buffer, 1);
-		memcpy(Buffer+(cinfo.output_height-cinfo.output_scanline)*row_stride,buffer[0],row_stride);
-	}
-	int Index = 0;
-	for(unsigned int y=0;y<cinfo.output_height;y++)
-	{
-		for(unsigned int x=0;x<cinfo.output_width;x++)
-		{
-			BufferFloat[Index  ] = (float)Buffer[Index  ]/255.f;
-			BufferFloat[Index+1] = (float)Buffer[Index+1]/255.f;
-			BufferFloat[Index+2] = (float)Buffer[Index+2]/255.f;
-			Index += 3;
-		}
-	}
-	SAFE_DELETE_ARRAY(Buffer);
-	
-	(void) jpeg_finish_decompress(&cinfo);
-	jpeg_destroy_decompress(&cinfo);
-	fclose(infile);
-	return true;
-#endif
 }
 
 #if defined(KJH_ADD_INGAMESHOP_UI_SYSTEM) || defined(__ANDROID__)
