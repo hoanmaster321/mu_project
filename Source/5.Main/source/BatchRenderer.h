@@ -25,6 +25,7 @@ class BMD;
 #define RENDER_ALPHA_BLEND_TYPE_NONE   (0 << RENDER_ALPHA_BLEND_SHIFT)
 #define RENDER_ALPHA_BLEND_TYPE_NORMAL (1 << RENDER_ALPHA_BLEND_SHIFT)
 #define RENDER_ALPHA_BLEND_TYPE_ADD    (2 << RENDER_ALPHA_BLEND_SHIFT)
+#define RENDER_ALPHA_BLEND_TYPE_SUB    (3 << RENDER_ALPHA_BLEND_SHIFT)
 
 #define RENDER_DEPTH_MASK_ENABLE       0x00000040
 #define RENDER_DEPTH_MASK_DISABLE      0x00000080
@@ -53,6 +54,15 @@ struct TerrainVertex_t
 	float uv[2];
 	uint32_t color; // Packed RGBA8
 };
+
+static inline uint32_t PackRGBA8(float r, float g, float b, float a)
+{
+	uint8_t ur = (uint8_t)(std::min)(255.0f, (std::max)(0.0f, r * 255.0f));
+	uint8_t ug = (uint8_t)(std::min)(255.0f, (std::max)(0.0f, g * 255.0f));
+	uint8_t ub = (uint8_t)(std::min)(255.0f, (std::max)(0.0f, b * 255.0f));
+	uint8_t ua = (uint8_t)(std::min)(255.0f, (std::max)(0.0f, a * 255.0f));
+	return (uint32_t)ur | ((uint32_t)ug << 8) | ((uint32_t)ub << 16) | ((uint32_t)ua << 24);
+}
 
 struct TerrainBatchKey
 {
@@ -161,7 +171,7 @@ struct SpriteVertUBO
 // 2D Image / UI Batching Definitions
 // ============================================================================
 #define BITMAP_GLYPH_ATLAS     50000
-#define BITMAP_GLYPH_ATLAS_END 50100
+#define BITMAP_GLYPH_ATLAS_END 60000
 
 struct ImageInstance_t
 {
@@ -364,6 +374,8 @@ public:
 	void FlushImageBatchesNow();
 
 	// 3D Model / Mesh & Shadow Batching
+	void AddMeshTriangles(int batchType, int textureIndex, int renderFlags, const TerrainVertex_t* verts, uint32_t vertCount);
+	void FlushMeshBatches();
 	void AddMeshToBatch(const MeshBatchKey& key, Mesh_t* mesh,
 		const MeshInstanceData_t& instanceTemplate,
 		int boneOffset, vec3_t ShadowAngle, vec3_t LightVector, float depth, int meshIndex);
@@ -400,6 +412,8 @@ private:
 	uint32_t m_TerrainUBO;
 	std::unordered_map<TerrainBatchKey, std::vector<TerrainVertex_t>> m_TerrainVerticesMap[TERRAIN_BATCH_COUNT];
 	std::unordered_map<TerrainBatchKey, std::vector<uint32_t>> m_TerrainIndicesMap[TERRAIN_BATCH_COUNT];
+	std::unordered_map<TerrainBatchKey, std::vector<TerrainVertex_t>> m_MeshVerticesMap[TERRAIN_BATCH_COUNT];
+	std::unordered_map<TerrainBatchKey, std::vector<uint32_t>> m_MeshIndicesMap[TERRAIN_BATCH_COUNT];
 
 	struct TerrainMRUCache
 	{
@@ -415,7 +429,7 @@ private:
 			vertices = nullptr;
 			indices = nullptr;
 		}
-	} m_TerrainMRU;
+	} m_TerrainMRU, m_MeshMRU;
 
 	// Sprite Buffers
 	uint32_t m_SpriteVAO;

@@ -6,6 +6,10 @@
 #include "stdafx.h"
 #include "ErrorReport.h"
 #include <cstdarg>
+#include <cstdio>
+#if defined(__ANDROID__)
+#include <android/log.h>
+#endif
 
 CErrorReport g_ErrorReport;
 CErrorReport::CErrorReport() : m_hFile(nullptr), m_iKey(0) {}
@@ -16,8 +20,20 @@ void CErrorReport::Destroy() {}
 void CErrorReport::CutHead() {}
 char* CErrorReport::CheckHeadToCut(char*, DWORD) { return nullptr; }
 BOOL CErrorReport::WriteFile(HANDLE, void*, DWORD, LPDWORD, LPOVERLAPPED) { return TRUE; }
-void CErrorReport::WriteDebugInfoStr(char*) {}
-void CErrorReport::Write(const char*, ...) {}
+void CErrorReport::WriteDebugInfoStr(char* str) {
+#if defined(__ANDROID__)
+    if (str) __android_log_write(ANDROID_LOG_INFO, "MuMain", str);
+#endif
+}
+void CErrorReport::Write(const char* format, ...) {
+    if (!format) return;
+    va_list args;
+    va_start(args, format);
+#if defined(__ANDROID__)
+    __android_log_vprint(ANDROID_LOG_INFO, "MuMain", format, args);
+#endif
+    va_end(args);
+}
 void CErrorReport::HexWrite(void*, int) {}
 void CErrorReport::AddSeparator() {}
 void CErrorReport::WriteCurrentTime(BOOL) {}

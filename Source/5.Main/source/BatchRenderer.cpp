@@ -778,8 +778,175 @@ void CBatchRenderer::AddShadowToBatch(const MeshBatchKey& key, Mesh_t* mesh,
 	m_ShadowBatchDirty = true;
 }
 
+void CBatchRenderer::AddMeshTriangles(int batchType, int textureIndex, int renderFlags, const TerrainVertex_t* verts, uint32_t vertCount)
+{
+	if (batchType < 0 || batchType >= TERRAIN_BATCH_COUNT || !verts || vertCount == 0)
+		return;
+
+	TerrainBatchKey key = { (uint32_t)renderFlags, textureIndex };
+
+	std::vector<TerrainVertex_t>* pVertices = nullptr;
+	std::vector<uint32_t>* pIndices = nullptr;
+
+	if (m_MeshMRU.batchType == batchType && m_MeshMRU.key == key)
+	{
+		pVertices = m_MeshMRU.vertices;
+		pIndices = m_MeshMRU.indices;
+	}
+	else
+	{
+		pVertices = &m_MeshVerticesMap[batchType][key];
+		pIndices  = &m_MeshIndicesMap[batchType][key];
+		m_MeshMRU.batchType = batchType;
+		m_MeshMRU.key = key;
+		m_MeshMRU.vertices = pVertices;
+		m_MeshMRU.indices = pIndices;
+	}
+
+	uint32_t base = (uint32_t)pVertices->size();
+	pVertices->insert(pVertices->end(), verts, verts + vertCount);
+
+	size_t oldIdxSize = pIndices->size();
+	pIndices->resize(oldIdxSize + vertCount);
+	uint32_t* dstIdx = pIndices->data() + oldIdxSize;
+	for (uint32_t k = 0; k < vertCount; ++k)
+	{
+		dstIdx[k] = base + k;
+	}
+}
+
+void CBatchRenderer::FlushMeshBatches()
+{
+	struct MeshDrawCmd {
+		int textureIndex;
+		uint32_t indexOffset;
+		uint32_t indexCount;
+		int batchType;
+		uint32_t renderFlags;
+	};
+	static std::vector<MeshDrawCmd> drawCmds;
+	drawCmds.clear();
+
+	if (GPUContext::Instance().IsFrameActive())
+	{
+		uint32_t totalVerts = 0;
+		uint32_t totalIndices = 0;
+		for (int bType = 0; bType < TERRAIN_BATCH_COUNT; ++bType)
+		{
+			for (const auto& [key, vertices] : m_MeshVerticesMap[bType])
+			{
+				const auto& indices = m_MeshIndicesMap[bType][key];
+				if (!vertices.empty() && !indices.empty())
+				{
+					totalVerts += static_cast<uint32_t>(vertices.size());
+					totalIndices += static_cast<uint32_t>(indices.size());
+				}
+			}
+		}
+
+		if (totalVerts > 0 && totalIndices > 0)
+		{
+			uint32_t vertOffset = 0;
+			uint32_t idxOffset = 0;
+			TerrainVertex_t* dstVerts = GPUContext::Instance().AllocateTerrainVertexBuffer(totalVerts, vertOffset);
+			uint32_t* dstIndices = GPUContext::Instance().AllocateTerrainIndexBuffer(totalIndices, idxOffset);
+			if (dstVerts && dstIndices)
+			{
+				uint32_t curVertCount = 0;
+				uint32_t curIdxCount = 0;
+
+				for (int bType = 0; bType < TERRAIN_BATCH_COUNT; ++bType)
+				{
+					for (const auto& [key, vertices] : m_MeshVerticesMap[bType])
+					{
+						const auto& indices = m_MeshIndicesMap[bType][key];
+						if (vertices.empty() || indices.empty()) continue;
+
+						uint32_t baseVertex = curVertCount;
+						uint32_t baseIndex = curIdxCount;
+
+						memcpy(dstVerts + curVertCount, vertices.data(), vertices.size() * sizeof(TerrainVertex_t));
+						curVertCount += static_cast<uint32_t>(vertices.size());
+
+						for (size_t i = 0; i < indices.size(); ++i)
+						{
+							dstIndices[curIdxCount++] = baseVertex + indices[i];
+						}
+
+						MeshDrawCmd cmd;
+						cmd.textureIndex = key.textureIndex;
+						cmd.indexOffset = baseIndex;
+						cmd.indexCount = static_cast<uint32_t>(indices.size());
+						cmd.batchType = bType;
+						cmd.renderFlags = key.renderFlags;
+						drawCmds.push_back(cmd);
+					}
+				}
+
+				GPUContext::TerrainVertUBO vkUbo;
+				GetActiveViewMatrix(&vkUbo.viewMatrix[0][0]);
+				GetActiveProjectionMatrix(&vkUbo.projMatrix[0][0]);
+
+				// Invert row 1 (Y) for Vulkan NDC
+				vkUbo.projMatrix[0][1] = -vkUbo.projMatrix[0][1];
+				vkUbo.projMatrix[1][1] = -vkUbo.projMatrix[1][1];
+				vkUbo.projMatrix[2][1] = -vkUbo.projMatrix[2][1];
+				vkUbo.projMatrix[3][1] = -vkUbo.projMatrix[3][1];
+
+				// Remap depth row 2 (Z) from OpenGL [-1,1] to Vulkan [0,1]: (row 2 + row 3) * 0.5
+				vkUbo.projMatrix[0][2] = (vkUbo.projMatrix[0][2] + vkUbo.projMatrix[0][3]) * 0.5f;
+				vkUbo.projMatrix[1][2] = (vkUbo.projMatrix[1][2] + vkUbo.projMatrix[1][3]) * 0.5f;
+				vkUbo.projMatrix[2][2] = (vkUbo.projMatrix[2][2] + vkUbo.projMatrix[2][3]) * 0.5f;
+				vkUbo.projMatrix[3][2] = (vkUbo.projMatrix[3][2] + vkUbo.projMatrix[3][3]) * 0.5f;
+
+				const auto& dynLights = GPUContext::Instance().GetDynamicLights();
+				uint32_t numLights = (std::min)(static_cast<uint32_t>(dynLights.size()), 32u);
+				for (uint32_t li = 0; li < numLights; ++li) {
+					vkUbo.lights[li] = dynLights[li];
+				}
+				vkUbo.numLights = numLights;
+				for (uint32_t li = numLights; li < 32; ++li) {
+					vkUbo.lights[li].posRadius = glm::vec4(0.0f);
+					vkUbo.lights[li].colorIntensity = glm::vec4(0.0f);
+				}
+
+				std::vector<GPUContext::TerrainMergedBatch> vkBatches;
+				for (const auto& cmd : drawCmds)
+				{
+					GPUContext::TerrainMergedBatch batch;
+					batch.batchType = cmd.batchType;
+					BITMAP_t* pBitmap = (cmd.textureIndex >= 0) ? Bitmaps.FindTexture(static_cast<GLuint>(cmd.textureIndex)) : nullptr;
+					batch.textureIndex = (pBitmap && pBitmap->TextureNumber > 0) ? static_cast<int>(pBitmap->TextureNumber)
+						: (cmd.textureIndex < 0 ? -cmd.textureIndex : (cmd.textureIndex > 0 ? cmd.textureIndex : 0));
+					batch.renderFlags = cmd.renderFlags;
+					GPUContext::TerrainDrawCmd tCmd;
+					tCmd.firstIndex = cmd.indexOffset;
+					tCmd.indexCount = cmd.indexCount;
+					tCmd.vertexOffset = 0;
+					batch.cmds.push_back(tCmd);
+					vkBatches.push_back(std::move(batch));
+				}
+
+				GPUContext::Instance().DrawTerrainMergedPreallocated(
+					vertOffset, totalVerts * sizeof(TerrainVertex_t),
+					idxOffset, totalIndices * sizeof(uint32_t),
+					vkBatches, vkUbo);
+			}
+		}
+	}
+
+	for (int bType = 0; bType < TERRAIN_BATCH_COUNT; ++bType)
+	{
+		for (auto& [key, vec] : m_MeshVerticesMap[bType]) vec.clear();
+		for (auto& [key, vec] : m_MeshIndicesMap[bType]) vec.clear();
+	}
+	m_MeshMRU.Reset();
+}
+
 void CBatchRenderer::RenderMeshBatch(bool clear)
 {
+	FlushMeshBatches();
+
 	// Delegate to OGL330MODEL command queue flush
 	GMMeshShader->FlushAllMesh();
 
@@ -833,8 +1000,11 @@ void CBatchRenderer::ClearAllBatchMaps()
 	for (int b = 0; b < TERRAIN_BATCH_COUNT; ++b) {
 		m_TerrainVerticesMap[b].clear();
 		m_TerrainIndicesMap[b].clear();
+		m_MeshVerticesMap[b].clear();
+		m_MeshIndicesMap[b].clear();
 	}
 	m_TerrainMRU.Reset();
+	m_MeshMRU.Reset();
 	m_SpriteMRU.Reset();
 	m_LastSpritePruneTime = WorldTime;
 	m_LastProxyPruneTime = WorldTime;

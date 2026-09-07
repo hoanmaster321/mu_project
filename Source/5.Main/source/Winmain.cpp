@@ -300,9 +300,9 @@ HANDLE g_hMainExe = INVALID_HANDLE_VALUE;
 
 BOOL OpenMainExe( void)
 {
-#ifdef _DEBUG
+#if defined(_DEBUG) || defined(__ANDROID__) || defined(MU_IOS)
 	return ( TRUE);
-#endif
+#else
 	char lpszFile[MAX_PATH];
 	char *lpszCommandLine = GetCommandLine();
 	GetFileNameOfFilePath( lpszFile, lpszCommandLine);
@@ -310,11 +310,14 @@ BOOL OpenMainExe( void)
 	g_hMainExe = CreateFile( ( char*)lpszFile, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING,FILE_ATTRIBUTE_NORMAL, 0);
 	
 	return ( INVALID_HANDLE_VALUE != g_hMainExe);
+#endif
 }
 
 void CloseMainExe( void)
 {
+#if !defined(__ANDROID__) && !defined(MU_IOS)
 	CloseHandle( g_hMainExe);
+#endif
 }
 
 WORD DecryptCheckSumKey( WORD wSource)
@@ -919,6 +922,7 @@ LONG FAR PASCAL WndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
 
 bool CreateOpenglWindow()
 {
+#if !defined(__ANDROID__) && !defined(MU_IOS)
 	if (!(g_hDC=GetDC(g_hWnd)))
 	{
 		g_ErrorReport.Write( "Get DC Error - ErrorCode : %d\r\n", GetLastError());
@@ -930,11 +934,46 @@ bool CreateOpenglWindow()
 	ShowWindow(g_hWnd,SW_SHOW);
 	SetForegroundWindow(g_hWnd);
 	SetFocus(g_hWnd);
+#else
+	g_hDC = (HDC)1;
+#endif
 
 	// Initialize Native SDL3 + Vulkan Context
+#if defined(__ANDROID__)
+	if (WindowWidth < WindowHeight)
+	{
+		std::swap(WindowWidth, WindowHeight);
+	}
+#endif
 	if (VulkanSDL3Context::Instance().Init("MU Online", WindowWidth, WindowHeight, false))
 	{
+#if defined(__ANDROID__)
+		int pxW = 0, pxH = 0;
+		if (SDL_GetWindowSizeInPixels(VulkanSDL3Context::Instance().GetWindow(), &pxW, &pxH) && pxW > 0 && pxH > 0)
+		{
+			if (pxW < pxH)
+			{
+				std::swap(pxW, pxH);
+			}
+			WindowWidth = pxW;
+			WindowHeight = pxH;
+			g_fScreenRate_x = static_cast<float>(WindowWidth) / 640.0f;
+			g_fScreenRate_y = static_cast<float>(WindowHeight) / 480.0f;
+			g_ErrorReport.Write("[Android] Screen resolution detected: %dx%d (rate: %.2f, %.2f)\r\n", pxW, pxH, g_fScreenRate_x, g_fScreenRate_y);
+		}
+#endif
 		GPUContext::Instance().Init(VulkanSDL3Context::Instance().GetWindow(), WindowWidth, WindowHeight);
+#if defined(__ANDROID__)
+		const auto& swapExtent = GPUContext::Instance().GetSwapchainExtent();
+		if (swapExtent.width > 0 && swapExtent.height > 0)
+		{
+			WindowWidth = swapExtent.width;
+			WindowHeight = swapExtent.height;
+			g_fScreenRate_x = static_cast<float>(WindowWidth) / 640.0f;
+			g_fScreenRate_y = static_cast<float>(WindowHeight) / 480.0f;
+			g_ErrorReport.Write("[Android] Synced resolution with Vulkan swapchain: %dx%d\r\n", WindowWidth, WindowHeight);
+		}
+#endif
 	}
 	return true;
 }
@@ -1560,6 +1599,87 @@ MSG MainLoop()
 	while (1)
 	{
 	
+#if defined(__ANDROID__) || defined(MU_IOS)
+		SDL_Event ev;
+		while (SDL_PollEvent(&ev))
+		{
+			if (ev.type == SDL_EVENT_QUIT)
+			{
+				Destroy = true;
+				break;
+			}
+			else if (ev.type == SDL_EVENT_FINGER_DOWN)
+			{
+				const int pxX = std::clamp((int)(ev.tfinger.x * (float)WindowWidth), 0, (int)WindowWidth - 1);
+				const int pxY = std::clamp((int)(ev.tfinger.y * (float)WindowHeight), 0, (int)WindowHeight - 1);
+				MouseX = std::clamp((int)((float)pxX * 640.0f / (float)WindowWidth), 0, 640);
+				MouseY = std::clamp((int)((float)pxY * 480.0f / (float)WindowHeight), 0, 480);
+				MouseLButton = true;
+				MouseLButtonPush = true;
+			}
+			else if (ev.type == SDL_EVENT_FINGER_UP)
+			{
+				const int pxX = std::clamp((int)(ev.tfinger.x * (float)WindowWidth), 0, (int)WindowWidth - 1);
+				const int pxY = std::clamp((int)(ev.tfinger.y * (float)WindowHeight), 0, (int)WindowHeight - 1);
+				MouseX = std::clamp((int)((float)pxX * 640.0f / (float)WindowWidth), 0, 640);
+				MouseY = std::clamp((int)((float)pxY * 480.0f / (float)WindowHeight), 0, 480);
+				MouseLButton = false;
+				MouseLButtonPop = true;
+			}
+			else if (ev.type == SDL_EVENT_FINGER_MOTION)
+			{
+				const int pxX = std::clamp((int)(ev.tfinger.x * (float)WindowWidth), 0, (int)WindowWidth - 1);
+				const int pxY = std::clamp((int)(ev.tfinger.y * (float)WindowHeight), 0, (int)WindowHeight - 1);
+				MouseX = std::clamp((int)((float)pxX * 640.0f / (float)WindowWidth), 0, 640);
+				MouseY = std::clamp((int)((float)pxY * 480.0f / (float)WindowHeight), 0, 480);
+			}
+			else if (ev.type == SDL_EVENT_MOUSE_BUTTON_DOWN)
+			{
+				const int pxX = std::clamp((int)ev.button.x, 0, (int)WindowWidth - 1);
+				const int pxY = std::clamp((int)ev.button.y, 0, (int)WindowHeight - 1);
+				MouseX = std::clamp((int)((float)pxX * 640.0f / (float)WindowWidth), 0, 640);
+				MouseY = std::clamp((int)((float)pxY * 480.0f / (float)WindowHeight), 0, 480);
+				if (ev.button.button == SDL_BUTTON_LEFT)
+				{
+					MouseLButton = true;
+					MouseLButtonPush = true;
+				}
+				else if (ev.button.button == SDL_BUTTON_RIGHT)
+				{
+					MouseRButton = true;
+					MouseRButtonPush = true;
+				}
+			}
+			else if (ev.type == SDL_EVENT_MOUSE_BUTTON_UP)
+			{
+				const int pxX = std::clamp((int)ev.button.x, 0, (int)WindowWidth - 1);
+				const int pxY = std::clamp((int)ev.button.y, 0, (int)WindowHeight - 1);
+				MouseX = std::clamp((int)((float)pxX * 640.0f / (float)WindowWidth), 0, 640);
+				MouseY = std::clamp((int)((float)pxY * 480.0f / (float)WindowHeight), 0, 480);
+				if (ev.button.button == SDL_BUTTON_LEFT)
+				{
+					MouseLButton = false;
+					MouseLButtonPop = true;
+				}
+				else if (ev.button.button == SDL_BUTTON_RIGHT)
+				{
+					MouseRButton = false;
+					MouseRButtonPop = true;
+				}
+			}
+			else if (ev.type == SDL_EVENT_MOUSE_MOTION)
+			{
+				const int pxX = std::clamp((int)ev.motion.x, 0, (int)WindowWidth - 1);
+				const int pxY = std::clamp((int)ev.motion.y, 0, (int)WindowHeight - 1);
+				MouseX = std::clamp((int)((float)pxX * 640.0f / (float)WindowWidth), 0, 640);
+				MouseY = std::clamp((int)((float)pxY * 480.0f / (float)WindowHeight), 0, 480);
+			}
+		}
+
+		if (Destroy) break;
+
+		Scene(g_hDC);
+#else
 		if (PeekMessage(&msg, NULL, 0, 0, PM_NOREMOVE))
 		{
 			if (!GetMessage(&msg, NULL, 0, 0))
@@ -1606,6 +1726,7 @@ MSG MainLoop()
 
 #endif	//WINDOWMODE(#else)
 		}
+#endif
 #ifdef NEW_PROTOCOL_SYSTEM
 		if (SceneFlag < CHARACTER_SCENE)
 			ProtocolCompiler();
@@ -1635,6 +1756,50 @@ void CALLBACK MUHelperTimerProc(HWND hwnd, UINT uMsg, UINT_PTR idEvent, DWORD dw
 }
 int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR szCmdLine, int nCmdShow)
 {
+#if defined(__ANDROID__)
+	const char* extPath = SDL_GetAndroidExternalStoragePath();
+	const char* intPath = SDL_GetAndroidInternalStoragePath();
+	g_ErrorReport.Write("[Android] extPath='%s', intPath='%s'\r\n", extPath ? extPath : "null", intPath ? intPath : "null");
+
+	auto HasDataDir = [](const char* basePath) -> bool {
+		if (!basePath || !basePath[0]) return false;
+		char testPath[512];
+		snprintf(testPath, sizeof(testPath), "%s/Data", basePath);
+		struct stat st;
+		if (stat(testPath, &st) == 0 && S_ISDIR(st.st_mode)) return true;
+		snprintf(testPath, sizeof(testPath), "%s/data", basePath);
+		if (stat(testPath, &st) == 0 && S_ISDIR(st.st_mode)) return true;
+		return false;
+	};
+
+	if (extPath && HasDataDir(extPath) && chdir(extPath) == 0)
+	{
+		g_ErrorReport.Write("[Android] Working directory set to external storage (Data found): %s\r\n", extPath);
+	}
+	else if (intPath && HasDataDir(intPath) && chdir(intPath) == 0)
+	{
+		g_ErrorReport.Write("[Android] Working directory set to internal storage (Data found): %s\r\n", intPath);
+	}
+	else if (extPath && extPath[0] && chdir(extPath) == 0)
+	{
+		g_ErrorReport.Write("[Android] Working directory fallback to external storage: %s\r\n", extPath);
+	}
+	else if (intPath && intPath[0] && chdir(intPath) == 0)
+	{
+		g_ErrorReport.Write("[Android] Working directory fallback to internal storage: %s\r\n", intPath);
+	}
+	else
+	{
+		chdir("/sdcard/Android/data/com.muonline.client/files");
+		g_ErrorReport.Write("[Android] Fallback working directory: /sdcard/Android/data/com.muonline.client/files\r\n");
+	}
+
+	char cwdBuf[512] = {0};
+	if (getcwd(cwdBuf, sizeof(cwdBuf)))
+	{
+		g_ErrorReport.Write("[Android] Final current working directory: %s\r\n", cwdBuf);
+	}
+#elif !defined(MU_IOS)
 	char szModulePath[MAX_PATH] = { 0 };
 	if (GetModuleFileNameA(NULL, szModulePath, MAX_PATH))
 	{
@@ -1645,6 +1810,7 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR szCmdLin
 			SetCurrentDirectoryA(szModulePath);
 		}
 	}
+#endif
 
 #if(UseStackLog)
 	StartStackLogging();
@@ -1773,7 +1939,9 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR szCmdLin
 	if( OpenInitFile() == FALSE )
 	{
 		g_ErrorReport.Write( "config.ini read error\r\n");
+#if !defined(__ANDROID__)
 		return false;
+#endif
 	}
 
 	pMultiLanguage = new CMultiLanguage(g_strSelectedML);
@@ -2026,6 +2194,11 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR szCmdLin
 	ProtectSysKey::AttachProtectSysKey(g_hInst, g_hWnd);
 #endif // !FOR_WORK
 #endif // PROTECT_SYSTEMKEY && NDEBUG
+
+#if defined(__ANDROID__) || defined(MU_IOS)
+	g_bWndActive = true;
+	g_bUseWindowMode = TRUE;
+#endif
 
 	const MSG msg = MainLoop();
 	DestroyWindow();

@@ -1124,6 +1124,9 @@ BOOL CMixRecipes::IsJewelItem(CMixItem & rSource)
 
 void CMixRecipeMgr::OpenRecipeFile(const unicode::t_char * szFileName)
 {
+	if (m_bIsMixInit)
+		return;
+
 	int i, j;
 	for (j = 0; j < MAX_MIX_TYPES; ++j)
 	{
@@ -1136,9 +1139,14 @@ void CMixRecipeMgr::OpenRecipeFile(const unicode::t_char * szFileName)
 		unicode::t_char Text[256];
     	unicode::_sprintf(Text,"%s - File not exist.",szFileName);
 		g_ErrorReport.Write( Text);
+#ifndef __ANDROID__
 		MessageBox(g_hWnd,Text,NULL,MB_OK);
 		SendMessage(g_hWnd,WM_DESTROY,0,0);
 		exit(0);
+#else
+		g_ErrorReport.Write("[MixMgr] WARNING: %s could not be opened yet.\r\n", szFileName);
+		return;
+#endif
 	}
 
 	int iNumMixRecipes[MAX_MIX_TYPES];
@@ -1154,10 +1162,15 @@ void CMixRecipeMgr::OpenRecipeFile(const unicode::t_char * szFileName)
 			unicode::t_char Text[256];
     		unicode::_sprintf(Text,"%s - Version not matched.",szFileName);
 			g_ErrorReport.Write( Text);
+#ifndef __ANDROID__
 			MessageBox(g_hWnd,Text,NULL,MB_OK);
 			SendMessage(g_hWnd,WM_DESTROY,0,0);
 			fclose(fp);
 			exit(0);
+#else
+			fclose(fp);
+			return;
+#endif
 		}
 		for (i = 0; i < iNumMixRecipes[j]; ++i)
 		{
@@ -1168,6 +1181,7 @@ void CMixRecipeMgr::OpenRecipeFile(const unicode::t_char * szFileName)
 		}
 	}
 	fclose(fp);
+	m_bIsMixInit = TRUE;
 }
 
 int CMixRecipeMgr::GetMixInventoryType()

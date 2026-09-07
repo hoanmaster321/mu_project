@@ -1,4 +1,4 @@
-﻿// NewUIInGameShop.cpp: implementation of the NewUIInGameShop class.
+// NewUIInGameShop.cpp: implementation of the NewUIInGameShop class.
 //////////////////////////////////////////////////////////////////////
 
 #include "stdafx.h"
@@ -361,6 +361,7 @@ void CNewUIInGameShop::RenderDisplayItems()
 		}
 	}
 
+	g_BatchRenderer.FlushMeshBatches();
 	UpdateMousePositionn();
 	
 	glMatrixMode(GL_MODELVIEW);

@@ -124,6 +124,7 @@
 #include "NewUICommon.h"
 #include "./Math/ZzzMathLib.h"
 #include "ZzzOpenglUtil.h"
+#include "BatchRenderer.h"
 
 #include "PrintPlayer.h"
 

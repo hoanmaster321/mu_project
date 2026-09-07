@@ -114,6 +114,7 @@ bool VulkanSDL3Context::InitSDL(const char* title, int width, int height)
         return false;
     }
 
+#if defined(_WIN32) && !defined(__ANDROID__)
     extern HWND g_hWnd;
     HWND hWnd = g_hWnd;
     if (hWnd != NULL) {
@@ -123,14 +124,29 @@ bool VulkanSDL3Context::InitSDL(const char* title, int width, int height)
         m_window = SDL_CreateWindowWithProperties(props);
         SDL_DestroyProperties(props);
     }
+#endif
 
     if (!m_window) {
+#if defined(__ANDROID__)
+        if (width < height && width > 0 && height > 0) {
+            std::swap(width, height);
+        }
+        SDL_SetHint("SDL_ORIENTATIONS", "LandscapeLeft LandscapeRight");
+        SDL_SetHint("SDL_IOS_ORIENTATIONS", "LandscapeLeft LandscapeRight");
+        m_window = SDL_CreateWindow(
+            title ? title : "MU Online",
+            width > 0 ? width : 1280,
+            height > 0 ? height : 720,
+            SDL_WINDOW_VULKAN | SDL_WINDOW_FULLSCREEN
+        );
+#else
         m_window = SDL_CreateWindow(
             title ? title : "Main Client - Vulkan SDL3",
             width > 0 ? width : 1280,
             height > 0 ? height : 720,
             SDL_WINDOW_VULKAN | SDL_WINDOW_HIDDEN
         );
+#endif
     }
 
     if (!m_window) {

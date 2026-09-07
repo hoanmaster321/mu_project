@@ -29,7 +29,7 @@
             android:name=".PreloadActivity"
             android:label="MU Online"
             android:exported="true"
-            android:screenOrientation="landscape"
+            android:screenOrientation="sensorLandscape"
             android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|keyboard|navigation|uiMode"
             android:launchMode="singleTask"
             android:theme="@android:style/Theme.NoTitleBar.Fullscreen"
@@ -42,18 +42,15 @@
         </activity>
 
         <activity
-            android:name=".MuMainNativeActivity"
+            android:name=".MuMainActivity"
             android:label="MU Online"
             android:exported="false"
-            android:screenOrientation="landscape"
-            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|keyboard|navigation|uiMode"
-            android:launchMode="singleTask"
+            android:alwaysRetainTaskState="true"
+            android:launchMode="singleInstance"
+            android:screenOrientation="sensorLandscape"
+            android:configChanges="layoutDirection|locale|grammaticalGender|fontScale|fontWeightAdjustment|orientation|uiMode|screenLayout|screenSize|smallestScreenSize|keyboard|keyboardHidden|navigation"
             android:theme="@android:style/Theme.NoTitleBar.Fullscreen"
             android:keepScreenOn="true">
-
-            <meta-data
-                android:name="android.app.lib_name"
-                android:value="main" />
         </activity>
 
     </application>

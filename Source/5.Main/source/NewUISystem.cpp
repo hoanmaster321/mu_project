@@ -1967,6 +1967,7 @@ void SEASON3B::CNewUISystem::RenderItem3DFree(float sx, float sy, float Width, f
 	float BWidth = (float)ItemAttribute[Type].Width * INVENTORY_SCALE;
 	float BHeight = (float)ItemAttribute[Type].Height * INVENTORY_SCALE;
 	RenderItem3D(x, y, Width, Height, Type, Level, Option1, ExtOption, PickUp);
+	g_BatchRenderer.FlushMeshBatches();
 
 	UpdateMousePositionn();
 

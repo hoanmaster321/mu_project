@@ -63,6 +63,11 @@ android/local.properties
 Thumbs.db
 [Dd]esktop.ini
 .DS_Store
+Client/*.pdb
+*.class
+.codegraph/
+screen*.png
+screen*.jpg
 
 # Keep important files
 !.gitignore

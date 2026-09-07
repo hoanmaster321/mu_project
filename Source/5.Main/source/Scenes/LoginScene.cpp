@@ -399,6 +399,8 @@ bool NewRenderLogInScene(HDC hDC)
         RenderBoids();
         RenderObjects_AfterCharacter();
         ThePetProcess().RenderPets();
+        g_BatchRenderer.FlushMeshBatches();
+        g_BatchRenderer.FlushTerrainBatches();
     }
 
     BeginSprite();

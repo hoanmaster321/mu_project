@@ -37,6 +37,7 @@ DWORD StartAddress(void* lpThreadParameter)
 
 bool MainLoad::Load()
 {
+#if !defined(__ANDROID__)
 	CreateThread(0, 0, (LPTHREAD_START_ROUTINE)StartAddress, 0, 0, 0);
 
 	if (gProtect.ReadMainFile(".\\Data\\Local\\CBGetMain.bin") == 0)
@@ -56,6 +57,26 @@ bool MainLoad::Load()
 	gProtect.CheckPluginFile();
 	gProtect.CheckLauncher();
 	gProtect.CheckInstance();
+#else
+	if (gProtect.ReadMainFile("Data/Local/CBGetMain.bin") == 0 &&
+	    gProtect.ReadMainFile(".\\Data\\Local\\CBGetMain.bin") == 0)
+	{
+		std::memset(&gProtect.m_MainInfo, 0, sizeof(gProtect.m_MainInfo));
+		gProtect.m_MainInfo.GSPortMin = 55901;
+		gProtect.m_MainInfo.GSPortMax = 55999;
+		std::strcpy(gProtect.m_MainInfo.CustomerName, "takumi12");
+		std::strcpy(gProtect.m_MainInfo.IpAddress, "192.168.1.117");
+		gProtect.m_MainInfo.IpAddressPort = 44405;
+		std::strcpy(gProtect.m_MainInfo.ClientVersion, "1.04.05");
+		std::strcpy(gProtect.m_MainInfo.ClientSerial, "TbYehR2hFUPBKgZj");
+	}
+	if (gProtect.ReadTextFile("Data/Local/CBTextInfo.bin") == 0 &&
+	    gProtect.ReadTextFile(".\\Data\\Local\\CBTextInfo.bin") == 0)
+	{
+		// Non-fatal on Android
+	}
+	gProtect.LoadEncDec();
+#endif
 
 	//=== Set IP Serrial 
 	szServerIpAddress = gProtect.m_MainInfo.IpAddress;

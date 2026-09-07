@@ -210,14 +210,14 @@ namespace SEASON3A
 		void SetRealMixZen(int Zen) { this->m_dwRequiredZen = Zen; };
 #endif
 	protected:
-		bool IsOptionItem(MIX_RECIPE_ITEM & rItem) { return (rItem.m_iCountMin == 0); }	// ø…º«(æ»≥÷æÓµµ µ«¥¬) æ∆¿Ã≈€¿Œ∞°
+		bool IsOptionItem(MIX_RECIPE_ITEM & rItem) { return (rItem.m_iCountMin == 0); }	// ÏòµÏÖò(ÏïàÎÑ£Ïñ¥ÎèÑ ÎêòÎäî) ÏïÑÏù¥ÌÖúÏù∏Í∞Ä
 		BOOL CheckRecipeSub(std::vector<MIX_RECIPE *>::iterator iter, int iNumMixItems, CMixItem * pMixItems);
-		int CheckRecipeSimilaritySub(std::vector<MIX_RECIPE *>::iterator iter, int iNumMixItems, CMixItem * pMixItems);	// ¿ØªÁµµ ∫Ò±≥
-		bool CheckItem(MIX_RECIPE_ITEM & rItem, CMixItem & rSource);	// ∞∞¿∫ æ∆¿Ã≈€¿Œ¡ˆ ∫Ò±≥
+		int CheckRecipeSimilaritySub(std::vector<MIX_RECIPE *>::iterator iter, int iNumMixItems, CMixItem * pMixItems);	// Ïú†ÏÇ¨ÎèÑ ÎπÑÍµê
+		bool CheckItem(MIX_RECIPE_ITEM & rItem, CMixItem & rSource);	// Í∞ôÏùÄ ÏïÑÏù¥ÌÖúÏù∏ÏßÄ ÎπÑÍµê
 		void EvaluateMixItems(int iNumMixItems, CMixItem * pMixItems);
 		void CalcMixRate(int iNumMixItems, CMixItem * pMixItems);
 		void CalcMixReqZen(int iNumMixItems, CMixItem * pMixItems);
-		BOOL GetRecipeName(MIX_RECIPE * pRecipe, unicode::t_char * pszNameOut, int iNameLine, BOOL bSimilarRecipe);	// ¡÷æÓ¡¯ ¡∂«’π˝¿« ¿Ã∏ß æÚ±‚
+		BOOL GetRecipeName(MIX_RECIPE * pRecipe, unicode::t_char * pszNameOut, int iNameLine, BOOL bSimilarRecipe);	// Ï£ºÏñ¥ÏßÑ Ï°∞Ìï©Î≤ïÏùò Ïù¥Î¶Ñ ÏñªÍ∏∞
 		BOOL IsChaosItem(CMixItem & rSource);
 		BOOL IsChaosJewel(CMixItem & rSource);
 		BOOL Is380AddedItem(CMixItem & rSource);
@@ -262,13 +262,14 @@ namespace SEASON3A
 	class CMixRecipeMgr
 	{
 	public:
-		CMixRecipeMgr():m_iMixType(0),m_bIsMixInit(TRUE)
+		CMixRecipeMgr():m_iMixType(0),m_bIsMixInit(FALSE)
 		{
 			m_iMixSubType = 0;
 			m_btPlusChaosRate = 0;
-			OpenRecipeFile("Data\\Local\\Mix.bmd");
 		}
 		virtual ~CMixRecipeMgr() {}
+
+		void OpenRecipeFile(const unicode::t_char * szFileName);	// mix.bmd
 
 		void SetMixType(int iMixType) { this->m_iMixType = iMixType; }
 		int GetMixInventoryType();
@@ -281,6 +282,7 @@ namespace SEASON3A
 
 		BOOL IsMixSource(ITEM * pItem)
 		{
+			if (!m_bIsMixInit) OpenRecipeFile("Data\\Local\\Mix.bmd");
 			//==Check Item dua vao
 			m_MixRecipe[GetMixInventoryType()].CalcCharmBonusRate(m_MixItemInventory.GetNumMixItems(), m_MixItemInventory.GetMixItems());
 			m_MixRecipe[GetMixInventoryType()].CalcChaosCharmCount(m_MixItemInventory.GetNumMixItems(), m_MixItemInventory.GetMixItems());
@@ -288,30 +290,37 @@ namespace SEASON3A
 		}
 		int CheckRecipe(int iNumMixItems, CMixItem * pMixItems)
 		{
+			if (!m_bIsMixInit) OpenRecipeFile("Data\\Local\\Mix.bmd");
 			return m_MixRecipe[GetMixInventoryType()].CheckRecipe(iNumMixItems, pMixItems);
 		}
 		int CheckRecipeSimilarity(int iNumMixItems, CMixItem * pMixItems)
 		{
+			if (!m_bIsMixInit) OpenRecipeFile("Data\\Local\\Mix.bmd");
 			return m_MixRecipe[GetMixInventoryType()].CheckRecipeSimilarity(iNumMixItems, pMixItems);
 		}
 		BOOL IsReadyToMix()
 		{
+			if (!m_bIsMixInit) OpenRecipeFile("Data\\Local\\Mix.bmd");
 			return m_MixRecipe[GetMixInventoryType()].IsReadyToMix();
 		}
 		MIX_RECIPE * GetCurRecipe()
 		{
+			if (!m_bIsMixInit) OpenRecipeFile("Data\\Local\\Mix.bmd");
 			return m_MixRecipe[GetMixInventoryType()].GetCurRecipe();
 		}
 		int GetSuccessRate()
 		{
+			if (!m_bIsMixInit) OpenRecipeFile("Data\\Local\\Mix.bmd");
 			return m_MixRecipe[GetMixInventoryType()].GetSuccessRate();
 		}
 		int GetReqiredZen()
 		{
+			if (!m_bIsMixInit) OpenRecipeFile("Data\\Local\\Mix.bmd");
 			return m_MixRecipe[GetMixInventoryType()].GetReqiredZen();
 		}
 		int GetCurMixID()
 		{
+			if (!m_bIsMixInit) OpenRecipeFile("Data\\Local\\Mix.bmd");
 			return m_MixRecipe[GetMixInventoryType()].GetCurMixID();
 		}
 #if(CB_GETMIXRATE)
@@ -371,9 +380,6 @@ namespace SEASON3A
 			return m_MixRecipe[GetMixInventoryType()].GetTotalCharmCount(); 
 		}
 #endif //LJH_MOD_CANNOT_USE_CHARMITEM_AND_CHAOSCHARMITEM_SIMULTANEOUSLY
-
-	protected:
-		void OpenRecipeFile(const unicode::t_char * szFileName);	// mix.bmd
 
 	protected:
 		CMixRecipes m_MixRecipe[MAX_MIX_TYPES];

@@ -60,7 +60,7 @@ _FT_Bitmap* CGMFontLayer::GetULongChar(FT_ULong charcode)
 
 void CGMFontLayer::runtime_load_bitmap(GLuint* textures, GLsizei _width, GLsizei _height, BYTE* data)
 {
-	static GLuint s_nextFontTexId = 55000;
+	static GLuint s_nextFontTexId = BITMAP_GLYPH_ATLAS;
 	if (*textures == (GLuint)-1 || *textures == 0)
 	{
 		*textures = s_nextFontTexId++;

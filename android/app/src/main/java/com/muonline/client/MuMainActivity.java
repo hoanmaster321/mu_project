@@ -98,6 +98,7 @@ public class MuMainActivity extends SDLActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         MuLog.i(TAG, "MuMainActivity onCreate");
+        setRequestedOrientation(android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE);
 
         // Extract bundled assets to the filesystem so C++ can open them with
         // normal fopen / stbi_load. Must run BEFORE super.onCreate() loads libs.
@@ -148,14 +149,8 @@ public class MuMainActivity extends SDLActivity {
     @Override
     protected String[] getLibraries() {
         return new String[]{
-            "mpg123",       // MP3 decoder (no prefix in System.loadLibrary)
-            "SDL2",         // Window, input, events
-            "SDL2_image",   // Texture loading (PNG, JPG)
-            "SDL2_mixer",   // Audio mixing (replaces DirectSound + wzAudio)
-            "SDL2_ttf",     // Font rendering
-            "SDL_net",      // Network (replaces WinSock2)
-            "botan",        // Cryptography (replaces Windows DPAPI)
-            "main"          // Our game - libmain.so (compiled from MuMain sources)
+            "SDL3",
+            "main"
         };
     }
 

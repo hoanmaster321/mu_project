@@ -71,30 +71,8 @@ int ComputeSectionSpan(int totalSize, int sectionLimit, int sectionIndex, int se
 }
 void UploadFontBitmapRegion(BITMAP_t* bitmap, int uploadWidth, int uploadHeight)
 {
-	if (bitmap == NULL || bitmap->Buffer == NULL || uploadWidth <= 0 || uploadHeight <= 0)
-	{
-		return;
-	}
-	if (uploadWidth > (int)bitmap->Width)
-	{
-		uploadWidth = (int)bitmap->Width;
-	}
-	if (uploadHeight > (int)bitmap->Height)
-	{
-		uploadHeight = (int)bitmap->Height;
-	}
-	if (GPUContext::Instance().IsInitialized())
-	{
-		VulkanTextureManager::Instance().CreateTextureWithId(
-			bitmap->BitmapIndex,
-			(uint32_t)bitmap->Width,
-			(uint32_t)bitmap->Height,
-			(uint32_t)bitmap->Components,
-			bitmap->Buffer,
-			false,
-			true
-		);
-	}
+	// No-op: CUIRenderTextOriginal and CUITextInputBox use dynamic atlas UploadFontSlot
+	// to avoid destroying and recreating textures per frame.
 }
 }
 
@@ -2792,17 +2770,32 @@ void CUIRenderTextOriginal::WriteText(int iOffset, int iWidth, int iHeight)
 {
 	const int LIMIT_WIDTH = 256, LIMIT_HEIGHT = 32;
 	
-	SIZE FontDCSize = { 640*g_fScreenRate_x, 480*g_fScreenRate_y };
+	SIZE FontDCSize = { (LONG)(640*g_fScreenRate_x), (LONG)(480*g_fScreenRate_y) };
 	int iPitch = ((FontDCSize.cx*24+31)&~31)>>3;
 
 	BITMAP_t * pBitmapFont = &Bitmaps[BITMAP_FONT];
+	if (!pBitmapFont->Buffer)
+	{
+		pBitmapFont->Buffer = new BYTE[LIMIT_WIDTH * LIMIT_HEIGHT * 4]();
+		pBitmapFont->Width = LIMIT_WIDTH;
+		pBitmapFont->Height = LIMIT_HEIGHT;
+		pBitmapFont->Components = 4;
+	}
+	if (!m_pFontBuffer)
+	{
+		return;
+	}
+
+	const int maxSrcIndex = iPitch * FontDCSize.cy;
+	const int maxDstIndex = LIMIT_WIDTH * 4 * LIMIT_HEIGHT;
+
 	for(int y = 0; y < iHeight; ++y)
 	{
 		int SrcIndex = y*iPitch+iOffset;
 		int DstIndex = y * LIMIT_WIDTH*4;
 		for(int x = 0; x < iWidth; ++x)
 		{
-			if((SrcIndex > iPitch*FontDCSize.cy) || (DstIndex > LIMIT_WIDTH*4*LIMIT_HEIGHT))
+			if((SrcIndex + 3 > maxSrcIndex) || (DstIndex + 4 > maxDstIndex))
 			{
 #ifdef _DEBUG
 				__asm { int 3 };
@@ -2836,6 +2829,10 @@ void CUIRenderTextOriginal::WriteText(int iOffset, int iWidth, int iHeight)
 void CUIRenderTextOriginal::UploadText(int sx,int sy,int Width,int Height)
 {
 	BITMAP_t *b = &Bitmaps[BITMAP_FONT];
+	if (!b->Buffer || b->Width <= 0 || b->Height <= 0)
+	{
+		return;
+	}
 	const int sourceWidth = Width;
 	const int sourceHeight = Height;
 	float TextureU = 0.f, TextureV = 0.f;
@@ -2861,9 +2858,15 @@ void CUIRenderTextOriginal::UploadText(int sx,int sy,int Width,int Height)
 	}
 	if (Width > 0 && Height > 0 && sx + Width > 0 && sy + Height > 0)
 	{
-		UploadFontBitmapRegion(b, sourceWidth, sourceHeight);
-		float TextureUWidth = (Width + 0.01f) / b->Width;
-		float TextureVHeight = (Height + 0.01f) / b->Height;
+		auto slotUV = VulkanTextureManager::Instance().UploadFontSlot(b->Buffer, (uint32_t)b->Width, (uint32_t)sourceWidth, (uint32_t)sourceHeight);
+
+		float atlasScaleU = (float)b->Width / (float)FONT_ATLAS_WIDTH;
+		float atlasScaleV = (float)b->Height / (float)FONT_ATLAS_HEIGHT;
+		float atlasU = slotUV.u0 + TextureU * atlasScaleU;
+		float atlasV = slotUV.v0 + TextureV * atlasScaleV;
+		float atlasUWidth = ((Width + 0.01f) / b->Width) * atlasScaleU;
+		float atlasVHeight = ((Height + 0.01f) / b->Height) * atlasScaleV;
+
 		//== Font GL
 		if (m_TypeShadow)
 		{
@@ -2872,21 +2875,21 @@ void CUIRenderTextOriginal::UploadText(int sx,int sy,int Width,int Height)
 			glColor4f(0.0, 0.0, 0.0, 0.75);
 			if (m_TypeShadow == 1)
 			{
-				RenderBitmap(BITMAP_FONT, (float)sx - 0.5, (float)sy - 0.5, (float)Width, (float)Height, TextureU, TextureV, TextureUWidth, TextureVHeight, false, false);
-				RenderBitmap(BITMAP_FONT, (float)sx - 0.5, (float)sy + 0.5, (float)Width, (float)Height, TextureU, TextureV, TextureUWidth, TextureVHeight, false, false);
-				RenderBitmap(BITMAP_FONT, (float)sx + 0.5, (float)sy - 0.5, (float)Width, (float)Height, TextureU, TextureV, TextureUWidth, TextureVHeight, false, false);
-				RenderBitmap(BITMAP_FONT, (float)sx + 0.5, (float)sy + 0.5, (float)Width, (float)Height, TextureU, TextureV, TextureUWidth, TextureVHeight, false, false);
+				RenderBitmap(BITMAP_FONT_DYNAMIC_ATLAS, (float)sx - 0.5, (float)sy - 0.5, (float)Width, (float)Height, atlasU, atlasV, atlasUWidth, atlasVHeight, false, false);
+				RenderBitmap(BITMAP_FONT_DYNAMIC_ATLAS, (float)sx - 0.5, (float)sy + 0.5, (float)Width, (float)Height, atlasU, atlasV, atlasUWidth, atlasVHeight, false, false);
+				RenderBitmap(BITMAP_FONT_DYNAMIC_ATLAS, (float)sx + 0.5, (float)sy - 0.5, (float)Width, (float)Height, atlasU, atlasV, atlasUWidth, atlasVHeight, false, false);
+				RenderBitmap(BITMAP_FONT_DYNAMIC_ATLAS, (float)sx + 0.5, (float)sy + 0.5, (float)Width, (float)Height, atlasU, atlasV, atlasUWidth, atlasVHeight, false, false);
 			}
 			else 
 			{
-				RenderBitmap(BITMAP_FONT, (float)sx - 1.45, (float)sy - 1.45, (float)Width, (float)Height, TextureU, TextureV, TextureUWidth, TextureVHeight, false, false);
-				RenderBitmap(BITMAP_FONT, (float)sx - 1.45, (float)sy + 1.45, (float)Width, (float)Height, TextureU, TextureV, TextureUWidth, TextureVHeight, false, false);
-				RenderBitmap(BITMAP_FONT, (float)sx + 1.45, (float)sy - 1.45, (float)Width, (float)Height, TextureU, TextureV, TextureUWidth, TextureVHeight, false, false);
-				RenderBitmap(BITMAP_FONT, (float)sx + 1.45, (float)sy + 1.45, (float)Width, (float)Height, TextureU, TextureV, TextureUWidth, TextureVHeight, false, false);
+				RenderBitmap(BITMAP_FONT_DYNAMIC_ATLAS, (float)sx - 1.45, (float)sy - 1.45, (float)Width, (float)Height, atlasU, atlasV, atlasUWidth, atlasVHeight, false, false);
+				RenderBitmap(BITMAP_FONT_DYNAMIC_ATLAS, (float)sx - 1.45, (float)sy + 1.45, (float)Width, (float)Height, atlasU, atlasV, atlasUWidth, atlasVHeight, false, false);
+				RenderBitmap(BITMAP_FONT_DYNAMIC_ATLAS, (float)sx + 1.45, (float)sy - 1.45, (float)Width, (float)Height, atlasU, atlasV, atlasUWidth, atlasVHeight, false, false);
+				RenderBitmap(BITMAP_FONT_DYNAMIC_ATLAS, (float)sx + 1.45, (float)sy + 1.45, (float)Width, (float)Height, atlasU, atlasV, atlasUWidth, atlasVHeight, false, false);
 			}
 			glColor4fv(ColorFont);
 		}
-		RenderBitmap(BITMAP_FONT, (float)sx, (float)sy, (float)Width, (float)Height,TextureU, TextureV, TextureUWidth, TextureVHeight, false, false);
+		RenderBitmap(BITMAP_FONT_DYNAMIC_ATLAS, (float)sx, (float)sy, (float)Width, (float)Height, atlasU, atlasV, atlasUWidth, atlasVHeight, false, false);
 	}
 }
 
@@ -2896,6 +2899,11 @@ void CUIRenderTextOriginal::RenderText(int iPos_x, int iPos_y, const unicode::t_
 {
 	if (pszText == NULL || (pszText[0] == '\0' && iBoxWidth == 0)) return;
 	if (strlen(pszText) <= 0 && iBoxWidth == 0) return;
+	if (!m_hFontDC || !m_pFontBuffer || !g_pMultiLanguage)
+	{
+		if (lpTextSize) { lpTextSize->cx = 0; lpTextSize->cy = 0; }
+		return;
+	}
 	
 	SIZE RealTextSize;
 
@@ -3595,11 +3603,17 @@ void CUITextInputBox::UploadText(int sx,int sy,int Width,int Height)
 	}
 	if(Width > 0 && Height > 0 && sx+Width > 0 && sy+Height > 0)
 	{
-		UploadFontBitmapRegion(b, sourceWidth, sourceHeight);
-		float TextureUWidth = (Width+0.01f)/b->Width;
-		float TextureVHeight = (Height+0.01f)/b->Height;
-		RenderBitmap(BITMAP_FONT, (float)sx, (float)sy, (float)Width, (float)Height,
-			TextureU, TextureV, TextureUWidth, TextureVHeight, false, false);
+		auto slotUV = VulkanTextureManager::Instance().UploadFontSlot(b->Buffer, (uint32_t)b->Width, (uint32_t)sourceWidth, (uint32_t)sourceHeight);
+
+		float atlasScaleU = (float)b->Width / (float)FONT_ATLAS_WIDTH;
+		float atlasScaleV = (float)b->Height / (float)FONT_ATLAS_HEIGHT;
+		float atlasU = slotUV.u0 + TextureU * atlasScaleU;
+		float atlasV = slotUV.v0 + TextureV * atlasScaleV;
+		float atlasUWidth = ((Width + 0.01f) / b->Width) * atlasScaleU;
+		float atlasVHeight = ((Height + 0.01f) / b->Height) * atlasScaleV;
+
+		RenderBitmap(BITMAP_FONT_DYNAMIC_ATLAS, (float)sx, (float)sy, (float)Width, (float)Height,
+			atlasU, atlasV, atlasUWidth, atlasVHeight, false, false);
 	}
 }
 
@@ -3619,6 +3633,21 @@ void CUITextInputBox::WriteText(int iOffset, int iWidth, int iHeight)
 	RECT rcCaret = { pt.x-LIMIT_WIDTH*iSectionX, pt.y-LIMIT_HEIGHT*iSectionY,pt.x-LIMIT_WIDTH*iSectionX+m_fCaretWidth, pt.y-LIMIT_HEIGHT*iSectionY+m_fCaretHeight };
 
 	BITMAP_t * pBitmapFont = &Bitmaps[BITMAP_FONT];
+	if (!pBitmapFont->Buffer)
+	{
+		pBitmapFont->Buffer = new BYTE[LIMIT_WIDTH * LIMIT_HEIGHT * 4]();
+		pBitmapFont->Width = LIMIT_WIDTH;
+		pBitmapFont->Height = LIMIT_HEIGHT;
+		pBitmapFont->Components = 4;
+	}
+	if (!m_pFontBuffer)
+	{
+		return;
+	}
+
+	const int maxSrcIndex = iPitch * RealBoxSize.cy;
+	const int maxDstIndex = LIMIT_WIDTH * 4 * LIMIT_HEIGHT;
+
 	for(int y = 0; y < iHeight; ++y)
 	{
 		int SrcIndex = y*iPitch+iOffset;
@@ -3626,7 +3655,7 @@ void CUITextInputBox::WriteText(int iOffset, int iWidth, int iHeight)
 		for(int x = 0; x < iWidth; ++x)
 		{
 			POINT ptProcessing = { x, y };
-			if((SrcIndex > iPitch*RealBoxSize.cy) || (DstIndex > LIMIT_WIDTH*4*LIMIT_HEIGHT))
+			if((SrcIndex + 3 > maxSrcIndex) || (DstIndex + 4 > maxDstIndex))
 			{
 #ifdef _DEBUG
 				__asm { int 3 };

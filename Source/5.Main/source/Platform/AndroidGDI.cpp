@@ -1,20 +1,20 @@
-// =============================================================================
+﻿// =============================================================================
 // AndroidGDI.cpp
-// Android GDI text-rendering stubs built on SDL2_ttf.
+// Android GDI text-rendering engine built on FreeType.
 // Provides CreateFont / CreateDIBSection / TextOut / GetTextExtentPoint32 etc.
 // =============================================================================
 #ifdef __ANDROID__
 
 #include "AndroidGDI.h"
-#include <SDL.h>
-#include <SDL_ttf.h>
+#include <ft2build.h>
+#include FT_FREETYPE_H
 #include <android/log.h>
-#include <fstream>
-#include <limits>
-#include <string.h>
-#include <wchar.h>
 #include <vector>
 #include <string>
+#include <fstream>
+#include <limits>
+#include <cstring>
+#include <cstdlib>
 
 #define LOG_TAG "AndroidGDI"
 #if defined(MU_ANDROID_DISABLE_LOG)
@@ -25,200 +25,115 @@
 #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
 #endif
 
-// ── Font paths ────────────────────────────────────────────────────────────
-// Resolved relative to the working directory set by android_main.cpp
-static const char* s_FontPathNormal = "Data/fonts/font_.ttf";
-static const char* s_FontPathBold   = "Data/fonts/font_2.ttf";
-
+static FT_Library s_FTLib = nullptr;
 static int s_DefaultFontSize = 14;
-static bool s_TTFInited = false;
 
-// ── TTF_Font cache (keyed by size+bold) ──────────────────────────────────
-struct FontCacheEntry {
-    int  size;
-    bool bold;
-    TTF_Font* font;
-    std::vector<unsigned char> fontBytes;
-};
-static std::vector<FontCacheEntry> s_FontCache;
+// Cache font files in memory so FT_New_Memory_Face is fast and avoids repeated file I/O
+static std::vector<unsigned char> s_FontBytesNormal;
+static std::vector<unsigned char> s_FontBytesBold;
 
-static bool ReadFontFile(const char* path, std::vector<unsigned char>& outBytes)
-{
-    outBytes.clear();
-    if (!path || !path[0])
-    {
-        return false;
-    }
-
+static bool ReadFontFile(const char* path, std::vector<unsigned char>& outBytes) {
+    if (!path || !path[0]) return false;
     std::ifstream stream(path, std::ios::binary | std::ios::ate);
-    if (!stream)
-    {
-        return false;
-    }
-
-    const std::streamsize fileSize = stream.tellg();
-    if ((fileSize <= 0) || (fileSize > static_cast<std::streamsize>(std::numeric_limits<int>::max())))
-    {
-        return false;
-    }
-
-    outBytes.resize(static_cast<size_t>(fileSize));
+    if (!stream) return false;
+    std::streamsize sz = stream.tellg();
+    if (sz <= 0) return false;
+    outBytes.resize((size_t)sz);
     stream.seekg(0, std::ios::beg);
-    if (!stream.read(reinterpret_cast<char*>(outBytes.data()), fileSize))
-    {
+    if (!stream.read(reinterpret_cast<char*>(outBytes.data()), sz)) {
         outBytes.clear();
         return false;
     }
-
     return true;
 }
 
-static TTF_Font* TryOpenFont(const char* path, int size, std::vector<unsigned char>& outFontBytes) {
-    if (!ReadFontFile(path, outFontBytes))
-    {
-        return nullptr;
-    }
-
-    SDL_RWops* rw = SDL_RWFromConstMem(outFontBytes.data(), static_cast<int>(outFontBytes.size()));
-    if (!rw)
-    {
-        outFontBytes.clear();
-        return nullptr;
-    }
-
-    TTF_Font* f = TTF_OpenFontRW(rw, 1, size);
-    if (!f)
-    {
-        outFontBytes.clear();
-        return nullptr;
-    }
-
-    LOGI("Font OK: %s sz=%d", path, size);
-    return f;
-}
-
-static TTF_Font* GetCachedFont(int size, bool bold) {
-    for (auto& e : s_FontCache)
-        if (e.size == size && e.bold == bold)
-            return e.font;
-
-    TTF_Font* f = nullptr;
-    std::vector<unsigned char> fontBytes;
-
-    // 1. Relative paths (via chdir to external storage)
-    if (!f) f = TryOpenFont(bold ? s_FontPathBold   : s_FontPathNormal, size, fontBytes);
-    if (!f) f = TryOpenFont(s_FontPathNormal, size, fontBytes);
-
-    // 2. Absolute paths to the app data directory
-    static const char* sGameFontsNormal[] = {
+static void LoadFontBytes() {
+    static const char* sNormalPaths[] = {
+        "Data/fonts/font_.ttf",
         "/sdcard/Android/data/com.muonline.client/files/Data/fonts/font_.ttf",
         "/storage/emulated/0/Android/data/com.muonline.client/files/Data/fonts/font_.ttf",
-        "/data/user/0/com.muonline.client/files/Data/fonts/font_.ttf",
         "/data/data/com.muonline.client/files/Data/fonts/font_.ttf",
-        nullptr
-    };
-    static const char* sGameFontsBold[] = {
-        "/sdcard/Android/data/com.muonline.client/files/Data/fonts/font_2.ttf",
-        "/storage/emulated/0/Android/data/com.muonline.client/files/Data/fonts/font_2.ttf",
-        "/data/user/0/com.muonline.client/files/Data/fonts/font_2.ttf",
-        "/data/data/com.muonline.client/files/Data/fonts/font_2.ttf",
-        nullptr
-    };
-    const char** gameFonts = bold ? sGameFontsBold : sGameFontsNormal;
-    for (int i = 0; !f && gameFonts[i]; ++i) f = TryOpenFont(gameFonts[i], size, fontBytes);
-    for (int i = 0; !f && sGameFontsNormal[i]; ++i) f = TryOpenFont(sGameFontsNormal[i], size, fontBytes);
-
-    // 3. Android system fonts fallback
-    static const char* sSys[] = {
-        "/system/fonts/DroidSans.ttf",
         "/system/fonts/Roboto-Regular.ttf",
         "/system/fonts/NotoSans-Regular.ttf",
-        "/system/fonts/NotoSansCJK-Regular.ttc",
-        "/system/fonts/Arial.ttf",
-        "/system/fonts/DroidSansFallback.ttf",
+        "/system/fonts/DroidSans.ttf",
         nullptr
     };
-    static const char* sSysBold[] = {
-        "/system/fonts/DroidSans-Bold.ttf",
+    static const char* sBoldPaths[] = {
+        "Data/fonts/font_2.ttf",
+        "/sdcard/Android/data/com.muonline.client/files/Data/fonts/font_2.ttf",
+        "/storage/emulated/0/Android/data/com.muonline.client/files/Data/fonts/font_2.ttf",
+        "/data/data/com.muonline.client/files/Data/fonts/font_2.ttf",
         "/system/fonts/Roboto-Bold.ttf",
         "/system/fonts/NotoSans-Bold.ttf",
+        "/system/fonts/DroidSans-Bold.ttf",
         nullptr
     };
-    const char** arr = (bold && !f) ? sSysBold : sSys;
-    for (int i = 0; !f && arr[i]; ++i) f = TryOpenFont(arr[i], size, fontBytes);
-    // last resort: any sys font
-    for (int i = 0; !f && sSys[i]; ++i)  f = TryOpenFont(sSys[i], size, fontBytes);
 
-    if (!f) {
-        LOGE("No font found for size=%d bold=%d", size, (int)bold);
-        return nullptr;
+    s_FontBytesNormal.clear();
+    for (int i = 0; sNormalPaths[i]; ++i) {
+        if (ReadFontFile(sNormalPaths[i], s_FontBytesNormal)) {
+            LOGI("Loaded normal font from %s", sNormalPaths[i]);
+            break;
+        }
     }
 
-    if (bold) TTF_SetFontStyle(f, TTF_STYLE_BOLD);
-    s_FontCache.push_back({size, bold, f, std::move(fontBytes)});
-    return f;
-}
-
-// ── wchar_t → Uint16 conversion ──────────────────────────────────────────
-// SDL_ttf SizeUNICODE/RenderUNICODE expects UTF-16 Uint16 array.
-// Android wchar_t is 4 bytes (UTF-32). Convert only BMP codepoints (covers Latin, Korean, etc.)
-static std::vector<Uint16> ToUint16(const wchar_t* text, int len) {
-    std::vector<Uint16> out;
-    out.reserve(len + 1);
-    for (int i = 0; i < len && text[i]; ++i) {
-        wchar_t c = text[i];
-        if (c < 0xD800 || (c >= 0xE000 && c <= 0xFFFF))
-            out.push_back((Uint16)c);
-        else
-            out.push_back(0x25A1); // □ replacement
+    s_FontBytesBold.clear();
+    for (int i = 0; sBoldPaths[i]; ++i) {
+        if (ReadFontFile(sBoldPaths[i], s_FontBytesBold)) {
+            LOGI("Loaded bold font from %s", sBoldPaths[i]);
+            break;
+        }
     }
-    out.push_back(0); // null terminator
-    return out;
+
+    if (s_FontBytesBold.empty() && !s_FontBytesNormal.empty()) {
+        s_FontBytesBold = s_FontBytesNormal;
+    }
 }
 
 // ── Public API ────────────────────────────────────────────────────────────
 
 void AndroidGDI_Init(int defaultFontSizePx) {
-    s_DefaultFontSize = defaultFontSizePx;
-    if (!s_TTFInited) {
-        if (TTF_Init() < 0)
-            LOGE("TTF_Init failed: %s", SDL_GetError());
-        else {
-            s_TTFInited = true;
-            LOGI("SDL2_ttf initialized, defaultSize=%d", defaultFontSizePx);
+    s_DefaultFontSize = (defaultFontSizePx > 0) ? defaultFontSizePx : 14;
+    if (!s_FTLib) {
+        if (FT_Init_FreeType(&s_FTLib) != 0) {
+            LOGE("Failed to initialize FreeType library!");
+            s_FTLib = nullptr;
+            return;
         }
     }
-    // Pre-load common font sizes
-    GetCachedFont(defaultFontSizePx, false);
-    GetCachedFont(defaultFontSizePx, true);
+    if (s_FontBytesNormal.empty()) {
+        LoadFontBytes();
+    }
+    LOGI("AndroidGDI initialized with FreeType, defaultFontSize=%d", s_DefaultFontSize);
 }
 
 void AndroidGDI_Shutdown() {
-    for (auto& e : s_FontCache)
-        if (e.font) TTF_CloseFont(e.font);
-    s_FontCache.clear();
-    if (s_TTFInited) { TTF_Quit(); s_TTFInited = false; }
+    if (s_FTLib) {
+        FT_Done_FreeType(s_FTLib);
+        s_FTLib = nullptr;
+    }
+    s_FontBytesNormal.clear();
+    s_FontBytesBold.clear();
 }
 
 // ── CreateDIBSection ──────────────────────────────────────────────────────
-// bmiPtr = pointer to BITMAPINFO (defined in PlatformDefs.h but we just read it raw)
 struct RawBITMAPINFOHEADER { int biSize; int biWidth; int biHeight; short biPlanes; short biBitCount; };
 HBITMAP AndroidCreateDIBSection(const void* bmiPtr, void** ppvBits) {
     if (!bmiPtr || !ppvBits) { if (ppvBits) *ppvBits = nullptr; return nullptr; }
-    const RawBITMAPINFOHEADER* hdr = (const RawBITMAPINFOHEADER*)bmiPtr;
+    const RawBITMAPINFOHEADER* hdr = reinterpret_cast<const RawBITMAPINFOHEADER*>(bmiPtr);
     int w = hdr->biWidth;
     int h = hdr->biHeight < 0 ? -hdr->biHeight : hdr->biHeight;
     int bpp = hdr->biBitCount;
     int pitch = ((w * bpp + 31) & ~31) >> 3;
-    size_t sz = (size_t)pitch * (size_t)(h > 0 ? h : 1);
+    size_t sz = static_cast<size_t>(pitch) * static_cast<size_t>(h > 0 ? h : 1);
 
     AndroidBitmap* bmp = new AndroidBitmap;
-    bmp->type  = ANDROID_GDI_OBJECT_BITMAP;
-    bmp->data  = (uint8_t*)calloc(sz, 1);
+    bmp->type   = ANDROID_GDI_OBJECT_BITMAP;
+    bmp->data   = reinterpret_cast<uint8_t*>(calloc(sz, 1));
     bmp->width  = w;
     bmp->height = h;
     bmp->pitch  = pitch;
-    *ppvBits = bmp->data;
+    *ppvBits    = bmp->data;
     return bmp;
 }
 
@@ -226,7 +141,7 @@ HDC AndroidCreateCompatibleDC(HDC /*src*/) {
     AndroidDC* dc = new AndroidDC;
     dc->bmp       = nullptr;
     dc->font      = nullptr;
-    dc->textColor = 0xFFFFFF00; // RGB(255,255,255) in COLORREF (0x00BBGGRR → store as 0xRRGGBB00 shifted)
+    dc->textColor = 0xFFFFFF00;
     dc->bgColor   = 0x00000000;
     return dc;
 }
@@ -234,9 +149,33 @@ HDC AndroidCreateCompatibleDC(HDC /*src*/) {
 HFONT AndroidCreateFont(int height, int weight) {
     if (height <= 0) height = s_DefaultFontSize;
     bool bold = (weight >= 600);
+
+    if (!s_FTLib) {
+        AndroidGDI_Init(s_DefaultFontSize);
+    }
+    if (s_FontBytesNormal.empty()) {
+        LoadFontBytes();
+    }
+
+    const auto& fontBytes = (bold && !s_FontBytesBold.empty()) ? s_FontBytesBold : s_FontBytesNormal;
+    if (fontBytes.empty()) {
+        LOGE("AndroidCreateFont: no font bytes loaded!");
+        return nullptr;
+    }
+
+    FT_Face face = nullptr;
+    FT_Error err = FT_New_Memory_Face(s_FTLib, fontBytes.data(), static_cast<FT_Long>(fontBytes.size()), 0, &face);
+    if (err != 0 || !face) {
+        LOGE("FT_New_Memory_Face failed: %d", err);
+        return nullptr;
+    }
+
+    FT_Select_Charmap(face, FT_ENCODING_UNICODE);
+    FT_Set_Pixel_Sizes(face, 0, height);
+
     AndroidFont* f = new AndroidFont;
     f->type    = ANDROID_GDI_OBJECT_FONT;
-    f->ttfFont = GetCachedFont(height, bold);
+    f->ttfFont = face;
     f->size    = height;
     f->bold    = bold;
     return f;
@@ -244,23 +183,14 @@ HFONT AndroidCreateFont(int height, int weight) {
 
 HGDIOBJ AndroidSelectObject(HDC hdc, HGDIOBJ obj) {
     if (!hdc || !obj) return nullptr;
-    // Try to detect type: check if it's an AndroidBitmap or AndroidFont by guessing
-    // We use a simple tag approach: first field of AndroidBitmap is uint8_t* (8 bytes),
-    // first field of AndroidFont is void* (ttfFont). We differentiate by callers:
-    // SelectObject(hdc, m_hBitmap) — obj is HBITMAP
-    // SelectObject(hdc, g_hFont)   — obj is HFONT cast to HGDIOBJ
-    // We can't type-check void*, so we rely on calling convention:
-    // PlatformDefs.h calls AndroidSelectObject with explicit casts.
-    // The callers always do SelectObject(hdc, (HGDIOBJ)bitmap) or SelectObject(hdc, (HGDIOBJ)font).
-    // We'll check the 'data' pointer field: if it looks like a valid heap ptr range for a bitmap
-    // vs a TTF_Font*. This is fragile but the game code always selects bitmap first, then font.
-    // Better: we store a type tag.
-    // For now just return nullptr (the returned HGDIOBJ isn't used by the game).
-    return nullptr;
+    const auto type = *(reinterpret_cast<const AndroidGDIObjectType*>(obj));
+    if (type == ANDROID_GDI_OBJECT_BITMAP) {
+        hdc->bmp = reinterpret_cast<AndroidBitmap*>(obj);
+    } else if (type == ANDROID_GDI_OBJECT_FONT) {
+        hdc->font = reinterpret_cast<AndroidFont*>(obj);
+    }
+    return obj;
 }
-
-// AndroidSelectBitmap / AndroidSelectFont — explicit typed versions
-// Called from our updated PlatformDefs.h macros
 
 void AndroidSelectBitmap(HDC hdc, HBITMAP bmp) {
     if (hdc) hdc->bmp = bmp;
@@ -271,129 +201,119 @@ void AndroidSelectFont(HDC hdc, HFONT font) {
 }
 
 bool AndroidTextOut(HDC hdc, int x, int y, const wchar_t* text, int len) {
-    {
-        static int s_entryCount = 0;
-        if (s_entryCount < 10) {
-            LOGI("AndroidTextOut ENTRY len=%d hdc=%p bmp=%p text[0]=%d",
-                 len, (void*)hdc,
-                 (void*)(hdc ? hdc->bmp : nullptr),
-                 (text && len > 0) ? (int)text[0] : -1);
-            s_entryCount++;
-        }
-    }
     if (!hdc || !hdc->bmp || !hdc->bmp->data || !text || len <= 0) return false;
 
-    // Determine which font to use
     AndroidFont* af = hdc->font;
+    FT_Face face = af ? reinterpret_cast<FT_Face>(af->ttfFont) : nullptr;
     int fontSize = af ? af->size : s_DefaultFontSize;
-    bool bold    = af ? af->bold : false;
-    TTF_Font* font = af ? (TTF_Font*)af->ttfFont : GetCachedFont(fontSize, bold);
-    if (!font) return false;
 
-    // Convert wchar_t to Uint16 for SDL_ttf
-    std::vector<Uint16> utext = ToUint16(text, len);
-    if (utext.size() <= 1) return false; // empty after conversion
-
-    // Render white text on black
-    SDL_Color fg = {255, 255, 255, 255};
-    SDL_Surface* surf = TTF_RenderUNICODE_Blended(font, utext.data(), fg);
-    if (!surf) {
-        LOGE("TTF_RenderUNICODE_Blended failed: %s", SDL_GetError());
+    if (!face) {
         return false;
     }
 
-    // surf is SDL_ARGB8888 (4 bytes/pixel, A=alpha, R, G, B from high to low)
-    // DIB buffer is RGB24 — pitch = ((width*24+31)&~31)/8
+    FT_Set_Pixel_Sizes(face, 0, fontSize);
+
     AndroidBitmap* bmp = hdc->bmp;
+    int ascent = static_cast<int>(face->size->metrics.ascender >> 6);
+    int baseline = y + ascent;
 
-    // Clear the text area first (black background)
-    int textW = surf->w;
-    int textH = surf->h;
-    for (int row = 0; row < textH; ++row) {
-        int dstY = y + row;
+    // Measure total advance width to clear background area
+    int strW = 0;
+    for (int i = 0; i < len && text[i]; ++i) {
+        if (FT_Load_Char(face, text[i], FT_LOAD_DEFAULT) == 0) {
+            strW += static_cast<int>(face->glyph->advance.x >> 6);
+        }
+    }
+    int fontH = static_cast<int>(face->size->metrics.height >> 6);
+    if (fontH <= 0) fontH = fontSize;
+
+    // Clear background to 0 (black / transparent) in bmp->data
+    for (int r = 0; r < fontH; ++r) {
+        int dstY = y + r;
         if (dstY < 0 || dstY >= bmp->height) continue;
-        uint8_t* dstRow = bmp->data + dstY * bmp->pitch + x * 3;
-        int clearW = textW;
+        uint8_t* row = bmp->data + dstY * bmp->pitch + x * 3;
+        int clearW = strW + 4;
         if (x + clearW > bmp->width) clearW = bmp->width - x;
-        if (clearW > 0) memset(dstRow, 0, clearW * 3);
+        if (clearW > 0) memset(row, 0, clearW * 3);
     }
 
-    // Lock surface if needed
-    if (SDL_MUSTLOCK(surf)) SDL_LockSurface(surf);
-
-    // Copy surf pixels → DIB (RGB24)
-    for (int row = 0; row < textH; ++row) {
-        int dstY = y + row;
-        if (dstY < 0 || dstY >= bmp->height) continue;
-
-        uint8_t* srcRow = (uint8_t*)surf->pixels + row * surf->pitch;
-        uint8_t* dstRow = bmp->data + dstY * bmp->pitch;
-
-        for (int col = 0; col < textW; ++col) {
-            int dstX = x + col;
-            if (dstX < 0 || dstX >= bmp->width) continue;
-
-            // SDL_ARGB8888: byte order on little-endian = B, G, R, A
-            uint8_t* src = srcRow + col * 4;
-            uint8_t A = src[3];
-
-            // TTF_RenderUNICODE_Blended renders white text: R=G=B=255 always.
-            // WriteText checks dst[0]==255 for "fully covered" pixels.
-            // Store alpha as luminance so pure glyph pixels → 255, edges → partial.
-            uint8_t* dst = dstRow + dstX * 3;
-            dst[0] = A;
-            dst[1] = A;
-            dst[2] = A;
+    // Render glyphs
+    int penX = x;
+    for (int i = 0; i < len && text[i]; ++i) {
+        wchar_t ch = text[i];
+        if (FT_Load_Char(face, ch, FT_LOAD_RENDER) != 0) {
+            penX += (fontSize / 2);
+            continue;
         }
-    }
 
-    if (SDL_MUSTLOCK(surf)) SDL_UnlockSurface(surf);
+        FT_GlyphSlot slot = face->glyph;
+        FT_Bitmap* gBmp = &slot->bitmap;
 
-    // Debug: log surface info + max alpha found
-    {
-        static int s_dbgTOCount = 0;
-        if (s_dbgTOCount < 5) {
-            uint8_t maxA = 0;
-            for (int r = 0; r < textH && maxA < 255; ++r) {
-                uint8_t* row = (uint8_t*)surf->pixels + r * surf->pitch;
-                for (int c = 0; c < textW && maxA < 255; ++c)
-                    if (row[c*4+3] > maxA) maxA = row[c*4+3];
+        int gx = penX + slot->bitmap_left;
+        int gy = baseline - slot->bitmap_top;
+
+        for (unsigned int row = 0; row < gBmp->rows; ++row) {
+            int dstY = gy + static_cast<int>(row);
+            if (dstY < 0 || dstY >= bmp->height) continue;
+
+            uint8_t* srcRow = gBmp->buffer + row * gBmp->pitch;
+            uint8_t* dstRow = bmp->data + dstY * bmp->pitch;
+
+            for (unsigned int col = 0; col < gBmp->width; ++col) {
+                int dstX = gx + static_cast<int>(col);
+                if (dstX < 0 || dstX >= bmp->width) continue;
+
+                uint8_t coverage = srcRow[col];
+                if (coverage > 0) {
+                    uint8_t* dst = dstRow + dstX * 3;
+                    if (coverage > dst[0]) {
+                        dst[0] = coverage;
+                        dst[1] = coverage;
+                        dst[2] = coverage;
+                    }
+                }
             }
-            uint8_t* dib0 = bmp->data; // first pixel of DIB
-            LOGI("TextOut surf=%dx%d fmt=0x%X maxA=%d dib[0..2]=%d,%d,%d",
-                 textW, textH, surf->format->format, maxA,
-                 dib0[0], dib0[1], dib0[2]);
-            s_dbgTOCount++;
         }
+
+        penX += static_cast<int>(slot->advance.x >> 6);
     }
 
-    SDL_FreeSurface(surf);
     return true;
 }
 
 bool AndroidGetTextExtentPoint32(HDC hdc, const wchar_t* text, int len, int* outW, int* outH) {
-    *outW = 0; *outH = 0;
+    if (outW) *outW = 0;
+    if (outH) *outH = 0;
     if (!text || len <= 0) return false;
 
     AndroidFont* af = hdc ? hdc->font : nullptr;
+    FT_Face face = af ? reinterpret_cast<FT_Face>(af->ttfFont) : nullptr;
     int fontSize = af ? af->size : s_DefaultFontSize;
-    bool bold    = af ? af->bold : false;
-    TTF_Font* font = af ? (TTF_Font*)af->ttfFont : GetCachedFont(fontSize, bold);
-    if (!font) {
-        // Fallback estimate
-        *outW = len * fontSize / 2;
-        *outH = fontSize;
+
+    if (!face) {
+        if (outW) *outW = len * fontSize / 2;
+        if (outH) *outH = fontSize;
         return false;
     }
 
-    std::vector<Uint16> utext = ToUint16(text, len);
-    if (utext.size() <= 1) {
-        // Empty string — use dummy size of "0" character
-        Uint16 zero[2] = {'0', 0};
-        TTF_SizeUNICODE(font, zero, outW, outH);
-        return true;
+    FT_Set_Pixel_Sizes(face, 0, fontSize);
+
+    int totalW = 0;
+    for (int i = 0; i < len && text[i]; ++i) {
+        wchar_t ch = text[i];
+        if (FT_Load_Char(face, ch, FT_LOAD_DEFAULT) == 0) {
+            totalW += static_cast<int>(face->glyph->advance.x >> 6);
+        } else {
+            totalW += (fontSize / 2);
+        }
     }
-    return TTF_SizeUNICODE(font, utext.data(), outW, outH) == 0;
+
+    int fontH = static_cast<int>(face->size->metrics.height >> 6);
+    if (fontH <= 0) fontH = fontSize;
+
+    if (outW) *outW = totalW;
+    if (outH) *outH = fontH;
+    return true;
 }
 
 void AndroidSetTextColor(HDC hdc, uint32_t colorref) {
@@ -424,15 +344,14 @@ bool AndroidDeleteObject(HGDIOBJ obj) {
     }
     if (type == ANDROID_GDI_OBJECT_FONT) {
         AndroidFont* font = reinterpret_cast<AndroidFont*>(obj);
+        if (font->ttfFont) {
+            FT_Done_Face(reinterpret_cast<FT_Face>(font->ttfFont));
+            font->ttfFont = nullptr;
+        }
         delete font;
         return true;
     }
-    LOGE("AndroidDeleteObject: unknown object type");
     return false;
 }
 
-// ── TTF_GetError shim (in case it's not linked) ───────────────────────────
-// SDL_ttf provides TTF_GetError as a macro → SDL_GetError(), no issue.
-
 #endif // __ANDROID__
-

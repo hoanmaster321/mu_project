@@ -178,10 +178,15 @@ inline void GetActiveViewMatrix(float outMatrix[16])
 
 inline glm::mat4 GetActiveProjectionMatrix()
 {
+    if (!RenderMatrix::s_ProjectionStack.empty() && RenderMatrix::s_ProjectionStack.back() != glm::mat4(1.0f))
+    {
+        return RenderMatrix::s_ProjectionStack.back();
+    }
     return g_CurrentProjectionMatrix;
 }
 
 inline void GetActiveProjectionMatrix(float outMatrix[16])
 {
-    memcpy(outMatrix, glm::value_ptr(g_CurrentProjectionMatrix), sizeof(float) * 16);
+    glm::mat4 p = GetActiveProjectionMatrix();
+    memcpy(outMatrix, glm::value_ptr(p), sizeof(float) * 16);
 }

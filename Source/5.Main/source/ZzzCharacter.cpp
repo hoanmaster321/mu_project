@@ -12912,6 +12912,7 @@ void RenderCharactersClient()
 	}
 
     g_characterPerfSnapshot.renderTicks += static_cast<unsigned long long>(MU_MobilePerfNow() - renderTicksStart);
+    g_BatchRenderer.FlushMeshBatches();
 }
 
 void RenderProtectGuildMark(CHARACTER * c)

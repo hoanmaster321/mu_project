@@ -347,6 +347,8 @@ static void RenderCharacterScene3D()
     ThePetProcess().RenderPets();
     RenderBoids();
     RenderObjects_AfterCharacter();
+    g_BatchRenderer.FlushMeshBatches();
+    g_BatchRenderer.FlushTerrainBatches();
     CheckSprites();
 }
 

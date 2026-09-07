@@ -12517,6 +12517,7 @@ void RenderObjectScreen(int Type,int ItemLevel,int Option1,int ExtOption,vec3_t 
     Vector(1.f,1.f,1.f,Light);
 
     RenderPartObject(o,Type,NULL,Light,alpha,ItemLevel,Option1,ExtOption,true,true,true);
+    g_BatchRenderer.FlushMeshBatches();
 }
 
 void RenderItem3D(float sx,float sy,float Width,float Height,int Type,int Level,int Option1,int ExtOption,bool PickUp)

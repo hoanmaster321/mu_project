@@ -25,6 +25,7 @@
 #include "GPUContext.h"
 
 #include "MU_OpenGL.h"
+#include "BatchRenderer.h"
 
 static bool ReadWholeFileBytes(FILE* fp, unsigned char*& outData, int& outSize)
 {
@@ -1307,7 +1308,160 @@ void BMD::RenderMesh(int i,int RenderFlag,float Alpha,int BlendMesh,float BlendM
 		}
 	}
 
-	return;
+	// Determine Vulkan batch type and pass flags
+	int batchType = TERRAIN_BATCH_OPAQUE;
+	uint32_t passFlags = 0;
+	if ((RenderFlag & RENDER_NODEPTH) == RENDER_NODEPTH)
+	{
+		passFlags |= RENDER_NODEPTH;
+	}
+
+	if ((RenderFlag & RENDER_BRIGHT) == RENDER_BRIGHT || Render == RENDER_BRIGHT || Render == RENDER_CHROME || Render == RENDER_CHROME4)
+	{
+		batchType = TERRAIN_BATCH_GRASS_ADD;
+	}
+	else if ((RenderFlag & RENDER_DARK) == RENDER_DARK)
+	{
+		batchType = TERRAIN_BATCH_BLEND;
+	}
+	else if (Alpha < 0.99f || (pBitmap && pBitmap->Components == 4) || Render == RENDER_COLOR)
+	{
+		batchType = TERRAIN_BATCH_ALPHA;
+	}
+
+	int passTexture = (Render == RENDER_COLOR) ? -1 : Texture;
+	const float vertexAlpha = (Alpha >= 0.99f) ? 1.0f : Alpha;
+
+	// Build vertex buffer for this mesh
+	static std::vector<TerrainVertex_t> s_meshVertBuffer;
+	s_meshVertBuffer.clear();
+	s_meshVertBuffer.reserve(m->NumTriangles * 3);
+
+	for (int j = 0; j < m->NumTriangles; j++)
+	{
+		Triangle_t *tp = &m->Triangles[j];
+		int poly = tp->Polygon;
+		if (poly != 3 && poly != 4) poly = 3;
+
+		int cornerIndices[6];
+		int cornerCount = 3;
+		cornerIndices[0] = 0; cornerIndices[1] = 1; cornerIndices[2] = 2;
+		if (poly == 4)
+		{
+			cornerCount = 6;
+			cornerIndices[3] = 0; cornerIndices[4] = 2; cornerIndices[5] = 3;
+		}
+
+		for (int c = 0; c < cornerCount; ++c)
+		{
+			int k = cornerIndices[c];
+			int vi = tp->VertexIndex[k];
+			if (vi < 0 || vi >= m->NumVertices) continue;
+
+			TerrainVertex_t tv;
+			float* pos = VertexTransform[i][vi];
+			tv.pos[0] = pos[0];
+			tv.pos[1] = pos[1];
+			tv.pos[2] = pos[2];
+
+			// Shadow projection if requested
+			if ((RenderFlag & RENDER_SHADOWMAP) == RENDER_SHADOWMAP)
+			{
+				vec3_t p;
+				VectorSubtract(pos, BodyOrigin, p);
+				p[0] += p[2] * (p[0] + 2000.f) / (p[2] - 4000.f);
+				p[1] += p[2] * (p[1] - 2000.f) / (p[2] - 4000.f);
+				p[2] = 5.f;
+				VectorAdd(p, BodyOrigin, p);
+				tv.pos[0] = p[0];
+				tv.pos[1] = p[1];
+				tv.pos[2] = p[2];
+				tv.uv[0] = 0.0f;
+				tv.uv[1] = 0.0f;
+				tv.color = PackRGBA8(0.0f, 0.0f, 0.0f, 0.5f);
+				s_meshVertBuffer.push_back(tv);
+				continue;
+			}
+
+			// UV coordinates
+			float u = 0.0f, v = 0.0f;
+			switch (Render)
+			{
+			case RENDER_TEXTURE:
+				if (m->TexCoords && tp->TexCoordIndex[k] < m->NumTexCoords)
+				{
+					TexCoord_t *texp = &m->TexCoords[tp->TexCoordIndex[k]];
+					u = texp->TexCoordU + (EnableWave ? BlendMeshTexCoordU : 0.0f);
+					v = texp->TexCoordV + (EnableWave ? BlendMeshTexCoordV : 0.0f);
+				}
+				break;
+			case RENDER_CHROME:
+				{
+					int ni = tp->NormalIndex[k];
+					if (ni >= 0 && ni < m->NumNormals)
+					{
+						u = g_chrome[ni][0];
+						v = g_chrome[ni][1];
+					}
+				}
+				break;
+			case RENDER_CHROME4:
+				{
+					int ni = tp->NormalIndex[k];
+					if (ni >= 0 && ni < m->NumNormals)
+					{
+						u = g_chrome[ni][0] + BlendMeshTexCoordU;
+						v = g_chrome[ni][1] + BlendMeshTexCoordV;
+					}
+				}
+				break;
+			case RENDER_OIL:
+				{
+					int ni = tp->VertexIndex[k];
+					if (m->TexCoords && tp->TexCoordIndex[k] < m->NumTexCoords && ni >= 0 && ni < m->NumNormals)
+					{
+						TexCoord_t *texp = &m->TexCoords[tp->TexCoordIndex[k]];
+						u = g_chrome[ni][0] * texp->TexCoordU + BlendMeshTexCoordU;
+						v = g_chrome[ni][1] * texp->TexCoordV + BlendMeshTexCoordV;
+					}
+				}
+				break;
+			default:
+				u = 0.0f;
+				v = 0.0f;
+				break;
+			}
+			tv.uv[0] = u;
+			tv.uv[1] = v;
+
+			// Lighting & Color
+			float r = 1.0f, g = 1.0f, b = 1.0f, a = vertexAlpha;
+			if (EnableLight && Render == RENDER_TEXTURE)
+			{
+				int ni = tp->NormalIndex[k];
+				if (ni >= 0 && ni < m->NumNormals)
+				{
+					r = LightTransform[i][ni][0];
+					g = LightTransform[i][ni][1];
+					b = LightTransform[i][ni][2];
+				}
+			}
+			else
+			{
+				r = mobileConstantColor[0];
+				g = mobileConstantColor[1];
+				b = mobileConstantColor[2];
+				a = mobileConstantColor[3];
+			}
+			tv.color = PackRGBA8(r, g, b, a);
+			s_meshVertBuffer.push_back(tv);
+		}
+	}
+
+	if (!s_meshVertBuffer.empty())
+	{
+		g_BatchRenderer.AddMeshTriangles(batchType, passTexture, passFlags, s_meshVertBuffer.data(), (uint32_t)s_meshVertBuffer.size());
+	}
 }
 
 void BMD::RenderBody(int Flag,float Alpha,int BlendMesh,float BlendMeshLight,float BlendMeshTexCoordU,float BlendMeshTexCoordV,int HiddenMesh,int Texture)

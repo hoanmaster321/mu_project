@@ -395,22 +395,66 @@ bool GPUContext::CreateSwapchain(int width, int height)
     m_swapchainImageFormat = surfaceFormat.format;
     g_ErrorReport.Write("[GPUContext] Selected format=%d colorSpace=%d\r\n", (int)surfaceFormat.format, (int)surfaceFormat.colorSpace);
 
+    VkSurfaceTransformFlagBitsKHR preTransform = capabilities.currentTransform;
+#if defined(__ANDROID__)
+    if (capabilities.supportedTransforms & VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR) {
+        preTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
+    }
+#endif
+
     VkExtent2D extent;
+#if defined(__ANDROID__)
+    uint32_t targetW = (width > 0) ? static_cast<uint32_t>(width) : 1280;
+    uint32_t targetH = (height > 0) ? static_cast<uint32_t>(height) : 720;
+    if (targetW < targetH) {
+        std::swap(targetW, targetH);
+    }
+
+    if (preTransform == VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR) {
+        extent.width = targetW;
+        extent.height = targetH;
+        if (capabilities.currentExtent.width != 0xFFFFFFFF && capabilities.currentExtent.width > 0 && capabilities.currentExtent.height > 0) {
+            uint32_t curW = capabilities.currentExtent.width;
+            uint32_t curH = capabilities.currentExtent.height;
+            if (curW < curH) std::swap(curW, curH);
+            extent.width = curW;
+            extent.height = curH;
+        }
+        uint32_t minDim = (std::min)(capabilities.minImageExtent.width, capabilities.minImageExtent.height);
+        uint32_t maxDim = (std::max)(capabilities.maxImageExtent.width, capabilities.maxImageExtent.height);
+        extent.width = (std::clamp)(extent.width, minDim, maxDim);
+        extent.height = (std::clamp)(extent.height, minDim, maxDim);
+        if (extent.width < extent.height) {
+            std::swap(extent.width, extent.height);
+        }
+    } else {
+        if (capabilities.currentExtent.width != 0xFFFFFFFF && capabilities.currentExtent.width > 0 && capabilities.currentExtent.height > 0) {
+            extent = capabilities.currentExtent;
+        } else {
+            extent = { targetW, targetH };
+            extent.width = (std::clamp)(extent.width, capabilities.minImageExtent.width, capabilities.maxImageExtent.width);
+            extent.height = (std::clamp)(extent.height, capabilities.minImageExtent.height, capabilities.maxImageExtent.height);
+        }
+    }
+#else
     if (capabilities.currentExtent.width != 0xFFFFFFFF && capabilities.currentExtent.width > 0 && capabilities.currentExtent.height > 0) {
         extent = capabilities.currentExtent;
     } else {
         extent = { static_cast<uint32_t>(width), static_cast<uint32_t>(height) };
-        extent.width = std::clamp(extent.width, capabilities.minImageExtent.width, capabilities.maxImageExtent.width);
-        extent.height = std::clamp(extent.height, capabilities.minImageExtent.height, capabilities.maxImageExtent.height);
+        extent.width = (std::clamp)(extent.width, capabilities.minImageExtent.width, capabilities.maxImageExtent.width);
+        extent.height = (std::clamp)(extent.height, capabilities.minImageExtent.height, capabilities.maxImageExtent.height);
     }
+#endif
     if (extent.width == 0 || extent.height == 0) {
         g_ErrorReport.Write("[GPUContext] Swapchain extent is 0x0, window may not be visible yet\r\n");
         extent.width = (width > 0) ? static_cast<uint32_t>(width) : 1280;
         extent.height = (height > 0) ? static_cast<uint32_t>(height) : 720;
-        extent.width = std::clamp(extent.width, capabilities.minImageExtent.width, capabilities.maxImageExtent.width);
-        extent.height = std::clamp(extent.height, capabilities.minImageExtent.height, capabilities.maxImageExtent.height);
+        extent.width = (std::clamp)(extent.width, capabilities.minImageExtent.width, capabilities.maxImageExtent.width);
+        extent.height = (std::clamp)(extent.height, capabilities.minImageExtent.height, capabilities.maxImageExtent.height);
     }
     m_swapchainExtent = extent;
+    m_width = static_cast<int>(extent.width);
+    m_height = static_cast<int>(extent.height);
 
     uint32_t imageCount = capabilities.minImageCount + 1;
     if (capabilities.maxImageCount > 0 && imageCount > capabilities.maxImageCount) {
@@ -460,7 +504,7 @@ bool GPUContext::CreateSwapchain(int width, int height)
         createInfo.pQueueFamilyIndices = nullptr;
     }
 
-    createInfo.preTransform = capabilities.currentTransform;
+    createInfo.preTransform = preTransform;
 
     VkCompositeAlphaFlagBitsKHR compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
     if (!(capabilities.supportedCompositeAlpha & VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR)) {

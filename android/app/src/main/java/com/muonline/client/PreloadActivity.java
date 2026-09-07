@@ -1191,7 +1191,7 @@ public class PreloadActivity extends Activity {
         if (cancelled) {
             return;
         }
-        Intent intent = new Intent(this, MuMainNativeActivity.class);
+        Intent intent = new Intent(this, MuMainActivity.class);
         intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
         startActivity(intent);
         finish();

@@ -294,6 +294,7 @@ public:
     bool IsInitialized() const { return m_initialized; }
     bool IsFrameActive() const { return m_frameActive; }
     uint32_t GetDrawCallsThisFrame() const { return m_drawCallsThisFrame; }
+    const VkExtent2D& GetSwapchainExtent() const { return m_swapchainExtent; }
 
 private:
     GPUContext();

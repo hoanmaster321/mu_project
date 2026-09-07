@@ -1,4 +1,4 @@
-﻿// NewUI3DRenderMng.cpp: implementation of the CNewUI3DRenderMng class.
+// NewUI3DRenderMng.cpp: implementation of the CNewUI3DRenderMng class.
 //
 //////////////////////////////////////////////////////////////////////
 
@@ -186,6 +186,7 @@ bool SEASON3B::CNewUI3DCamera::Render()
 	{
 		glDisable(GL_SCISSOR_TEST);
 	}
+	g_BatchRenderer.FlushMeshBatches();
 	UpdateMousePositionn();
 
 	glMatrixMode(GL_MODELVIEW);

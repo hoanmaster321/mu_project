@@ -4751,6 +4751,7 @@ void RenderObjects()
 	}
 
     g_objectPerfSnapshot.renderTicks += static_cast<unsigned long long>(MU_MobilePerfNow() - renderTicksStart);
+    g_BatchRenderer.FlushMeshBatches();
 }
 
 void RenderObject_AfterCharacter(OBJECT *o,bool Translate,int Select, int ExtraMon)
@@ -4957,6 +4958,7 @@ void RenderObjects_AfterCharacter()
 	}
 
     g_objectPerfSnapshot.renderTicks += static_cast<unsigned long long>(MU_MobilePerfNow() - renderTicksStart);
+    g_BatchRenderer.FlushMeshBatches();
 }
 
 extern int CameraWalkCut;
