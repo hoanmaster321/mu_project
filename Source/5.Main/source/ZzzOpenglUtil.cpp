@@ -324,12 +324,7 @@ bool TestDepthBuffer(vec3_t Position)
 		x >= (int)OpenglWindowX + OpenglWindowWidth ||
 		y >= (int)OpenglWindowY + OpenglWindowHeight) return false;
 
-	GLfloat key[3];
-	glReadPixels(x, y, 1, 1, GL_DEPTH_COMPONENT, GL_FLOAT, key);
-
-	float z = 1.f - CameraViewNear / -WorldPosition[2] + CameraViewNear / CameraViewFar;
-	if (key[0] >= z) return true;
-	return false;
+	return (WorldPosition[2] < 0.0f);
 }
 
 
@@ -892,9 +887,6 @@ void RenderBox(float Matrix[3][4])
 {
 }
 
-void RenderPlane3D(float Width, float Height, float Matrix[3][4])
-{
-}
 
 struct SpriteBatchVertex {
 	float x, y, z;
@@ -1005,20 +997,70 @@ void FlushSpriteBatch()
 void BeginSprite()
 {
 	FlushSpriteBatch();
-	if (!GPUContext::Instance().IsFrameActive())
-	{
-		glPushMatrix();
-		glLoadIdentity();
-	}
 }
 
 void EndSprite()
 {
 	FlushSpriteBatch();
-	if (!GPUContext::Instance().IsFrameActive())
+}
+
+void RenderPlane3D(float Width, float Height, float Matrix[3][4])
+{
+	vec3_t BoundingVertices[4];
+	Vector(-Width, -Width,  Height, BoundingVertices[3]);
+	Vector( Width,  Width,  Height, BoundingVertices[2]);
+	Vector( Width,  Width, -Height, BoundingVertices[1]);
+	Vector(-Width, -Width, -Height, BoundingVertices[0]);
+
+	const glm::mat4& mv = RenderMatrix::GetCurrentStack().back();
+	vec3_t translation = { mv[3][0], mv[3][1], mv[3][2] };
+
+	vec3_t TransformVertices[4];
+	vec3_t worldPos[4];
+	vec3_t p[4];
+	for (int j = 0; j < 4; j++)
 	{
-		glPopMatrix();
+		VectorTransform(BoundingVertices[j], Matrix, TransformVertices[j]);
+		VectorAdd(TransformVertices[j], translation, worldPos[j]);
+		VectorTransform(worldPos[j], CameraMatrix, p[j]);
 	}
+
+	float c[4][2] = {
+		{ 0.f, 1.f },
+		{ 1.f, 1.f },
+		{ 1.f, 0.f },
+		{ 0.f, 0.f }
+	};
+
+	int tex = (CachTexture >= 0) ? CachTexture : 0;
+	if (tex != s_SpriteBatchTexture ||
+		AlphaBlendType != s_SpriteBatchBlendType ||
+		AlphaTestEnable != s_SpriteBatchAlphaTest ||
+		DepthMaskEnable != s_SpriteBatchDepthMask ||
+		DepthTestEnable != s_SpriteBatchDepthTest ||
+		s_SpriteBatchCount + 4 > MAX_SPRITE_BATCH_VERTS)
+	{
+		FlushSpriteBatch();
+		s_SpriteBatchTexture = tex;
+		s_SpriteBatchBlendType = AlphaBlendType;
+		s_SpriteBatchAlphaTest = AlphaTestEnable;
+		s_SpriteBatchDepthMask = DepthMaskEnable;
+		s_SpriteBatchDepthTest = DepthTestEnable;
+	}
+
+	for (int i = 0; i < 4; i++)
+	{
+		s_SpriteBatchVerts[s_SpriteBatchCount + i].x = p[i][0];
+		s_SpriteBatchVerts[s_SpriteBatchCount + i].y = p[i][1];
+		s_SpriteBatchVerts[s_SpriteBatchCount + i].z = p[i][2];
+		s_SpriteBatchVerts[s_SpriteBatchCount + i].u = c[i][0];
+		s_SpriteBatchVerts[s_SpriteBatchCount + i].v = c[i][1];
+		s_SpriteBatchVerts[s_SpriteBatchCount + i].r = g_CurrentGLColor[0];
+		s_SpriteBatchVerts[s_SpriteBatchCount + i].g = g_CurrentGLColor[1];
+		s_SpriteBatchVerts[s_SpriteBatchCount + i].b = g_CurrentGLColor[2];
+		s_SpriteBatchVerts[s_SpriteBatchCount + i].a = g_CurrentGLColor[3];
+	}
+	s_SpriteBatchCount += 4;
 }
 
 void RenderSprite(int Texture, vec3_t Position, float Width, float Height, vec3_t Light, float Rotation, float u, float v, float uWidth, float vHeight)

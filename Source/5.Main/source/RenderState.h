@@ -288,8 +288,28 @@ void VulkanClearDepthBuffer();
 void VulkanSetViewport(float x, float y, float width, float height);
 void VulkanSetScissor(int32_t x, int32_t y, uint32_t width, uint32_t height);
 
-inline void glEnable(GLenum) {}
-inline void glDisable(GLenum) {}
+extern unsigned int WindowWidth;
+extern unsigned int WindowHeight;
+
+inline bool g_ScissorTestEnabled = false;
+inline int g_ScissorRect[4] = { 0, 0, 0, 0 };
+
+inline void glEnable(GLenum cap) {
+    if (cap == GL_SCISSOR_TEST) {
+        g_ScissorTestEnabled = true;
+        if (g_ScissorRect[2] > 0 && g_ScissorRect[3] > 0) {
+            VulkanSetScissor(g_ScissorRect[0], g_ScissorRect[1], g_ScissorRect[2], g_ScissorRect[3]);
+        }
+    }
+}
+
+inline void glDisable(GLenum cap) {
+    if (cap == GL_SCISSOR_TEST) {
+        g_ScissorTestEnabled = false;
+        VulkanSetScissor(0, 0, WindowWidth, WindowHeight);
+    }
+}
+
 inline void glAlphaFunc(GLenum, float) {}
 inline void glDepthFunc(GLenum) {}
 inline void glDepthMask(GLboolean) {}
@@ -300,6 +320,15 @@ inline void glFogf(GLenum, float) {}
 inline void glFogfv(GLenum, const float*) {}
 inline void glReadPixels(GLint, GLint, GLsizei, GLsizei, GLenum, GLenum, void*) {}
 inline const GLubyte* glGetString(GLenum) { return (const GLubyte*)"Vulkan Native"; }
+inline void glLineWidth(float) {}
+inline void glPushAttrib(GLbitfield) {}
+inline void glPopAttrib() {}
+inline void glBegin(GLenum) {}
+inline void glEnd() {}
+inline void glVertex2f(float, float) {}
+inline void glVertex3fv(const float*) {}
+inline void glTexCoord2f(float, float) {}
+inline GLint glGetUniformLocation(GLuint, const char*) { return -1; }
 
 inline void glClear(GLbitfield mask) {
     if (mask & GL_DEPTH_BUFFER_BIT) {
@@ -316,7 +345,13 @@ inline void glViewport(GLint x, GLint y, GLsizei width, GLsizei height) {
 }
 
 inline void glScissor(GLint x, GLint y, GLsizei width, GLsizei height) {
-    VulkanSetScissor(x, y, static_cast<uint32_t>(width), static_cast<uint32_t>(height));
+    g_ScissorRect[0] = x;
+    g_ScissorRect[1] = y;
+    g_ScissorRect[2] = width;
+    g_ScissorRect[3] = height;
+    if (g_ScissorTestEnabled) {
+        VulkanSetScissor(x, y, static_cast<uint32_t>(width), static_cast<uint32_t>(height));
+    }
 }
 
 #if !defined(__ANDROID__) && !defined(MU_IOS)
