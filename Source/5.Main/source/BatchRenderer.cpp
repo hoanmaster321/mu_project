@@ -88,26 +88,21 @@ void CBatchRenderer::AddTerrainFaceToBatch(int batchType, int textureIndex, int 
 		return;
 
 	TerrainBatchKey key = { (uint32_t)renderFlags, textureIndex };
+	TerrainBatchData* pBatch = nullptr;
 
-	std::vector<TerrainVertex_t>* pVertices = nullptr;
-	std::vector<uint32_t>* pIndices = nullptr;
-
-	if (m_TerrainMRU.batchType == batchType && m_TerrainMRU.key == key)
+	if (m_TerrainMRU.batchType == batchType && m_TerrainMRU.key == key && m_TerrainMRU.batch)
 	{
-		pVertices = m_TerrainMRU.vertices;
-		pIndices = m_TerrainMRU.indices;
+		pBatch = m_TerrainMRU.batch;
 	}
 	else
 	{
-		pVertices = &m_TerrainVerticesMap[batchType][key];
-		pIndices  = &m_TerrainIndicesMap[batchType][key];
+		pBatch = &m_TerrainBatchesMap[batchType][key];
 		m_TerrainMRU.batchType = batchType;
 		m_TerrainMRU.key = key;
-		m_TerrainMRU.vertices = pVertices;
-		m_TerrainMRU.indices = pIndices;
+		m_TerrainMRU.batch = pBatch;
 	}
 
-	uint32_t base = (uint32_t)pVertices->size();
+	uint32_t base = (uint32_t)pBatch->vertices.size();
 	TerrainVertex_t v[4];
 	for (int i = 0; i < 4; ++i) {
 		memcpy(v[i].pos, TerrainVertex[i], sizeof(v[i].pos));
@@ -145,12 +140,11 @@ void CBatchRenderer::AddTerrainFaceToBatch(int batchType, int textureIndex, int 
 		}
 	}
 
-	pVertices->insert(pVertices->end(), v, v + 4);
+	pBatch->vertices.insert(pBatch->vertices.end(), v, v + 4);
 	const uint32_t newIdx[6] = { base + 0, base + 1, base + 2, base + 0, base + 2, base + 3 };
-	pIndices->insert(pIndices->end(), newIdx, newIdx + 6);
+	pBatch->indices.insert(pBatch->indices.end(), newIdx, newIdx + 6);
 	m_TerrainBatchDirty = true;
 }
-
 
 void CBatchRenderer::AddTerrainCustomQuad(int batchType, int textureIndex, int renderFlags, const vec3_t verts[4], const vec3_t uvs[4], const vec4_t colors[4])
 {
@@ -158,26 +152,21 @@ void CBatchRenderer::AddTerrainCustomQuad(int batchType, int textureIndex, int r
 		return;
 
 	TerrainBatchKey key = { (uint32_t)renderFlags, textureIndex };
+	TerrainBatchData* pBatch = nullptr;
 
-	std::vector<TerrainVertex_t>* pVertices = nullptr;
-	std::vector<uint32_t>* pIndices = nullptr;
-
-	if (m_TerrainMRU.batchType == batchType && m_TerrainMRU.key == key)
+	if (m_TerrainMRU.batchType == batchType && m_TerrainMRU.key == key && m_TerrainMRU.batch)
 	{
-		pVertices = m_TerrainMRU.vertices;
-		pIndices = m_TerrainMRU.indices;
+		pBatch = m_TerrainMRU.batch;
 	}
 	else
 	{
-		pVertices = &m_TerrainVerticesMap[batchType][key];
-		pIndices  = &m_TerrainIndicesMap[batchType][key];
+		pBatch = &m_TerrainBatchesMap[batchType][key];
 		m_TerrainMRU.batchType = batchType;
 		m_TerrainMRU.key = key;
-		m_TerrainMRU.vertices = pVertices;
-		m_TerrainMRU.indices = pIndices;
+		m_TerrainMRU.batch = pBatch;
 	}
 
-	uint32_t base = (uint32_t)pVertices->size();
+	uint32_t base = (uint32_t)pBatch->vertices.size();
 	TerrainVertex_t v[4];
 	for (int i = 0; i < 4; ++i) {
 		memcpy(v[i].pos, verts[i], sizeof(v[i].pos));
@@ -185,10 +174,62 @@ void CBatchRenderer::AddTerrainCustomQuad(int batchType, int textureIndex, int r
 		v[i].uv[1] = uvs[i][1];
 		v[i].color = PackRGBA8Helper(colors[i][0], colors[i][1], colors[i][2], colors[i][3]);
 	}
-	pVertices->insert(pVertices->end(), v, v + 4);
+	pBatch->vertices.insert(pBatch->vertices.end(), v, v + 4);
 
 	const uint32_t newIdx[6] = { base + 0, base + 1, base + 2, base + 0, base + 2, base + 3 };
-	pIndices->insert(pIndices->end(), newIdx, newIdx + 6);
+	pBatch->indices.insert(pBatch->indices.end(), newIdx, newIdx + 6);
+	m_TerrainBatchDirty = true;
+}
+
+void CBatchRenderer::AddTerrainQuadsDirect(int batchType, int textureIndex, int renderFlags, const float* vData, int quadCount)
+{
+	if (batchType < 0 || batchType >= TERRAIN_BATCH_COUNT || !vData || quadCount <= 0)
+		return;
+
+	TerrainBatchKey key = { (uint32_t)renderFlags, textureIndex };
+	TerrainBatchData* pBatch = nullptr;
+
+	if (m_TerrainMRU.batchType == batchType && m_TerrainMRU.key == key && m_TerrainMRU.batch)
+	{
+		pBatch = m_TerrainMRU.batch;
+	}
+	else
+	{
+		pBatch = &m_TerrainBatchesMap[batchType][key];
+		m_TerrainMRU.batchType = batchType;
+		m_TerrainMRU.key = key;
+		m_TerrainMRU.batch = pBatch;
+	}
+
+	size_t oldVertCount = pBatch->vertices.size();
+	size_t oldIdxCount = pBatch->indices.size();
+	pBatch->vertices.resize(oldVertCount + quadCount * 4);
+	pBatch->indices.resize(oldIdxCount + quadCount * 6);
+
+	TerrainVertex_t* dstVert = pBatch->vertices.data() + oldVertCount;
+	uint32_t* dstIdx = pBatch->indices.data() + oldIdxCount;
+
+	for (int q = 0; q < quadCount; ++q)
+	{
+		uint32_t base = static_cast<uint32_t>(oldVertCount + q * 4);
+		for (int i = 0; i < 4; ++i)
+		{
+			const float* v = vData + (q * 4 + i) * 9;
+			TerrainVertex_t& tv = dstVert[q * 4 + i];
+			tv.pos[0] = v[0];
+			tv.pos[1] = v[1];
+			tv.pos[2] = v[2];
+			tv.uv[0]  = v[7];
+			tv.uv[1]  = v[8];
+			tv.color  = PackRGBA8Helper(v[3], v[4], v[5], v[6]);
+		}
+		dstIdx[q * 6 + 0] = base + 0;
+		dstIdx[q * 6 + 1] = base + 1;
+		dstIdx[q * 6 + 2] = base + 2;
+		dstIdx[q * 6 + 3] = base + 0;
+		dstIdx[q * 6 + 4] = base + 2;
+		dstIdx[q * 6 + 5] = base + 3;
+	}
 	m_TerrainBatchDirty = true;
 }
 
@@ -213,13 +254,12 @@ void CBatchRenderer::FlushTerrainBatches()
 		uint32_t totalIndices = 0;
 		for (int bType = 0; bType < TERRAIN_BATCH_COUNT; ++bType)
 		{
-			for (const auto& [key, vertices] : m_TerrainVerticesMap[bType])
+			for (const auto& [key, batch] : m_TerrainBatchesMap[bType])
 			{
-				const auto& indices = m_TerrainIndicesMap[bType][key];
-				if (!vertices.empty() && !indices.empty())
+				if (!batch.vertices.empty() && !batch.indices.empty())
 				{
-					totalVerts += static_cast<uint32_t>(vertices.size());
-					totalIndices += static_cast<uint32_t>(indices.size());
+					totalVerts += static_cast<uint32_t>(batch.vertices.size());
+					totalIndices += static_cast<uint32_t>(batch.indices.size());
 				}
 			}
 		}
@@ -237,26 +277,25 @@ void CBatchRenderer::FlushTerrainBatches()
 
 				for (int bType = 0; bType < TERRAIN_BATCH_COUNT; ++bType)
 				{
-					for (const auto& [key, vertices] : m_TerrainVerticesMap[bType])
+					for (const auto& [key, batch] : m_TerrainBatchesMap[bType])
 					{
-						const auto& indices = m_TerrainIndicesMap[bType][key];
-						if (vertices.empty() || indices.empty()) continue;
+						if (batch.vertices.empty() || batch.indices.empty()) continue;
 
 						uint32_t baseVertex = curVertCount;
 						uint32_t baseIndex = curIdxCount;
 
-						memcpy(dstVerts + curVertCount, vertices.data(), vertices.size() * sizeof(TerrainVertex_t));
-						curVertCount += static_cast<uint32_t>(vertices.size());
+						memcpy(dstVerts + curVertCount, batch.vertices.data(), batch.vertices.size() * sizeof(TerrainVertex_t));
+						curVertCount += static_cast<uint32_t>(batch.vertices.size());
 
-						for (size_t i = 0; i < indices.size(); ++i)
+						for (size_t i = 0; i < batch.indices.size(); ++i)
 						{
-							dstIndices[curIdxCount++] = baseVertex + indices[i];
+							dstIndices[curIdxCount++] = baseVertex + batch.indices[i];
 						}
 
 						TerrainDrawCmd cmd;
 						cmd.textureIndex = key.textureIndex;
 						cmd.indexOffset = baseIndex;
-						cmd.indexCount = static_cast<uint32_t>(indices.size());
+						cmd.indexCount = static_cast<uint32_t>(batch.indices.size());
 						cmd.batchType = bType;
 						cmd.renderFlags = key.renderFlags;
 						drawCmds.push_back(cmd);
@@ -345,8 +384,11 @@ void CBatchRenderer::FlushTerrainBatches()
 
 	for (int bType = 0; bType < TERRAIN_BATCH_COUNT; ++bType)
 	{
-		for (auto& [key, vec] : m_TerrainVerticesMap[bType]) vec.clear();
-		for (auto& [key, vec] : m_TerrainIndicesMap[bType]) vec.clear();
+		for (auto& [key, batch] : m_TerrainBatchesMap[bType])
+		{
+			batch.vertices.clear();
+			batch.indices.clear();
+		}
 	}
 	m_TerrainMRU.Reset();
 	m_TerrainBatchDirty = false;
@@ -547,6 +589,10 @@ void CBatchRenderer::RenderSpriteBatch()
 // ============================================================================
 // 2D Image / UI Batching Implementation (with AABB Lookback Merge)
 // ============================================================================
+namespace {
+	static std::vector<std::vector<GPUImageInstance>> s_imageInstancePool;
+}
+
 void CBatchRenderer::SetScissor(bool enable, int x, int y, int w, int h)
 {
 	m_ScissorEnabled = enable;
@@ -591,7 +637,12 @@ void CBatchRenderer::AddImage(const ImageInstance_t& s)
 
 	auto pushNewBatch = [&]() {
 		m_ImageBatch.emplace_back(key, std::vector<GPUImageInstance>{});
-		m_ImageBatch.back().second.reserve(64);
+		if (!s_imageInstancePool.empty()) {
+			m_ImageBatch.back().second = std::move(s_imageInstancePool.back());
+			s_imageInstancePool.pop_back();
+		} else {
+			m_ImageBatch.back().second.reserve(64);
+		}
 		m_ImageBatchBbox.push_back({ ix0, iy0, ix1, iy1 });
 		m_ImageBatch.back().second.push_back(gi);
 	};
@@ -610,9 +661,9 @@ void CBatchRenderer::AddImage(const ImageInstance_t& s)
 		return;
 	}
 
-	// Lookback merge: scan up to 16 previous batches
+	// Lookback merge: scan up to 4 previous batches
 	if (s.rotation == 0.0f) {
-		constexpr int kMaxLookback = 16;
+		constexpr int kMaxLookback = 4;
 		const int n = (int)m_ImageBatch.size();
 		const int start = (n > kMaxLookback) ? (n - kMaxLookback) : 0;
 		for (int i = n - 2; i >= start; --i) {
@@ -684,13 +735,23 @@ void CBatchRenderer::FlushImageBatchesNow()
 			}
 		}
 
+		for (auto& b : m_ImageBatch) {
+			b.second.clear();
+			if (s_imageInstancePool.size() < 128) {
+				s_imageInstancePool.push_back(std::move(b.second));
+			}
+		}
 		m_ImageBatch.clear();
 		m_ImageBatchBbox.clear();
 		return;
 	}
 
-
-
+	for (auto& b : m_ImageBatch) {
+		b.second.clear();
+		if (s_imageInstancePool.size() < 128) {
+			s_imageInstancePool.push_back(std::move(b.second));
+		}
+	}
 	m_ImageBatch.clear();
 	m_ImageBatchBbox.clear();
 }
@@ -1011,8 +1072,7 @@ void CBatchRenderer::ClearAllBatchMaps()
 	m_ImageBatch.clear();
 	m_ImageBatchBbox.clear();
 	for (int b = 0; b < TERRAIN_BATCH_COUNT; ++b) {
-		m_TerrainVerticesMap[b].clear();
-		m_TerrainIndicesMap[b].clear();
+		m_TerrainBatchesMap[b].clear();
 		m_MeshBatchesMap[b].clear();
 	}
 	m_TerrainMRU.Reset();

@@ -360,6 +360,7 @@ public:
 	// Terrain Batching
 	void AddTerrainFaceToBatch(int batchType, int textureIndex, int renderFlags);
 	void AddTerrainCustomQuad(int batchType, int textureIndex, int renderFlags, const vec3_t verts[4], const vec3_t uvs[4], const vec4_t colors[4]);
+	void AddTerrainQuadsDirect(int batchType, int textureIndex, int renderFlags, const float* vData, int quadCount);
 	void FlushTerrainBatches();
 
 	// Sprite & Particle Batching
@@ -410,8 +411,12 @@ private:
 	uint32_t m_TerrainVBO;
 	uint32_t m_TerrainIBO;
 	uint32_t m_TerrainUBO;
-	std::unordered_map<TerrainBatchKey, std::vector<TerrainVertex_t>> m_TerrainVerticesMap[TERRAIN_BATCH_COUNT];
-	std::unordered_map<TerrainBatchKey, std::vector<uint32_t>> m_TerrainIndicesMap[TERRAIN_BATCH_COUNT];
+	struct TerrainBatchData
+	{
+		std::vector<TerrainVertex_t> vertices;
+		std::vector<uint32_t> indices;
+	};
+	std::unordered_map<TerrainBatchKey, TerrainBatchData> m_TerrainBatchesMap[TERRAIN_BATCH_COUNT];
 
 	struct MeshBatchData
 	{
@@ -424,15 +429,13 @@ private:
 	{
 		int batchType = -1;
 		TerrainBatchKey key = { 0xFFFFFFFF, -1 };
-		std::vector<TerrainVertex_t>* vertices = nullptr;
-		std::vector<uint32_t>* indices = nullptr;
+		TerrainBatchData* batch = nullptr;
 
 		void Reset()
 		{
 			batchType = -1;
 			key = { 0xFFFFFFFF, -1 };
-			vertices = nullptr;
-			indices = nullptr;
+			batch = nullptr;
 		}
 	} m_TerrainMRU;
 

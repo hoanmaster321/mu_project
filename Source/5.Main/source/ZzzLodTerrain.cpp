@@ -1416,28 +1416,7 @@ static void TerrainBatch_Flush()
         else if ((TerrainBlendState)bucket.blendState == TB_ALPHA_BLEND)
             batchType = TERRAIN_BATCH_BLEND;
 
-        const float* vData = bucket.verts.data();
-        for (int q = 0; q < bucket.quadCount; ++q)
-        {
-            vec3_t verts[4];
-            vec3_t uvs[4];
-            vec4_t colors[4];
-            for (int i = 0; i < 4; ++i)
-            {
-                const float* v = vData + (q * 4 + i) * 9;
-                verts[i][0] = v[0];
-                verts[i][1] = v[1];
-                verts[i][2] = v[2];
-                colors[i][0] = v[3];
-                colors[i][1] = v[4];
-                colors[i][2] = v[5];
-                colors[i][3] = v[6];
-                uvs[i][0] = v[7];
-                uvs[i][1] = v[8];
-                uvs[i][2] = 0.0f;
-            }
-            g_BatchRenderer.AddTerrainCustomQuad(batchType, bucket.textureId, 0, verts, uvs, colors);
-        }
+        g_BatchRenderer.AddTerrainQuadsDirect(batchType, bucket.textureId, 0, bucket.verts.data(), bucket.quadCount);
     }
 
     g_BatchRenderer.FlushTerrainBatches();

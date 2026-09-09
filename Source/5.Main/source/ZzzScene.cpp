@@ -2998,15 +2998,18 @@ void MainScene(HDC hDC)
 		}
 
 #if defined(__ANDROID__) || defined(MU_IOS)
-		const float current_frame_time_ms = current_tick_count - last_render_tick_count;
-		if (ms_per_frame > 0 && current_frame_time_ms > 0 && current_frame_time_ms < ms_per_frame)
+		if (!GPUContext::Instance().IsInitialized())
 		{
-			const float rest_ms = ms_per_frame - current_frame_time_ms;
-			if (rest_ms > 2.0f)
+			const float current_frame_time_ms = current_tick_count - last_render_tick_count;
+			if (ms_per_frame > 0 && current_frame_time_ms > 0 && current_frame_time_ms < ms_per_frame)
 			{
-				std::this_thread::sleep_for(std::chrono::milliseconds(static_cast<long>(rest_ms - 1.0f)));
+				const float rest_ms = ms_per_frame - current_frame_time_ms;
+				if (rest_ms > 2.0f)
+				{
+					std::this_thread::sleep_for(std::chrono::milliseconds(static_cast<long>(rest_ms - 1.0f)));
+				}
+				current_tick_count += static_cast<int>(rest_ms);
 			}
-			current_tick_count += static_cast<int>(rest_ms);
 		}
 #else
 		const float current_frame_time_ms = current_tick_count - last_render_tick_count;

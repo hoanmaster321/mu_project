@@ -27,12 +27,20 @@ void CErrorReport::WriteDebugInfoStr(char* str) {
 }
 void CErrorReport::Write(const char* format, ...) {
     if (!format) return;
+#if defined(__ANDROID__)
+#if !defined(MU_ANDROID_VERBOSE_NET_LOG)
+    if ((format[0] == 'O' && strncmp(format, "OpenMonsterModel", 16) == 0) ||
+        (format[0] == '[' && strncmp(format, "[Android Socket]", 16) == 0) ||
+        (format[0] == 'B' && strncmp(format, "Bitmap", 6) == 0))
+    {
+        return;
+    }
+#endif
     va_list args;
     va_start(args, format);
-#if defined(__ANDROID__)
     __android_log_vprint(ANDROID_LOG_INFO, "MuMain", format, args);
-#endif
     va_end(args);
+#endif
 }
 void CErrorReport::HexWrite(void*, int) {}
 void CErrorReport::AddSeparator() {}
