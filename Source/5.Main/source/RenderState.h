@@ -205,11 +205,33 @@ namespace RenderState
 namespace RenderMatrix
 {
     inline GLenum s_CurrentMode = GL_MODELVIEW;
-    inline std::vector<glm::mat4> s_ModelViewStack = { glm::mat4(1.0f) };
-    inline std::vector<glm::mat4> s_ProjectionStack = { glm::mat4(1.0f) };
-    inline std::vector<glm::mat4> s_TextureStack = { glm::mat4(1.0f) };
+    constexpr int MAX_STACK_DEPTH = 32;
 
-    inline std::vector<glm::mat4>& GetCurrentStack()
+    struct MatrixStack {
+        glm::mat4 data[MAX_STACK_DEPTH] = { glm::mat4(1.0f) };
+        int top = 0;
+
+        inline glm::mat4& back() { return data[top]; }
+        inline const glm::mat4& back() const { return data[top]; }
+        inline bool empty() const { return top < 0; }
+        inline size_t size() const { return static_cast<size_t>(top + 1); }
+        inline void push_back(const glm::mat4& m) {
+            if (top + 1 < MAX_STACK_DEPTH) {
+                data[++top] = m;
+            }
+        }
+        inline void pop_back() {
+            if (top > 0) {
+                top--;
+            }
+        }
+    };
+
+    inline MatrixStack s_ModelViewStack;
+    inline MatrixStack s_ProjectionStack;
+    inline MatrixStack s_TextureStack;
+
+    inline MatrixStack& GetCurrentStack()
     {
         if (s_CurrentMode == GL_PROJECTION) return s_ProjectionStack;
         if (s_CurrentMode == GL_TEXTURE) return s_TextureStack;

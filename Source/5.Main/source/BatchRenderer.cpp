@@ -148,6 +148,7 @@ void CBatchRenderer::AddTerrainFaceToBatch(int batchType, int textureIndex, int 
 	pVertices->insert(pVertices->end(), v, v + 4);
 	const uint32_t newIdx[6] = { base + 0, base + 1, base + 2, base + 0, base + 2, base + 3 };
 	pIndices->insert(pIndices->end(), newIdx, newIdx + 6);
+	m_TerrainBatchDirty = true;
 }
 
 
@@ -188,10 +189,14 @@ void CBatchRenderer::AddTerrainCustomQuad(int batchType, int textureIndex, int r
 
 	const uint32_t newIdx[6] = { base + 0, base + 1, base + 2, base + 0, base + 2, base + 3 };
 	pIndices->insert(pIndices->end(), newIdx, newIdx + 6);
+	m_TerrainBatchDirty = true;
 }
 
 void CBatchRenderer::FlushTerrainBatches()
 {
+	if (!m_TerrainBatchDirty)
+		return;
+
 	struct TerrainDrawCmd {
 		int textureIndex;
 		uint32_t indexOffset;
@@ -344,6 +349,7 @@ void CBatchRenderer::FlushTerrainBatches()
 		for (auto& [key, vec] : m_TerrainIndicesMap[bType]) vec.clear();
 	}
 	m_TerrainMRU.Reset();
+	m_TerrainBatchDirty = false;
 }
 
 // ============================================================================
@@ -408,6 +414,7 @@ void CBatchRenderer::AddSprite(int texture, vec3_t pos, float width, float heigh
 
 	inst.textureIndex = (float)texIdx;
 	pGroup->instances.push_back(inst);
+	m_SpriteBatchDirty = true;
 }
 
 int CBatchRenderer::GetSpriteRenderFlags(int texture, int baseFlags)
@@ -428,6 +435,9 @@ int CBatchRenderer::GetSpriteRenderFlags(int texture, int baseFlags)
 
 void CBatchRenderer::RenderSpriteBatch()
 {
+	if (!m_SpriteBatchDirty)
+		return;
+
 	bool hasSprites = false;
 	uint32_t totalSprites = 0;
 	for (const auto& [key, group] : m_SpriteBatch)
@@ -531,6 +541,7 @@ void CBatchRenderer::RenderSpriteBatch()
 		group.textureIDs.clear();
 	}
 	m_SpriteMRU.Reset();
+	m_SpriteBatchDirty = false;
 }
 
 // ============================================================================
@@ -785,38 +796,38 @@ void CBatchRenderer::AddMeshTriangles(int batchType, int textureIndex, int rende
 
 	TerrainBatchKey key = { (uint32_t)renderFlags, textureIndex };
 
-	std::vector<TerrainVertex_t>* pVertices = nullptr;
-	std::vector<uint32_t>* pIndices = nullptr;
+	MeshBatchData* pBatch = nullptr;
 
-	if (m_MeshMRU.batchType == batchType && m_MeshMRU.key == key)
+	if (m_MeshMRU.batchType == batchType && m_MeshMRU.key == key && m_MeshMRU.batch)
 	{
-		pVertices = m_MeshMRU.vertices;
-		pIndices = m_MeshMRU.indices;
+		pBatch = m_MeshMRU.batch;
 	}
 	else
 	{
-		pVertices = &m_MeshVerticesMap[batchType][key];
-		pIndices  = &m_MeshIndicesMap[batchType][key];
+		pBatch = &m_MeshBatchesMap[batchType][key];
 		m_MeshMRU.batchType = batchType;
 		m_MeshMRU.key = key;
-		m_MeshMRU.vertices = pVertices;
-		m_MeshMRU.indices = pIndices;
+		m_MeshMRU.batch = pBatch;
 	}
 
-	uint32_t base = (uint32_t)pVertices->size();
-	pVertices->insert(pVertices->end(), verts, verts + vertCount);
+	uint32_t base = (uint32_t)pBatch->vertices.size();
+	pBatch->vertices.insert(pBatch->vertices.end(), verts, verts + vertCount);
 
-	size_t oldIdxSize = pIndices->size();
-	pIndices->resize(oldIdxSize + vertCount);
-	uint32_t* dstIdx = pIndices->data() + oldIdxSize;
+	size_t oldIdxSize = pBatch->indices.size();
+	pBatch->indices.resize(oldIdxSize + vertCount);
+	uint32_t* dstIdx = pBatch->indices.data() + oldIdxSize;
 	for (uint32_t k = 0; k < vertCount; ++k)
 	{
 		dstIdx[k] = base + k;
 	}
+	m_MeshBatchDirty = true;
 }
 
 void CBatchRenderer::FlushMeshBatches()
 {
+	if (!m_MeshBatchDirty)
+		return;
+
 	struct MeshDrawCmd {
 		int textureIndex;
 		uint32_t indexOffset;
@@ -833,13 +844,12 @@ void CBatchRenderer::FlushMeshBatches()
 		uint32_t totalIndices = 0;
 		for (int bType = 0; bType < TERRAIN_BATCH_COUNT; ++bType)
 		{
-			for (const auto& [key, vertices] : m_MeshVerticesMap[bType])
+			for (const auto& [key, batch] : m_MeshBatchesMap[bType])
 			{
-				const auto& indices = m_MeshIndicesMap[bType][key];
-				if (!vertices.empty() && !indices.empty())
+				if (!batch.vertices.empty() && !batch.indices.empty())
 				{
-					totalVerts += static_cast<uint32_t>(vertices.size());
-					totalIndices += static_cast<uint32_t>(indices.size());
+					totalVerts += static_cast<uint32_t>(batch.vertices.size());
+					totalIndices += static_cast<uint32_t>(batch.indices.size());
 				}
 			}
 		}
@@ -857,26 +867,25 @@ void CBatchRenderer::FlushMeshBatches()
 
 				for (int bType = 0; bType < TERRAIN_BATCH_COUNT; ++bType)
 				{
-					for (const auto& [key, vertices] : m_MeshVerticesMap[bType])
+					for (const auto& [key, batch] : m_MeshBatchesMap[bType])
 					{
-						const auto& indices = m_MeshIndicesMap[bType][key];
-						if (vertices.empty() || indices.empty()) continue;
+						if (batch.vertices.empty() || batch.indices.empty()) continue;
 
 						uint32_t baseVertex = curVertCount;
 						uint32_t baseIndex = curIdxCount;
 
-						memcpy(dstVerts + curVertCount, vertices.data(), vertices.size() * sizeof(TerrainVertex_t));
-						curVertCount += static_cast<uint32_t>(vertices.size());
+						memcpy(dstVerts + curVertCount, batch.vertices.data(), batch.vertices.size() * sizeof(TerrainVertex_t));
+						curVertCount += static_cast<uint32_t>(batch.vertices.size());
 
-						for (size_t i = 0; i < indices.size(); ++i)
+						for (size_t i = 0; i < batch.indices.size(); ++i)
 						{
-							dstIndices[curIdxCount++] = baseVertex + indices[i];
+							dstIndices[curIdxCount++] = baseVertex + batch.indices[i];
 						}
 
 						MeshDrawCmd cmd;
 						cmd.textureIndex = key.textureIndex;
 						cmd.indexOffset = baseIndex;
-						cmd.indexCount = static_cast<uint32_t>(indices.size());
+						cmd.indexCount = static_cast<uint32_t>(batch.indices.size());
 						cmd.batchType = bType;
 						cmd.renderFlags = key.renderFlags;
 						drawCmds.push_back(cmd);
@@ -937,10 +946,14 @@ void CBatchRenderer::FlushMeshBatches()
 
 	for (int bType = 0; bType < TERRAIN_BATCH_COUNT; ++bType)
 	{
-		for (auto& [key, vec] : m_MeshVerticesMap[bType]) vec.clear();
-		for (auto& [key, vec] : m_MeshIndicesMap[bType]) vec.clear();
+		for (auto& [key, batch] : m_MeshBatchesMap[bType])
+		{
+			batch.vertices.clear();
+			batch.indices.clear();
+		}
 	}
 	m_MeshMRU.Reset();
+	m_MeshBatchDirty = false;
 }
 
 void CBatchRenderer::RenderMeshBatch(bool clear)
@@ -1000,12 +1013,15 @@ void CBatchRenderer::ClearAllBatchMaps()
 	for (int b = 0; b < TERRAIN_BATCH_COUNT; ++b) {
 		m_TerrainVerticesMap[b].clear();
 		m_TerrainIndicesMap[b].clear();
-		m_MeshVerticesMap[b].clear();
-		m_MeshIndicesMap[b].clear();
+		m_MeshBatchesMap[b].clear();
 	}
 	m_TerrainMRU.Reset();
 	m_MeshMRU.Reset();
 	m_SpriteMRU.Reset();
+	m_TerrainBatchDirty = false;
+	m_MeshBatchDirty = false;
+	m_SpriteBatchDirty = false;
+	m_ShadowBatchDirty = false;
 	m_LastSpritePruneTime = WorldTime;
 	m_LastProxyPruneTime = WorldTime;
 }

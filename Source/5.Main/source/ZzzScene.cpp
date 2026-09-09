@@ -3001,16 +3001,10 @@ void MainScene(HDC hDC)
 		const float current_frame_time_ms = current_tick_count - last_render_tick_count;
 		if (ms_per_frame > 0 && current_frame_time_ms > 0 && current_frame_time_ms < ms_per_frame)
 		{
-			const auto rest_ms = ms_per_frame - current_frame_time_ms;
-			const auto start_spin = g_pTimer->GetTimeElapsed();
-			while (true)
+			const float rest_ms = ms_per_frame - current_frame_time_ms;
+			if (rest_ms > 2.0f)
 			{
-				const auto current = g_pTimer->GetTimeElapsed();
-				if ((current - start_spin) >= rest_ms)
-				{
-					break;
-				}
-				std::this_thread::yield();
+				std::this_thread::sleep_for(std::chrono::milliseconds(static_cast<long>(rest_ms - 1.0f)));
 			}
 			current_tick_count += static_cast<int>(rest_ms);
 		}

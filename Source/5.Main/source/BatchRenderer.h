@@ -412,8 +412,13 @@ private:
 	uint32_t m_TerrainUBO;
 	std::unordered_map<TerrainBatchKey, std::vector<TerrainVertex_t>> m_TerrainVerticesMap[TERRAIN_BATCH_COUNT];
 	std::unordered_map<TerrainBatchKey, std::vector<uint32_t>> m_TerrainIndicesMap[TERRAIN_BATCH_COUNT];
-	std::unordered_map<TerrainBatchKey, std::vector<TerrainVertex_t>> m_MeshVerticesMap[TERRAIN_BATCH_COUNT];
-	std::unordered_map<TerrainBatchKey, std::vector<uint32_t>> m_MeshIndicesMap[TERRAIN_BATCH_COUNT];
+
+	struct MeshBatchData
+	{
+		std::vector<TerrainVertex_t> vertices;
+		std::vector<uint32_t> indices;
+	};
+	std::unordered_map<TerrainBatchKey, MeshBatchData> m_MeshBatchesMap[TERRAIN_BATCH_COUNT];
 
 	struct TerrainMRUCache
 	{
@@ -429,7 +434,21 @@ private:
 			vertices = nullptr;
 			indices = nullptr;
 		}
-	} m_TerrainMRU, m_MeshMRU;
+	} m_TerrainMRU;
+
+	struct MeshMRUCache
+	{
+		int batchType = -1;
+		TerrainBatchKey key = { 0xFFFFFFFF, -1 };
+		MeshBatchData* batch = nullptr;
+
+		void Reset()
+		{
+			batchType = -1;
+			key = { 0xFFFFFFFF, -1 };
+			batch = nullptr;
+		}
+	} m_MeshMRU;
 
 	// Sprite Buffers
 	uint32_t m_SpriteVAO;
@@ -470,7 +489,10 @@ private:
 	std::vector<uint32_t> m_ActiveShadowProxies;
 	std::vector<std::vector<MeshInstanceData_t>> m_ShadowPending;
 
-	bool m_ShadowBatchDirty;
+	bool m_TerrainBatchDirty = false;
+	bool m_MeshBatchDirty = false;
+	bool m_SpriteBatchDirty = false;
+	bool m_ShadowBatchDirty = false;
 	double m_LastProxyPruneTime;
 	bool m_Initialized;
 };

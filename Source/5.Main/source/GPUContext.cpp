@@ -1664,11 +1664,11 @@ bool GPUContext::BeginFrame()
     m_deferredImageDraws.clear();
     m_deferredViewports.clear();
     m_deferredScissors.clear();
-    if (m_deferredCommands.capacity() < 512) m_deferredCommands.reserve(512);
-    if (m_deferredTerrainDraws.capacity() < 64) m_deferredTerrainDraws.reserve(64);
-    if (m_deferredMeshDraws.capacity() < 256) m_deferredMeshDraws.reserve(256);
-    if (m_deferredSpriteDraws.capacity() < 256) m_deferredSpriteDraws.reserve(256);
-    if (m_deferredImageDraws.capacity() < 256) m_deferredImageDraws.reserve(256);
+    if (m_deferredCommands.capacity() < 2048) m_deferredCommands.reserve(2048);
+    if (m_deferredTerrainDraws.capacity() < 256) m_deferredTerrainDraws.reserve(256);
+    if (m_deferredMeshDraws.capacity() < 1024) m_deferredMeshDraws.reserve(1024);
+    if (m_deferredSpriteDraws.capacity() < 512) m_deferredSpriteDraws.reserve(512);
+    if (m_deferredImageDraws.capacity() < 512) m_deferredImageDraws.reserve(512);
     return true;
 }
 

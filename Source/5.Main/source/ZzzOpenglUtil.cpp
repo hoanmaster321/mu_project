@@ -909,89 +909,97 @@ void FlushSpriteBatch()
 	if (s_SpriteBatchCount == 0)
 		return;
 
-	
-		std::vector<TerrainVertex_t> vkVerts;
-		std::vector<uint32_t> vkIndices;
-		vkVerts.reserve(s_SpriteBatchCount);
-		vkIndices.reserve(s_SpriteBatchCount / 4 * 6);
+	const uint32_t vertCount = static_cast<uint32_t>(s_SpriteBatchCount);
+	const uint32_t idxCount = (vertCount / 4) * 6;
 
-		for (int i = 0; i < s_SpriteBatchCount; i += 4)
-		{
-			uint32_t baseIdx = (uint32_t)vkVerts.size();
-			for (int j = 0; j < 4; ++j)
-			{
-				const auto& sv = s_SpriteBatchVerts[i + j];
-				TerrainVertex_t tv;
-				tv.pos[0] = sv.x;
-				tv.pos[1] = sv.y;
-				tv.pos[2] = sv.z;
-				tv.uv[0] = sv.u;
-				tv.uv[1] = sv.v;
-				uint32_t r = (uint32_t)((std::min)((std::max)(sv.r, 0.0f), 1.0f) * 255.0f);
-				uint32_t g = (uint32_t)((std::min)((std::max)(sv.g, 0.0f), 1.0f) * 255.0f);
-				uint32_t b = (uint32_t)((std::min)((std::max)(sv.b, 0.0f), 1.0f) * 255.0f);
-				uint32_t a = (uint32_t)((std::min)((std::max)(sv.a, 0.0f), 1.0f) * 255.0f);
-				tv.color = (a << 24) | (b << 16) | (g << 8) | r;
-				vkVerts.push_back(tv);
-			}
-			vkIndices.push_back(baseIdx + 0);
-			vkIndices.push_back(baseIdx + 1);
-			vkIndices.push_back(baseIdx + 2);
-			vkIndices.push_back(baseIdx + 0);
-			vkIndices.push_back(baseIdx + 2);
-			vkIndices.push_back(baseIdx + 3);
-		}
-
-		GPUContext::TerrainMergedBatch batch;
-		if (s_SpriteBatchBlendType == 3 || s_SpriteBatchBlendType == 5 || s_SpriteBatchBlendType == 7)
-		{
-			batch.batchType = s_SpriteBatchDepthTest ? TERRAIN_BATCH_GRASS_ADD : 7; // Additive
-		}
-		else if (s_SpriteBatchBlendType == 4)
-		{
-			batch.batchType = 5; // Dark
-		}
-		else if (s_SpriteBatchBlendType == 0)
-		{
-			batch.batchType = TERRAIN_BATCH_OPAQUE; // Opaque
-		}
-		else
-		{
-			batch.batchType = s_SpriteBatchDepthTest ? TERRAIN_BATCH_ALPHA : 6; // Alpha Blend
-		}
-		BITMAP_t* pBitmap = Bitmaps.FindTexture(s_SpriteBatchTexture);
-		batch.textureIndex = (pBitmap && pBitmap->TextureNumber > 0) ? (int)pBitmap->TextureNumber : s_SpriteBatchTexture;
-		batch.renderFlags = s_SpriteBatchDepthTest ? 0 : 1;
-
-		GPUContext::TerrainDrawCmd cmd;
-		cmd.firstIndex = 0;
-		cmd.indexCount = (uint32_t)vkIndices.size();
-		cmd.vertexOffset = 0;
-		batch.cmds.push_back(cmd);
-
-		std::vector<GPUContext::TerrainMergedBatch> vkBatches;
-		vkBatches.push_back(std::move(batch));
-
-		GPUContext::TerrainVertUBO vkUbo;
-		vkUbo.viewMatrix = glm::mat4(1.0f);
-		GetActiveProjectionMatrix(&vkUbo.projMatrix[0][0]);
-		// Invert row 1 (Y) for Vulkan NDC
-		vkUbo.projMatrix[0][1] = -vkUbo.projMatrix[0][1];
-		vkUbo.projMatrix[1][1] = -vkUbo.projMatrix[1][1];
-		vkUbo.projMatrix[2][1] = -vkUbo.projMatrix[2][1];
-		vkUbo.projMatrix[3][1] = -vkUbo.projMatrix[3][1];
-		// Remap depth
-		vkUbo.projMatrix[0][2] = (vkUbo.projMatrix[0][2] + vkUbo.projMatrix[0][3]) * 0.5f;
-		vkUbo.projMatrix[1][2] = (vkUbo.projMatrix[1][2] + vkUbo.projMatrix[1][3]) * 0.5f;
-		vkUbo.projMatrix[2][2] = (vkUbo.projMatrix[2][2] + vkUbo.projMatrix[2][3]) * 0.5f;
-		vkUbo.projMatrix[3][2] = (vkUbo.projMatrix[3][2] + vkUbo.projMatrix[3][3]) * 0.5f;
-
-		GPUContext::Instance().DrawTerrainMerged(
-			vkVerts.data(), (uint32_t)(vkVerts.size() * sizeof(TerrainVertex_t)),
-			vkIndices.data(), (uint32_t)(vkIndices.size() * sizeof(uint32_t)),
-			vkBatches, vkUbo);
-
+	uint32_t vertOffset = 0;
+	uint32_t idxOffset = 0;
+	TerrainVertex_t* dstVerts = GPUContext::Instance().AllocateTerrainVertexBuffer(vertCount, vertOffset);
+	uint32_t* dstIndices = GPUContext::Instance().AllocateTerrainIndexBuffer(idxCount, idxOffset);
+	if (!dstVerts || !dstIndices)
+	{
 		s_SpriteBatchCount = 0;
+		return;
+	}
+
+	uint32_t vIdx = 0;
+	uint32_t iIdx = 0;
+	for (int i = 0; i < s_SpriteBatchCount; i += 4)
+	{
+		uint32_t baseIdx = vIdx;
+		for (int j = 0; j < 4; ++j)
+		{
+			const auto& sv = s_SpriteBatchVerts[i + j];
+			TerrainVertex_t& tv = dstVerts[vIdx++];
+			tv.pos[0] = sv.x;
+			tv.pos[1] = sv.y;
+			tv.pos[2] = sv.z;
+			tv.uv[0] = sv.u;
+			tv.uv[1] = sv.v;
+			uint32_t r = (uint32_t)((std::min)((std::max)(sv.r, 0.0f), 1.0f) * 255.0f);
+			uint32_t g = (uint32_t)((std::min)((std::max)(sv.g, 0.0f), 1.0f) * 255.0f);
+			uint32_t b = (uint32_t)((std::min)((std::max)(sv.b, 0.0f), 1.0f) * 255.0f);
+			uint32_t a = (uint32_t)((std::min)((std::max)(sv.a, 0.0f), 1.0f) * 255.0f);
+			tv.color = (a << 24) | (b << 16) | (g << 8) | r;
+		}
+		dstIndices[iIdx++] = baseIdx + 0;
+		dstIndices[iIdx++] = baseIdx + 1;
+		dstIndices[iIdx++] = baseIdx + 2;
+		dstIndices[iIdx++] = baseIdx + 0;
+		dstIndices[iIdx++] = baseIdx + 2;
+		dstIndices[iIdx++] = baseIdx + 3;
+	}
+
+	GPUContext::TerrainMergedBatch batch;
+	if (s_SpriteBatchBlendType == 3 || s_SpriteBatchBlendType == 5 || s_SpriteBatchBlendType == 7)
+	{
+		batch.batchType = s_SpriteBatchDepthTest ? TERRAIN_BATCH_GRASS_ADD : 7; // Additive
+	}
+	else if (s_SpriteBatchBlendType == 4)
+	{
+		batch.batchType = 5; // Dark
+	}
+	else if (s_SpriteBatchBlendType == 0)
+	{
+		batch.batchType = TERRAIN_BATCH_OPAQUE; // Opaque
+	}
+	else
+	{
+		batch.batchType = s_SpriteBatchDepthTest ? TERRAIN_BATCH_ALPHA : 6; // Alpha Blend
+	}
+	BITMAP_t* pBitmap = Bitmaps.FindTexture(s_SpriteBatchTexture);
+	batch.textureIndex = (pBitmap && pBitmap->TextureNumber > 0) ? (int)pBitmap->TextureNumber : s_SpriteBatchTexture;
+	batch.renderFlags = s_SpriteBatchDepthTest ? 0 : 1;
+
+	GPUContext::TerrainDrawCmd cmd;
+	cmd.firstIndex = 0;
+	cmd.indexCount = idxCount;
+	cmd.vertexOffset = 0;
+	batch.cmds.push_back(cmd);
+
+	std::vector<GPUContext::TerrainMergedBatch> vkBatches;
+	vkBatches.push_back(std::move(batch));
+
+	GPUContext::TerrainVertUBO vkUbo;
+	vkUbo.viewMatrix = glm::mat4(1.0f);
+	GetActiveProjectionMatrix(&vkUbo.projMatrix[0][0]);
+	// Invert row 1 (Y) for Vulkan NDC
+	vkUbo.projMatrix[0][1] = -vkUbo.projMatrix[0][1];
+	vkUbo.projMatrix[1][1] = -vkUbo.projMatrix[1][1];
+	vkUbo.projMatrix[2][1] = -vkUbo.projMatrix[2][1];
+	vkUbo.projMatrix[3][1] = -vkUbo.projMatrix[3][1];
+	// Remap depth
+	vkUbo.projMatrix[0][2] = (vkUbo.projMatrix[0][2] + vkUbo.projMatrix[0][3]) * 0.5f;
+	vkUbo.projMatrix[1][2] = (vkUbo.projMatrix[1][2] + vkUbo.projMatrix[1][3]) * 0.5f;
+	vkUbo.projMatrix[2][2] = (vkUbo.projMatrix[2][2] + vkUbo.projMatrix[2][3]) * 0.5f;
+	vkUbo.projMatrix[3][2] = (vkUbo.projMatrix[3][2] + vkUbo.projMatrix[3][3]) * 0.5f;
+
+	GPUContext::Instance().DrawTerrainMergedPreallocated(
+		vertOffset, vertCount * sizeof(TerrainVertex_t),
+		idxOffset, idxCount * sizeof(uint32_t),
+		vkBatches, vkUbo);
+
+	s_SpriteBatchCount = 0;
 }
 
 void BeginSprite()
