@@ -357,13 +357,30 @@ void CBatchRenderer::FlushTerrainBatches()
 				}
 
 				std::vector<GPUContext::TerrainMergedBatch> vkBatches;
+				vkBatches.reserve(drawCmds.size());
 				for (const auto& cmd : drawCmds)
 				{
+					BITMAP_t* pBitmap = (cmd.textureIndex >= 0) ? Bitmaps.FindTexture(static_cast<GLuint>(cmd.textureIndex)) : nullptr;
+					int realTex = (pBitmap && pBitmap->TextureNumber > 0) ? static_cast<int>(pBitmap->TextureNumber)
+						: (cmd.textureIndex < 0 ? -cmd.textureIndex : 0);
+
+					if (!vkBatches.empty() &&
+						vkBatches.back().batchType == cmd.batchType &&
+						vkBatches.back().renderFlags == cmd.renderFlags &&
+						vkBatches.back().textureIndex == realTex &&
+						!vkBatches.back().cmds.empty())
+					{
+						auto& lastCmd = vkBatches.back().cmds.back();
+						if (lastCmd.firstIndex + lastCmd.indexCount == cmd.indexOffset)
+						{
+							lastCmd.indexCount += cmd.indexCount;
+							continue;
+						}
+					}
+
 					GPUContext::TerrainMergedBatch batch;
 					batch.batchType = cmd.batchType;
-					BITMAP_t* pBitmap = (cmd.textureIndex >= 0) ? Bitmaps.FindTexture(static_cast<GLuint>(cmd.textureIndex)) : nullptr;
-					batch.textureIndex = (pBitmap && pBitmap->TextureNumber > 0) ? static_cast<int>(pBitmap->TextureNumber)
-						: (cmd.textureIndex < 0 ? -cmd.textureIndex : 0);
+					batch.textureIndex = realTex;
 					batch.renderFlags = cmd.renderFlags;
 					GPUContext::TerrainDrawCmd tCmd;
 					tCmd.firstIndex = cmd.indexOffset;
@@ -376,7 +393,7 @@ void CBatchRenderer::FlushTerrainBatches()
 				GPUContext::Instance().DrawTerrainMergedPreallocated(
 					vertOffset, totalVerts * sizeof(TerrainVertex_t),
 					idxOffset, totalIndices * sizeof(uint32_t),
-					vkBatches, vkUbo);
+					std::move(vkBatches), vkUbo);
 			}
 		}
 	}
@@ -731,7 +748,7 @@ void CBatchRenderer::FlushImageBatchesNow()
 					}
 				}
 
-				GPUContext::Instance().DrawImagesPreallocated(baseInstance, instanceSSBOOffset, batchRuns);
+				GPUContext::Instance().DrawImagesPreallocated(baseInstance, instanceSSBOOffset, std::move(batchRuns));
 			}
 		}
 
@@ -871,16 +888,7 @@ void CBatchRenderer::AddMeshTriangles(int batchType, int textureIndex, int rende
 		m_MeshMRU.batch = pBatch;
 	}
 
-	uint32_t base = (uint32_t)pBatch->vertices.size();
 	pBatch->vertices.insert(pBatch->vertices.end(), verts, verts + vertCount);
-
-	size_t oldIdxSize = pBatch->indices.size();
-	pBatch->indices.resize(oldIdxSize + vertCount);
-	uint32_t* dstIdx = pBatch->indices.data() + oldIdxSize;
-	for (uint32_t k = 0; k < vertCount; ++k)
-	{
-		dstIdx[k] = base + k;
-	}
 	m_MeshBatchDirty = true;
 }
 
@@ -902,51 +910,46 @@ void CBatchRenderer::FlushMeshBatches()
 	if (GPUContext::Instance().IsFrameActive())
 	{
 		uint32_t totalVerts = 0;
-		uint32_t totalIndices = 0;
 		for (int bType = 0; bType < TERRAIN_BATCH_COUNT; ++bType)
 		{
 			for (const auto& [key, batch] : m_MeshBatchesMap[bType])
 			{
-				if (!batch.vertices.empty() && !batch.indices.empty())
+				if (!batch.vertices.empty())
 				{
 					totalVerts += static_cast<uint32_t>(batch.vertices.size());
-					totalIndices += static_cast<uint32_t>(batch.indices.size());
 				}
 			}
 		}
 
-		if (totalVerts > 0 && totalIndices > 0)
+		if (totalVerts > 0)
 		{
 			uint32_t vertOffset = 0;
 			uint32_t idxOffset = 0;
 			TerrainVertex_t* dstVerts = GPUContext::Instance().AllocateTerrainVertexBuffer(totalVerts, vertOffset);
-			uint32_t* dstIndices = GPUContext::Instance().AllocateTerrainIndexBuffer(totalIndices, idxOffset);
+			uint32_t* dstIndices = GPUContext::Instance().AllocateTerrainIndexBuffer(totalVerts, idxOffset);
 			if (dstVerts && dstIndices)
 			{
 				uint32_t curVertCount = 0;
-				uint32_t curIdxCount = 0;
 
 				for (int bType = 0; bType < TERRAIN_BATCH_COUNT; ++bType)
 				{
 					for (const auto& [key, batch] : m_MeshBatchesMap[bType])
 					{
-						if (batch.vertices.empty() || batch.indices.empty()) continue;
+						uint32_t count = static_cast<uint32_t>(batch.vertices.size());
+						if (count == 0) continue;
 
-						uint32_t baseVertex = curVertCount;
-						uint32_t baseIndex = curIdxCount;
-
-						memcpy(dstVerts + curVertCount, batch.vertices.data(), batch.vertices.size() * sizeof(TerrainVertex_t));
-						curVertCount += static_cast<uint32_t>(batch.vertices.size());
-
-						for (size_t i = 0; i < batch.indices.size(); ++i)
+						uint32_t baseIndex = curVertCount;
+						memcpy(dstVerts + curVertCount, batch.vertices.data(), count * sizeof(TerrainVertex_t));
+						for (uint32_t k = 0; k < count; ++k)
 						{
-							dstIndices[curIdxCount++] = baseVertex + batch.indices[i];
+							dstIndices[curVertCount + k] = curVertCount + k;
 						}
+						curVertCount += count;
 
 						MeshDrawCmd cmd;
 						cmd.textureIndex = key.textureIndex;
 						cmd.indexOffset = baseIndex;
-						cmd.indexCount = static_cast<uint32_t>(batch.indices.size());
+						cmd.indexCount = count;
 						cmd.batchType = bType;
 						cmd.renderFlags = key.renderFlags;
 						drawCmds.push_back(cmd);
@@ -981,13 +984,30 @@ void CBatchRenderer::FlushMeshBatches()
 				}
 
 				std::vector<GPUContext::TerrainMergedBatch> vkBatches;
+				vkBatches.reserve(drawCmds.size());
 				for (const auto& cmd : drawCmds)
 				{
+					BITMAP_t* pBitmap = (cmd.textureIndex >= 0) ? Bitmaps.FindTexture(static_cast<GLuint>(cmd.textureIndex)) : nullptr;
+					int realTex = (pBitmap && pBitmap->TextureNumber > 0) ? static_cast<int>(pBitmap->TextureNumber)
+						: (cmd.textureIndex < 0 ? -cmd.textureIndex : (cmd.textureIndex > 0 ? cmd.textureIndex : 0));
+
+					if (!vkBatches.empty() &&
+						vkBatches.back().batchType == cmd.batchType &&
+						vkBatches.back().renderFlags == cmd.renderFlags &&
+						vkBatches.back().textureIndex == realTex &&
+						!vkBatches.back().cmds.empty())
+					{
+						auto& lastCmd = vkBatches.back().cmds.back();
+						if (lastCmd.firstIndex + lastCmd.indexCount == cmd.indexOffset)
+						{
+							lastCmd.indexCount += cmd.indexCount;
+							continue;
+						}
+					}
+
 					GPUContext::TerrainMergedBatch batch;
 					batch.batchType = cmd.batchType;
-					BITMAP_t* pBitmap = (cmd.textureIndex >= 0) ? Bitmaps.FindTexture(static_cast<GLuint>(cmd.textureIndex)) : nullptr;
-					batch.textureIndex = (pBitmap && pBitmap->TextureNumber > 0) ? static_cast<int>(pBitmap->TextureNumber)
-						: (cmd.textureIndex < 0 ? -cmd.textureIndex : (cmd.textureIndex > 0 ? cmd.textureIndex : 0));
+					batch.textureIndex = realTex;
 					batch.renderFlags = cmd.renderFlags;
 					GPUContext::TerrainDrawCmd tCmd;
 					tCmd.firstIndex = cmd.indexOffset;
@@ -999,8 +1019,8 @@ void CBatchRenderer::FlushMeshBatches()
 
 				GPUContext::Instance().DrawTerrainMergedPreallocated(
 					vertOffset, totalVerts * sizeof(TerrainVertex_t),
-					idxOffset, totalIndices * sizeof(uint32_t),
-					vkBatches, vkUbo);
+					idxOffset, totalVerts * sizeof(uint32_t),
+					std::move(vkBatches), vkUbo);
 			}
 		}
 	}
@@ -1010,7 +1030,6 @@ void CBatchRenderer::FlushMeshBatches()
 		for (auto& [key, batch] : m_MeshBatchesMap[bType])
 		{
 			batch.vertices.clear();
-			batch.indices.clear();
 		}
 	}
 	m_MeshMRU.Reset();

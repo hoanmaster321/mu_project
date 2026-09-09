@@ -1969,7 +1969,7 @@ uint32_t* GPUContext::AllocateTerrainIndexBuffer(uint32_t indexCount, uint32_t& 
     return reinterpret_cast<uint32_t*>(static_cast<char*>(res.indexMapped) + outIdxOffset);
 }
 
-void GPUContext::DrawTerrainMergedPreallocated(uint32_t vertOffset, uint32_t vertByteSize, uint32_t idxOffset, uint32_t idxByteSize, const std::vector<TerrainMergedBatch>& batches, const TerrainVertUBO& ubo)
+void GPUContext::DrawTerrainMergedPreallocated(uint32_t vertOffset, uint32_t vertByteSize, uint32_t idxOffset, uint32_t idxByteSize, std::vector<TerrainMergedBatch> batches, const TerrainVertUBO& ubo)
 {
     if (!m_frameActive || vertByteSize == 0 || idxByteSize == 0 || batches.empty()) return;
 
@@ -1978,7 +1978,7 @@ void GPUContext::DrawTerrainMergedPreallocated(uint32_t vertOffset, uint32_t ver
     draw.vertByteSize = vertByteSize;
     draw.idxOffset = idxOffset;
     draw.idxByteSize = idxByteSize;
-    draw.batches = batches;
+    draw.batches = std::move(batches);
     draw.ubo = ubo;
     m_deferredTerrainDraws.push_back(std::move(draw));
 
@@ -2318,14 +2318,14 @@ GPUImageInstance* GPUContext::AllocateImageInstanceBuffer(uint32_t count, uint32
     return reinterpret_cast<GPUImageInstance*>(static_cast<char*>(res.instanceSSBOMapped) + outInstanceSSBOOffset);
 }
 
-void GPUContext::DrawImagesPreallocated(uint32_t baseInstance, uint32_t instanceSSBOOffset, const std::vector<ImageBatchRun>& batchRuns)
+void GPUContext::DrawImagesPreallocated(uint32_t baseInstance, uint32_t instanceSSBOOffset, std::vector<ImageBatchRun> batchRuns)
 {
     if (!m_frameActive || batchRuns.empty()) return;
 
     DeferredImageDraw draw{};
     draw.instanceSSBOOffset = instanceSSBOOffset;
     draw.baseInstance = baseInstance;
-    draw.batches = batchRuns;
+    draw.batches = std::move(batchRuns);
     m_deferredImageDraws.push_back(std::move(draw));
 
     DeferredCommand dcmd{};

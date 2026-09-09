@@ -323,9 +323,6 @@ void AsioNetworkClient::ProcessStreamBuffer()
             std::lock_guard<std::mutex> lock(m_packetQueueMutex);
             m_packetQueue.push(std::move(packet));
         }
-
-        g_ErrorReport.Write("[AsioNetwork] Packet queued: head=0x%02X sub=0x%02X size=%zu\r\n",
-            pktHead, pktSub, pktLen);
     }
 }
 

@@ -421,7 +421,6 @@ private:
 	struct MeshBatchData
 	{
 		std::vector<TerrainVertex_t> vertices;
-		std::vector<uint32_t> indices;
 	};
 	std::unordered_map<TerrainBatchKey, MeshBatchData> m_MeshBatchesMap[TERRAIN_BATCH_COUNT];
 

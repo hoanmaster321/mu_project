@@ -1334,23 +1334,30 @@ void BMD::RenderMesh(int i,int RenderFlag,float Alpha,int BlendMesh,float BlendM
 
 	// Build vertex buffer for this mesh
 	static std::vector<TerrainVertex_t> s_meshVertBuffer;
-	s_meshVertBuffer.clear();
-	s_meshVertBuffer.reserve(m->NumTriangles * 3);
+	const int maxVerts = m->NumTriangles * 6;
+	if (s_meshVertBuffer.size() < static_cast<size_t>(maxVerts))
+	{
+		s_meshVertBuffer.resize(maxVerts);
+	}
+	TerrainVertex_t* pDst = s_meshVertBuffer.data();
+	uint32_t vertCount = 0;
+
+	static const int s_cornerTri[3] = { 0, 1, 2 };
+	static const int s_cornerQuad[6] = { 0, 1, 2, 0, 2, 3 };
+
+	const bool isShadow = ((RenderFlag & RENDER_SHADOWMAP) == RENDER_SHADOWMAP);
+	const bool useNormalsLight = (EnableLight && Render == RENDER_TEXTURE);
+	const uint32_t constColor = !useNormalsLight ? PackRGBA8(mobileConstantColor[0], mobileConstantColor[1], mobileConstantColor[2], mobileConstantColor[3]) : 0;
+	const uint32_t ua24 = (uint32_t)(std::min)(255.0f, (std::max)(0.0f, vertexAlpha * 255.0f)) << 24;
+	const float waveU = EnableWave ? BlendMeshTexCoordU : 0.0f;
+	const float waveV = EnableWave ? BlendMeshTexCoordV : 0.0f;
 
 	for (int j = 0; j < m->NumTriangles; j++)
 	{
 		Triangle_t *tp = &m->Triangles[j];
-		int poly = tp->Polygon;
-		if (poly != 3 && poly != 4) poly = 3;
-
-		int cornerIndices[6];
-		int cornerCount = 3;
-		cornerIndices[0] = 0; cornerIndices[1] = 1; cornerIndices[2] = 2;
-		if (poly == 4)
-		{
-			cornerCount = 6;
-			cornerIndices[3] = 0; cornerIndices[4] = 2; cornerIndices[5] = 3;
-		}
+		const int poly = (tp->Polygon == 4) ? 4 : 3;
+		const int* cornerIndices = (poly == 4) ? s_cornerQuad : s_cornerTri;
+		const int cornerCount = (poly == 4) ? 6 : 3;
 
 		for (int c = 0; c < cornerCount; ++c)
 		{
@@ -1358,14 +1365,11 @@ void BMD::RenderMesh(int i,int RenderFlag,float Alpha,int BlendMesh,float BlendM
 			int vi = tp->VertexIndex[k];
 			if (vi < 0 || vi >= m->NumVertices) continue;
 
-			TerrainVertex_t tv;
+			TerrainVertex_t& tv = pDst[vertCount++];
 			float* pos = VertexTransform[i][vi];
-			tv.pos[0] = pos[0];
-			tv.pos[1] = pos[1];
-			tv.pos[2] = pos[2];
 
 			// Shadow projection if requested
-			if ((RenderFlag & RENDER_SHADOWMAP) == RENDER_SHADOWMAP)
+			if (isShadow)
 			{
 				vec3_t p;
 				VectorSubtract(pos, BodyOrigin, p);
@@ -1379,9 +1383,12 @@ void BMD::RenderMesh(int i,int RenderFlag,float Alpha,int BlendMesh,float BlendM
 				tv.uv[0] = 0.0f;
 				tv.uv[1] = 0.0f;
 				tv.color = PackRGBA8(0.0f, 0.0f, 0.0f, 0.5f);
-				s_meshVertBuffer.push_back(tv);
 				continue;
 			}
+
+			tv.pos[0] = pos[0];
+			tv.pos[1] = pos[1];
+			tv.pos[2] = pos[2];
 
 			// UV coordinates
 			float u = 0.0f, v = 0.0f;
@@ -1391,8 +1398,8 @@ void BMD::RenderMesh(int i,int RenderFlag,float Alpha,int BlendMesh,float BlendM
 				if (m->TexCoords && tp->TexCoordIndex[k] < m->NumTexCoords)
 				{
 					TexCoord_t *texp = &m->TexCoords[tp->TexCoordIndex[k]];
-					u = texp->TexCoordU + (EnableWave ? BlendMeshTexCoordU : 0.0f);
-					v = texp->TexCoordV + (EnableWave ? BlendMeshTexCoordV : 0.0f);
+					u = texp->TexCoordU + waveU;
+					v = texp->TexCoordV + waveV;
 				}
 				break;
 			case RENDER_CHROME:
@@ -1435,32 +1442,32 @@ void BMD::RenderMesh(int i,int RenderFlag,float Alpha,int BlendMesh,float BlendM
 			tv.uv[1] = v;
 
 			// Lighting & Color
-			float r = 1.0f, g = 1.0f, b = 1.0f, a = vertexAlpha;
-			if (EnableLight && Render == RENDER_TEXTURE)
+			if (useNormalsLight)
 			{
 				int ni = tp->NormalIndex[k];
 				if (ni >= 0 && ni < m->NumNormals)
 				{
-					r = LightTransform[i][ni][0];
-					g = LightTransform[i][ni][1];
-					b = LightTransform[i][ni][2];
+					float* lt = LightTransform[i][ni];
+					uint8_t ur = (uint8_t)(std::min)(255.0f, (std::max)(0.0f, lt[0] * 255.0f));
+					uint8_t ug = (uint8_t)(std::min)(255.0f, (std::max)(0.0f, lt[1] * 255.0f));
+					uint8_t ub = (uint8_t)(std::min)(255.0f, (std::max)(0.0f, lt[2] * 255.0f));
+					tv.color = (uint32_t)ur | ((uint32_t)ug << 8) | ((uint32_t)ub << 16) | ua24;
+				}
+				else
+				{
+					tv.color = 0xFFFFFFFF;
 				}
 			}
 			else
 			{
-				r = mobileConstantColor[0];
-				g = mobileConstantColor[1];
-				b = mobileConstantColor[2];
-				a = mobileConstantColor[3];
+				tv.color = constColor;
 			}
-			tv.color = PackRGBA8(r, g, b, a);
-			s_meshVertBuffer.push_back(tv);
 		}
 	}
 
-	if (!s_meshVertBuffer.empty())
+	if (vertCount > 0)
 	{
-		g_BatchRenderer.AddMeshTriangles(batchType, passTexture, passFlags, s_meshVertBuffer.data(), (uint32_t)s_meshVertBuffer.size());
+		g_BatchRenderer.AddMeshTriangles(batchType, passTexture, passFlags, pDst, vertCount);
 	}
 }
 

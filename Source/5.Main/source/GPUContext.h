@@ -186,7 +186,7 @@ public:
 
     // Native Draw Calls
     void DrawTerrainMerged(const void* vertices, uint32_t vertByteSize, const void* indices, uint32_t indexByteSize, const std::vector<TerrainMergedBatch>& batches, const TerrainVertUBO& ubo);
-    void DrawTerrainMergedPreallocated(uint32_t vertOffset, uint32_t vertByteSize, uint32_t idxOffset, uint32_t idxByteSize, const std::vector<TerrainMergedBatch>& batches, const TerrainVertUBO& ubo);
+    void DrawTerrainMergedPreallocated(uint32_t vertOffset, uint32_t vertByteSize, uint32_t idxOffset, uint32_t idxByteSize, std::vector<TerrainMergedBatch> batches, const TerrainVertUBO& ubo);
     TerrainVertex_t* AllocateTerrainVertexBuffer(uint32_t vertexCount, uint32_t& outVertOffset);
     uint32_t* AllocateTerrainIndexBuffer(uint32_t indexCount, uint32_t& outIdxOffset);
 
@@ -206,7 +206,7 @@ public:
         ImageBatchRun(const ImageBatchKey& k, uint32_t c) : key(k), count(c) {}
     };
     void DrawImages(const std::vector<std::pair<ImageBatchKey, std::vector<GPUImageInstance>>>& batches);
-    void DrawImagesPreallocated(uint32_t baseInstance, uint32_t instanceSSBOOffset, const std::vector<ImageBatchRun>& batchRuns);
+    void DrawImagesPreallocated(uint32_t baseInstance, uint32_t instanceSSBOOffset, std::vector<ImageBatchRun> batchRuns);
     GPUImageInstance* AllocateImageInstanceBuffer(uint32_t count, uint32_t& outBaseInstance, uint32_t& outInstanceSSBOOffset);
     void ClearDepthBuffer();
 
