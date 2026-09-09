@@ -264,9 +264,15 @@ void CUIMng::CreateLoginScene()
 
 	m_LoginWin.Create();
 	m_WinList.AddHead(&m_LoginWin);
+#if defined(__ANDROID__) || defined(MU_IOS)
+	m_LoginWin.SetPosition(
+		(rInput.GetScreenWidth() - m_LoginWin.GetWidth()) / 2,
+		(rInput.GetScreenHeight() - m_LoginWin.GetHeight()) / 2);
+#else
 	m_LoginWin.SetPosition(
 		(rInput.GetScreenWidth() - m_LoginWin.GetWidth()) / 2,
 		(rInput.GetScreenHeight() - m_LoginWin.GetHeight()) * 2 / 3);
+#endif
 
 	m_CreditWin.Create();
 	m_WinList.AddHead(&m_CreditWin);

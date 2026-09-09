@@ -185,18 +185,27 @@ __forceinline void SendCheck( void)
 	spe.AddNullData( 1);
 	spe << dwTick;
 
-	if(CharacterAttribute->Ability & ABILITY_FAST_ATTACK_SPEED)
+	WORD attackSpeed = 0;
+	WORD magicSpeed = 0;
+	if (CharacterAttribute)
 	{
-		spe << ( WORD)( CharacterAttribute->AttackSpeed-20) << ( WORD)( CharacterAttribute->MagicSpeed-20);
+		if (CharacterAttribute->Ability & ABILITY_FAST_ATTACK_SPEED)
+		{
+			attackSpeed = (WORD)(CharacterAttribute->AttackSpeed - 20);
+			magicSpeed = (WORD)(CharacterAttribute->MagicSpeed - 20);
+		}
+		else if (CharacterAttribute->Ability & ABILITY_FAST_ATTACK_SPEED2)
+		{
+			attackSpeed = (WORD)(CharacterAttribute->AttackSpeed - 20);
+			magicSpeed = (WORD)(CharacterAttribute->MagicSpeed - 20);
+		}
+		else
+		{
+			attackSpeed = (WORD)(CharacterAttribute->AttackSpeed);
+			magicSpeed = (WORD)(CharacterAttribute->MagicSpeed);
+		}
 	}
-	else if(CharacterAttribute->Ability & ABILITY_FAST_ATTACK_SPEED2)
-	{
-		spe << ( WORD)( CharacterAttribute->AttackSpeed-20) << ( WORD)( CharacterAttribute->MagicSpeed-20);
-	}
-	else
-	{
-		spe << ( WORD)( CharacterAttribute->AttackSpeed) << ( WORD)( CharacterAttribute->MagicSpeed);
-	}
+	spe << attackSpeed << magicSpeed;
 	spe.Send( TRUE);
 
 	if(!First)

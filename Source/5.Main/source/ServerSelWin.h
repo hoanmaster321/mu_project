@@ -58,9 +58,9 @@ public:
 	void Show(bool bShow);
 	bool CursorInWin(int nArea);
 	void ResetAutoEnterFirstServer();
+	bool ConnectServerButtonIndex(int iIndex);
 
 protected:
-	bool ConnectServerButtonIndex(int iIndex);
 	void PreRelease();
 	void SetServerBtnPosition();
 	void SetArrowSpritePosition();
@@ -69,5 +69,6 @@ protected:
 	void ShowArrowSprite();
 	void ShowServerBtns();
 	void UpdateWhileActive(double dDeltaTick);
+	void UpdateWhileShow(double dDeltaTick);
 	void RenderControls();
 };

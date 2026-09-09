@@ -23,6 +23,13 @@ endif()
 # ---------------------------------------------------------------------------
 # Preprocessor Definitions and Compiler Options
 # ---------------------------------------------------------------------------
+add_compile_definitions(
+    BOOST_ALL_NO_LIB
+    BOOST_SYSTEM_NO_LIB
+    BOOST_ERROR_CODE_HEADER_ONLY
+    BOOST_ASIO_NO_DEPRECATED
+)
+
 if(ANDROID)
     add_compile_definitions(
         __ANDROID__
@@ -208,7 +215,6 @@ if(ANDROID)
     list(FILTER SOURCEMAIN_SOURCES EXCLUDE REGEX "TrayMode\\.cpp$")
     list(FILTER SOURCEMAIN_SOURCES EXCLUDE REGEX "Utilities/Log/WindowsConsole\\.cpp$")
     list(FILTER SOURCEMAIN_SOURCES EXCLUDE REGEX "ProtectSysKey.*\\.cpp$")
-    list(FILTER SOURCEMAIN_SOURCES EXCLUDE REGEX "WSctlc\\.cpp$")
     list(FILTER SOURCEMAIN_SOURCES EXCLUDE REGEX "Stack\\.cpp$")
 endif()
 

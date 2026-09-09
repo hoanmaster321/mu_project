@@ -109,8 +109,8 @@ typedef struct tagMOUSEHOOKSTRUCTEX { struct { LONG x, y; } pt; HWND hwnd; UINT 
 typedef int             SOCKET;
 typedef struct sockaddr SOCKADDR;
 typedef struct sockaddr_in SOCKADDR_IN;
-inline int AndroidGetPeerNameCompat(SOCKET s, SOCKADDR* addr, int* len) { socklen_t sockLen = len ? (socklen_t)*len : 0; int result = getpeername(s, addr, len ? &sockLen : nullptr); if (len) *len = (int)sockLen; return result; }
-#define getpeername(s,a,l) AndroidGetPeerNameCompat((s),(SOCKADDR*)(a),(int*)(l))
+inline int AndroidGetPeerNameCompat(SOCKET s, SOCKADDR* addr, int* len) { socklen_t sockLen = len ? (socklen_t)*len : 0; int result = ::getpeername(s, (struct sockaddr*)addr, len ? &sockLen : nullptr); if (len) *len = (int)sockLen; return result; }
+inline int getpeername(SOCKET s, SOCKADDR* addr, int* len) { return AndroidGetPeerNameCompat(s, addr, len); }
 typedef void*           HKEY;
 #define HKEY_CLASSES_ROOT      ((HKEY)(uintptr_t)0x80000000)
 #define HKEY_CURRENT_USER      ((HKEY)(uintptr_t)0x80000001)
@@ -437,17 +437,18 @@ inline DWORD    timeGetTime()     { return static_cast<DWORD>(MU_MobileGetTicks(
 inline void     Sleep(DWORD ms)   { MU_MobileSleep(static_cast<uint32_t>(ms)); }
 
 // ── MBCS functions (not available on Android — use stubs) ──────────────────
-// _mbclen: length of multibyte character at ptr (simple UTF-8 heuristic)
+// _mbclen: length of multibyte character at ptr (validates UTF-8, falls back to 1 for ANSI/CP1258)
 inline int _mbclen(const unsigned char* ptr) {
     if (!ptr || *ptr == 0) return 1;
-    // ASCII (single byte)
     if (*ptr < 0x80) return 1;
-    // 2-byte UTF-8 lead (0xC0–0xDF)
-    if (*ptr < 0xE0) return 2;
-    // 3-byte UTF-8 lead (0xE0–0xEF)
-    if (*ptr < 0xF0) return 3;
-    // 4-byte UTF-8 lead
-    return 4;
+    // Valid 2-byte UTF-8 lead (0xC2–0xDF) followed by 1 continuation byte
+    if (*ptr >= 0xC2 && *ptr <= 0xDF && (ptr[1] & 0xC0) == 0x80) return 2;
+    // Valid 3-byte UTF-8 lead (0xE0–0xEF) followed by 2 continuation bytes
+    if (*ptr >= 0xE0 && *ptr <= 0xEF && (ptr[1] & 0xC0) == 0x80 && (ptr[2] & 0xC0) == 0x80) return 3;
+    // Valid 4-byte UTF-8 lead (0xF0–0xF4) followed by 3 continuation bytes
+    if (*ptr >= 0xF0 && *ptr <= 0xF4 && (ptr[1] & 0xC0) == 0x80 && (ptr[2] & 0xC0) == 0x80 && (ptr[3] & 0xC0) == 0x80) return 4;
+    // Single-byte ANSI / CP1258 / CP1252
+    return 1;
 }
 
 // ── Wide string functions (MSVC-specific → POSIX equivalents) ─────────────
@@ -521,16 +522,38 @@ typedef void*    LPOVERLAPPED;  // simplified stub
 #define WC_NO_BEST_FIT_CHARS 0x00000400
 #define MB_PRECOMPOSED       0x00000001
 inline int WideCharToMultiByte(UINT cp, DWORD, LPCWSTR src, int srcLen, LPSTR dst, int dstLen, LPCSTR, LPBOOL) {
-    if (!dst || !dstLen) return (int)(wcslen(src) * 4 + 1);
-    int n = wcstombs(dst, src, dstLen - 1);
-    if (n >= 0) dst[n] = '\0';
-    return n >= 0 ? n : 0;
+    if (!src) return 0;
+    size_t inLen = (srcLen > 0) ? static_cast<size_t>(srcLen) : wcslen(src);
+    if (!dst || !dstLen) return static_cast<int>(inLen * 4 + 1);
+    int n = static_cast<int>(wcstombs(dst, src, dstLen - 1));
+    if (n >= 0) {
+        dst[n] = '\0';
+        return n;
+    }
+    int count = 0;
+    while (count < static_cast<int>(inLen) && count < (dstLen - 1) && src[count] != L'\0') {
+        dst[count] = (src[count] < 256) ? static_cast<char>(src[count]) : '?';
+        count++;
+    }
+    dst[count] = '\0';
+    return count;
 }
-inline int MultiByteToWideChar(UINT, DWORD, LPCSTR src, int, LPWSTR dst, int dstLen) {
-    if (!dst || !dstLen) return (int)(strlen(src) + 1);
-    int n = mbstowcs(dst, src, dstLen - 1);
-    if (n >= 0) dst[n] = L'\0';
-    return n >= 0 ? n : 0;
+inline int MultiByteToWideChar(UINT, DWORD, LPCSTR src, int srcLen, LPWSTR dst, int dstLen) {
+    if (!src) return 0;
+    size_t inLen = (srcLen > 0) ? static_cast<size_t>(srcLen) : strlen(src);
+    if (!dst || !dstLen) return static_cast<int>(inLen + 1);
+    int n = static_cast<int>(mbstowcs(dst, src, dstLen - 1));
+    if (n >= 0) {
+        dst[n] = L'\0';
+        return n;
+    }
+    int count = 0;
+    while (count < static_cast<int>(inLen) && count < (dstLen - 1) && src[count] != '\0') {
+        dst[count] = static_cast<wchar_t>(static_cast<uint8_t>(src[count]));
+        count++;
+    }
+    dst[count] = L'\0';
+    return count;
 }
 
 // ── Windows console color constants (no-op on Android) ────────────────────
@@ -1125,30 +1148,39 @@ inline bool AndroidInjectUtf8ToFocusedTextInput(const char* textUtf8)
     const unsigned char* cursor = reinterpret_cast<const unsigned char*>(textUtf8);
     while (*cursor)
     {
+        wchar_t ch = 0;
         if ((*cursor & 0x80u) == 0)
         {
-            const wchar_t ch = static_cast<wchar_t>(*cursor);
-            if (ch == L'\b' || ch == 0x7Fu)
-            {
-                handled |= AndroidInjectCharToFocusedTextInput(VK_BACK);
-            }
-            else if (ch == L'\r' || ch == L'\n')
-            {
-                handled |= AndroidInjectCharToFocusedTextInput(VK_RETURN);
-            }
-            else if (ch >= 0x20)
-            {
-                handled |= AndroidInjectCharToFocusedTextInput(ch);
-            }
+            ch = static_cast<wchar_t>(*cursor++);
+        }
+        else if ((*cursor & 0xE0u) == 0xC0u && cursor[1])
+        {
+            ch = static_cast<wchar_t>(((*cursor & 0x1Fu) << 6) | (cursor[1] & 0x3Fu));
+            cursor += 2;
+        }
+        else if ((*cursor & 0xF0u) == 0xE0u && cursor[1] && cursor[2])
+        {
+            ch = static_cast<wchar_t>(((*cursor & 0x0Fu) << 12) | ((cursor[1] & 0x3Fu) << 6) | (cursor[2] & 0x3Fu));
+            cursor += 3;
+        }
+        else
+        {
             cursor++;
             continue;
         }
 
-        // Skip multi-byte sequences for now. Login/password are expected ASCII.
-        if ((*cursor & 0xE0u) == 0xC0u) { cursor += 2; }
-        else if ((*cursor & 0xF0u) == 0xE0u) { cursor += 3; }
-        else if ((*cursor & 0xF8u) == 0xF0u) { cursor += 4; }
-        else { cursor++; }
+        if (ch == L'\b' || ch == 0x7Fu)
+        {
+            handled |= AndroidInjectCharToFocusedTextInput(VK_BACK);
+        }
+        else if (ch == L'\r' || ch == L'\n')
+        {
+            handled |= AndroidInjectCharToFocusedTextInput(VK_RETURN);
+        }
+        else if (ch >= 0x20)
+        {
+            handled |= AndroidInjectCharToFocusedTextInput(ch);
+        }
     }
 
     return handled;
@@ -2185,7 +2217,19 @@ inline int  GetWindowTextW(HWND handle, LPWSTR buffer, int bufferLength)
     buffer[copyLength] = 0;
     return copyLength;
 }
-inline int GetWindowTextA(HWND handle, LPSTR buffer, int bufferLength) { if (!buffer || bufferLength <= 0) return 0; wchar_t wide[2048] = {}; int len = GetWindowTextW(handle, wide, (int)(sizeof(wide)/sizeof(wide[0]))); wcstombs(buffer, wide, bufferLength - 1); buffer[bufferLength - 1] = 0; return len; }
+inline int GetWindowTextA(HWND handle, LPSTR buffer, int bufferLength)
+{
+    if (!buffer || bufferLength <= 0) return 0;
+    wchar_t wide[2048] = {};
+    int len = GetWindowTextW(handle, wide, (int)(sizeof(wide) / sizeof(wide[0])));
+    if (len > bufferLength - 1) len = bufferLength - 1;
+    for (int i = 0; i < len; ++i)
+    {
+        buffer[i] = (wide[i] < 256) ? static_cast<char>(wide[i]) : '?';
+    }
+    buffer[len] = 0;
+    return len;
+}
 #define GetWindowText GetWindowTextA
 inline BOOL GetCaretPos(POINT* p) { if(p){p->x=0;p->y=0;} return FALSE; }
 

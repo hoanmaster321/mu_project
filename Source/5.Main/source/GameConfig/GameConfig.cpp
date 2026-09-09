@@ -316,7 +316,11 @@ void GameConfig::EncryptAndSaveCredentials(const wchar_t* user, const wchar_t* p
 }
 
 #else // __ANDROID__
-// Android: GameConfig stubs — config loaded from SDL preferences or hardcoded defaults
+// Android: GameConfig implementation with credentials persistence
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
+#include <cwchar>
 
 GameConfig& GameConfig::GetInstance() {
     static GameConfig instance;
@@ -330,10 +334,61 @@ GameConfig::GameConfig()
       m_languageSelection(L"Eng"), m_serverIP(CfgDefaults::CfgDefaultServerIP),
       m_serverPort(CfgDefaults::CfgDefaultServerPort)
 {
+    Load();
 }
 
-void GameConfig::Load() {}
-void GameConfig::Save() {}
+void GameConfig::Load() {
+    FILE* fp = fopen("credentials.dat", "r");
+    if (fp) {
+        char u[128] = {0};
+        char p[128] = {0};
+        if (fgets(u, sizeof(u), fp)) {
+            u[strcspn(u, "\r\n")] = '\0';
+            if (fgets(p, sizeof(p), fp)) {
+                p[strcspn(p, "\r\n")] = '\0';
+            }
+            if (u[0] != '\0') {
+                wchar_t wUser[128] = {0};
+                wchar_t wPass[128] = {0};
+                std::mbstowcs(wUser, u, 127);
+                std::mbstowcs(wPass, p, 127);
+                m_encryptedUsername = wUser;
+                m_encryptedPassword = wPass;
+                m_rememberMe = true;
+            }
+        }
+        fclose(fp);
+    }
+
+    if (m_encryptedUsername.empty()) {
+        FILE* afp = fopen("autologin.dat", "r");
+        if (afp) {
+            int savePass = 1;
+            fscanf(afp, "%d\n", &savePass);
+            char line[128];
+            if (fgets(line, sizeof(line), afp)) {
+                char id[32] = {0};
+                char pw[32] = {0};
+                if (sscanf(line, "%31s %31s", id, pw) >= 1) {
+                    wchar_t wUser[32] = {0};
+                    wchar_t wPass[32] = {0};
+                    std::mbstowcs(wUser, id, 31);
+                    std::mbstowcs(wPass, pw, 31);
+                    m_encryptedUsername = wUser;
+                    m_encryptedPassword = wPass;
+                    m_rememberMe = true;
+                }
+            }
+            fclose(afp);
+        }
+    }
+}
+
+void GameConfig::Save() {
+    if (!m_encryptedUsername.empty()) {
+        EncryptAndSaveCredentials(m_encryptedUsername.c_str(), m_encryptedPassword.c_str());
+    }
+}
 
 void GameConfig::SetWindowSize(int width, int height) { m_windowWidth = width; m_windowHeight = height; }
 void GameConfig::SetWindowMode(bool windowed)         { m_windowMode = windowed; }
@@ -355,8 +410,60 @@ std::vector<BYTE> GameConfig::HexToBinary(const std::wstring&)   { return {}; }
 void GameConfig::DecryptCredentials(wchar_t* outUser, wchar_t* outPass, size_t userBufSize, size_t passBufSize) {
     if (outUser && userBufSize > 0) outUser[0] = L'\0';
     if (outPass && passBufSize > 0) outPass[0] = L'\0';
+
+    if (!m_encryptedUsername.empty() && outUser && userBufSize > 0) {
+        wcsncpy(outUser, m_encryptedUsername.c_str(), userBufSize - 1);
+        outUser[userBufSize - 1] = L'\0';
+    }
+    if (!m_encryptedPassword.empty() && outPass && passBufSize > 0) {
+        wcsncpy(outPass, m_encryptedPassword.c_str(), passBufSize - 1);
+        outPass[passBufSize - 1] = L'\0';
+    }
+
+    if ((!outUser || outUser[0] == L'\0') && outUser && userBufSize > 0) {
+        FILE* fp = fopen("credentials.dat", "r");
+        if (fp) {
+            char u[128] = {0};
+            char p[128] = {0};
+            if (fgets(u, sizeof(u), fp)) {
+                u[strcspn(u, "\r\n")] = '\0';
+                if (fgets(p, sizeof(p), fp)) {
+                    p[strcspn(p, "\r\n")] = '\0';
+                }
+                std::mbstowcs(outUser, u, userBufSize - 1);
+                outUser[userBufSize - 1] = L'\0';
+                if (outPass && passBufSize > 0) {
+                    std::mbstowcs(outPass, p, passBufSize - 1);
+                    outPass[passBufSize - 1] = L'\0';
+                }
+            }
+            fclose(fp);
+        }
+    }
 }
 
-void GameConfig::EncryptAndSaveCredentials(const wchar_t*, const wchar_t*) {}
+void GameConfig::EncryptAndSaveCredentials(const wchar_t* user, const wchar_t* pass) {
+    if (user) {
+        m_encryptedUsername = user;
+    } else {
+        m_encryptedUsername.clear();
+    }
+    if (pass) {
+        m_encryptedPassword = pass;
+    } else {
+        m_encryptedPassword.clear();
+    }
+    m_rememberMe = !m_encryptedUsername.empty();
+
+    FILE* fp = fopen("credentials.dat", "w");
+    if (fp) {
+        char u[128] = {0};
+        char p[128] = {0};
+        if (user) std::wcstombs(u, user, sizeof(u) - 1);
+        if (pass) std::wcstombs(p, pass, sizeof(p) - 1);
+        fprintf(fp, "%s\n%s\n", u, p);
+        fclose(fp);
+    }
+}
 
 #endif // !__ANDROID__

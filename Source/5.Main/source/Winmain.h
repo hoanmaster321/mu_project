@@ -76,8 +76,8 @@ extern HFONT     g_hFontMini;
 extern bool      Destroy;
 extern int       RandomTable[];
 
-extern char m_ID[];
-extern char m_Pass[];
+extern char m_ID[11];
+extern char m_Pass[21];
 extern char m_Version[];
 extern int  m_SavePassOnOff;
 extern int  m_SoundOnOff;

@@ -2571,6 +2571,8 @@ bool RenderMainScene()
 	phaseStart = MainScenePerfNow();
     RenderBlurs();
 	g_mainScenePerfSnapshot.blursTicks += MainScenePerfElapsed(phaseStart);
+    g_BatchRenderer.FlushMeshBatches();
+    g_BatchRenderer.FlushTerrainBatches();
     CheckSprites();
     BeginSprite();
 
@@ -2614,6 +2616,8 @@ bool RenderMainScene()
 	phaseStart = MainScenePerfNow();
 	RenderAfterEffects();
 	g_mainScenePerfSnapshot.afterEffectsTicks += MainScenePerfElapsed(phaseStart);
+    g_BatchRenderer.FlushMeshBatches();
+    g_BatchRenderer.FlushTerrainBatches();
 
     if(IsWaterTerrain() == true)
     {
@@ -2634,6 +2638,8 @@ bool RenderMainScene()
 		phaseStart = MainScenePerfNow();
         RenderBlurs();
 		g_mainScenePerfSnapshot.blursTicks += MainScenePerfElapsed(phaseStart);
+        g_BatchRenderer.FlushMeshBatches();
+        g_BatchRenderer.FlushTerrainBatches();
         CheckSprites();
         BeginSprite();
 
@@ -2657,6 +2663,8 @@ bool RenderMainScene()
 		g_mainScenePerfSnapshot.pointsTicks += MainScenePerfElapsed(phaseStart);
 
         EndSprite();
+        g_BatchRenderer.FlushMeshBatches();
+        g_BatchRenderer.FlushTerrainBatches();
 		EndOpengl();
 
 		BeginOpengl( 0, 0, Width, Height );
@@ -2673,6 +2681,8 @@ bool RenderMainScene()
 	const unsigned long long uiStart = MainScenePerfNow();
 
     SelectObjects();
+    g_BatchRenderer.FlushMeshBatches();
+    g_BatchRenderer.FlushTerrainBatches();
 	BeginBitmap();	
     RenderObjectDescription();
 	
@@ -2722,13 +2732,22 @@ void MoveCharacter(CHARACTER *c,OBJECT *o);
 
 int TimePrior = GetTickCount();
 
-float target_fps = 60;
+#if defined(__ANDROID__) || defined(MU_IOS)
+float target_fps = 120.0f;
+#else
+float target_fps = 60.0f;
+#endif
 float ms_per_frame = 1000.f / target_fps;
 
 void SetTargetFps(float targetFps)
 {
+#if defined(__ANDROID__) || defined(MU_IOS)
+	target_fps = (targetFps >= 120.0f) ? targetFps : 120.0f;
+	ms_per_frame = 1000.0f / target_fps;
+#else
 	target_fps = targetFps;
 	ms_per_frame = (target_fps > 0.0f) ? (1000.0f / target_fps) : -1.0f;
+#endif
 }
 
 auto current_tick_count = 0;
@@ -2978,6 +2997,24 @@ void MainScene(HDC hDC)
 			}
 		}
 
+#if defined(__ANDROID__) || defined(MU_IOS)
+		const float current_frame_time_ms = current_tick_count - last_render_tick_count;
+		if (ms_per_frame > 0 && current_frame_time_ms > 0 && current_frame_time_ms < ms_per_frame)
+		{
+			const auto rest_ms = ms_per_frame - current_frame_time_ms;
+			const auto start_spin = g_pTimer->GetTimeElapsed();
+			while (true)
+			{
+				const auto current = g_pTimer->GetTimeElapsed();
+				if ((current - start_spin) >= rest_ms)
+				{
+					break;
+				}
+				std::this_thread::yield();
+			}
+			current_tick_count += static_cast<int>(rest_ms);
+		}
+#else
 		const float current_frame_time_ms = current_tick_count - last_render_tick_count;
 		if (ms_per_frame > 0 && current_frame_time_ms > 0 && current_frame_time_ms < ms_per_frame)
 		{
@@ -2991,7 +3028,7 @@ void MainScene(HDC hDC)
 			{
 				// In my tests, it sleeps either for nearly 0 ms, or for about 10 ms ...
 				std::this_thread::sleep_for(std::chrono::milliseconds(static_cast<long>(sleep_ms)));
-		}
+			}
 
 			const auto actual_sleep_ms = g_pTimer->GetTimeElapsed() - start_sleep;
 			const auto start_spin = g_pTimer->GetTimeElapsed();
@@ -3008,7 +3045,8 @@ void MainScene(HDC hDC)
 			}
 
 			current_tick_count += static_cast<int>(rest_ms);
-	}
+		}
+#endif
 
 		if (EnableSocket && SceneFlag == MAIN_SCENE)
 		{

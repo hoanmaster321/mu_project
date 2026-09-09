@@ -513,13 +513,29 @@ bool CServerSelWin::CursorInWin(int nArea)
 	return CWin::CursorInWin(nArea);
 }
 
+void CServerSelWin::UpdateWhileShow(double dDeltaTick)
+{
+	UpdateWhileActive(dDeltaTick);
+}
+
 void CServerSelWin::UpdateWhileActive(double dDeltaTick)
 {
 	int i;
+	CInput& rInput = CInput::Instance();
 
 	for( i=0 ; i<SSW_SERVER_G_MAX ; i++ )
 	{
-		if (m_aServerGroupBtn[i].IsClick())
+		bool clicked = m_aServerGroupBtn[i].IsClick();
+#if defined(__ANDROID__) || defined(MU_IOS)
+		if (!clicked && (rInput.IsLBtnUp() || rInput.IsLBtnDn()))
+		{
+			if (m_aServerGroupBtn[i].PtInSprite(rInput.GetCursorX(), rInput.GetCursorY()))
+			{
+				clicked = true;
+			}
+		}
+#endif
+		if (clicked)
 		{
 			if(m_iSelectServerBtnIndex != -1 )
 			{
@@ -529,6 +545,7 @@ void CServerSelWin::UpdateWhileActive(double dDeltaTick)
 			m_aServerGroupBtn[i].SetCheck(true);
 			m_iSelectServerBtnIndex = i;
 			
+			g_ErrorReport.Write("[ServerSelWin] Clicked server group %d!\r\n", i);
 			SendRequestServerList();
 		}
 	}
@@ -538,8 +555,19 @@ void CServerSelWin::UpdateWhileActive(double dDeltaTick)
 
 	for( i=0 ; i<m_icntServer ; i++ )
 	{
-		if (m_aServerBtn[i].IsClick())
+		bool clicked = m_aServerBtn[i].IsClick();
+#if defined(__ANDROID__) || defined(MU_IOS)
+		if (!clicked && (rInput.IsLBtnUp() || rInput.IsLBtnDn()))
 		{
+			if (m_aServerBtn[i].PtInSprite(rInput.GetCursorX(), rInput.GetCursorY()))
+			{
+				clicked = true;
+			}
+		}
+#endif
+		if (clicked)
+		{
+			g_ErrorReport.Write("[ServerSelWin] Clicked server sub %d -> connecting!\r\n", i);
 			ConnectServerButtonIndex(i);
 			break;
 		}

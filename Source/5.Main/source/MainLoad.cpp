@@ -141,7 +141,11 @@ bool MainLoad::Load()
 #if (CB_ANTIHACKGGNEW)
 	gAPICB.Init();
 #endif
+#if defined(__ANDROID__) || defined(MU_IOS)
+	SetTargetFps((gProtect.m_MainInfo.FpsLimit >= 120) ? (float)gProtect.m_MainInfo.FpsLimit : 120.0f);
+#else
 	SetTargetFps(gProtect.m_MainInfo.FpsLimit);
+#endif
 
 	gCustomCommandInfo.Load(gProtect.m_MainInfo.CustomCommandInfo);
 	gCustomDmgColor.Load(gProtect.m_MainInfo.CustomDmgColor); //Dmg Color

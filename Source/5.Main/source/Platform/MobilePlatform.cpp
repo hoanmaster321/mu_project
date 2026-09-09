@@ -161,6 +161,7 @@ Java_com_muonline_client_MuMainNativeActivity_nativeClearKeyboardBridge(
 }
 #endif
 
+#if 0
 void MU_MobilePlatformInit()
 {
     MU_MobileClearKeyboardState();
@@ -227,6 +228,7 @@ void MU_MobileSetTextInputRect(const SDL_Rect* rect)
         g_textInputRect = {};
     }
 }
+#endif
 
 std::string MU_MobileGetExternalDataPath()
 {

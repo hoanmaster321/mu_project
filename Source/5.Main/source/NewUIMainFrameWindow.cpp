@@ -827,18 +827,7 @@ void SEASON3B::CNewUIMainFrameWindow::RenderFrame()
 		x = 256.f + 128.f + DisplayWinExt;
 
 		float renderWidth = width;
-#if defined(__ANDROID__) || defined(MU_IOS)
-		const float cutX = kAndroidLegacyMainFrameButtonCutX + DisplayWinExt;
-		renderWidth = (cutX > x) ? (cutX - x) : 0.0f;
-		if (renderWidth > width)
-		{
-			renderWidth = width;
-		}
-#endif
-		if (renderWidth > 0.0f)
-		{
-			SEASON3B::RenderImage(IMAGE_MENU_3, x, y, renderWidth, height);
-		}
+		SEASON3B::RenderImage(IMAGE_MENU_3, x, y, renderWidth, height);
 #if(WIDE_SCREEN)
 		RenderBitmap(IMAGE_DECOR_WIDE, x + width, y, 70.28048780487805, height, 0.8785000443, 0.0, -0.8785000443, 0.6409999728, 1, 1, 0.0);
 #endif

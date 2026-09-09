@@ -42,6 +42,8 @@ extern double WorldTime;
 extern HFONT g_hFont;
 extern wchar_t m_ExeVersion[11];
 extern HWND g_hWnd;
+extern int DisplayWinMid;
+extern int DisplayHeight;
 
 //=============================================================================
 // LoginScene Camera State (local to this file)
@@ -417,20 +419,23 @@ bool NewRenderLogInScene(HDC hDC)
 #if defined(__ANDROID__) || defined(MU_IOS)
         const float fLogoAlpha = (g_fMULogoAlpha > 1.0f) ? 1.0f : g_fMULogoAlpha;
         const float fLogoGlowAlpha = (fLogoAlpha > 0.3f) ? (fLogoAlpha - 0.3f) : 0.0f;
+        const float fLogoX = static_cast<float>(DisplayWinMid) - 128.0f * 0.8f;
 
         EnableAlphaBlend();
         glColor4f(fLogoGlowAlpha, fLogoGlowAlpha, fLogoGlowAlpha, fLogoGlowAlpha);
-        RenderBitmap(BITMAP_LOG_IN + 17, 320.0f - 128.0f * 0.8f, 25.0f, 256.0f * 0.8f, 128.0f * 0.8f);
+        RenderBitmap(BITMAP_LOG_IN + 17, fLogoX, 25.0f, 256.0f * 0.8f, 128.0f * 0.8f);
         EnableAlphaTest();
         glColor4f(fLogoAlpha, fLogoAlpha, fLogoAlpha, fLogoAlpha);
-        RenderBitmap(BITMAP_LOG_IN + 16, 320.0f - 128.0f * 0.8f, 25.0f, 256.0f * 0.8f, 128.0f * 0.8f);
+        RenderBitmap(BITMAP_LOG_IN + 16, fLogoX, 25.0f, 256.0f * 0.8f, 128.0f * 0.8f);
 #else
+        const float fLogoX = static_cast<float>(DisplayWinMid) - 128.0f * 0.8f;
+
         EnableAlphaBlend();
         glColor4f(g_fMULogoAlpha - 0.3f, g_fMULogoAlpha - 0.3f, g_fMULogoAlpha - 0.3f, g_fMULogoAlpha - 0.3f);
-        RenderBitmap(BITMAP_LOG_IN + 17, 320.0f - 128.0f * 0.8f, 25.0f, 256.0f * 0.8f, 128.0f * 0.8f);
+        RenderBitmap(BITMAP_LOG_IN + 17, fLogoX, 25.0f, 256.0f * 0.8f, 128.0f * 0.8f);
         EnableAlphaTest();
         glColor4f(g_fMULogoAlpha, g_fMULogoAlpha, g_fMULogoAlpha, g_fMULogoAlpha);
-        RenderBitmap(BITMAP_LOG_IN + 16, 320.0f - 128.0f * 0.8f, 25.0f, 256.0f * 0.8f, 128.0f * 0.8f);
+        RenderBitmap(BITMAP_LOG_IN + 16, fLogoX, 25.0f, 256.0f * 0.8f, 128.0f * 0.8f);
 #endif
     }
 
@@ -444,19 +449,22 @@ bool NewRenderLogInScene(HDC hDC)
     g_pRenderText->SetTextColor(255, 255, 255, 255);
     g_pRenderText->SetBgColor(0, 0, 0, 128);
 
+    const int footerCenterX = DisplayWinMid + 15;
+    const int footerY = DisplayHeight - 15;
+
     wcscpy_s(Text, 100, GlobalText[454]);
     GetTextExtentPoint32(g_pRenderText->GetFontDC(), Text, lstrlen(Text), &Size);
-    g_pRenderText->RenderText(335 - Size.cx * 640 / WindowWidth, 480 - Size.cy * 640 / WindowWidth - 1, Text);
+    g_pRenderText->RenderText(footerCenterX - Size.cx * 640 / WindowWidth, footerY, Text);
 
     wcscpy_s(Text, 100, GlobalText[455]);
 
     GetTextExtentPoint32(g_pRenderText->GetFontDC(), Text, lstrlen(Text), &Size);
-    g_pRenderText->RenderText(335, 480 - Size.cy * 640 / WindowWidth - 1, Text);
+    g_pRenderText->RenderText(footerCenterX, footerY, Text);
 
     swprintf_s(Text, 100, GlobalText[456], m_ExeVersion);
 
     GetTextExtentPoint32(g_pRenderText->GetFontDC(), Text, lstrlen(Text), &Size);
-    g_pRenderText->RenderText(0, 480 - Size.cy * 640 / WindowWidth - 1, Text);
+    g_pRenderText->RenderText(0, footerY, Text);
 
     RenderInfomation();
 

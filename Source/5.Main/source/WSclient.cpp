@@ -373,6 +373,22 @@ void InitGuildWar()
 
 BOOL Util_CheckOption( char *lpszCommandLine, unsigned char cOption, char *lpszString);
 
+#if defined(__ANDROID__) && defined(ENABLE_AUTO_LOGIN_TEST) && ENABLE_AUTO_LOGIN_TEST
+static bool IsAutoLoginTestActive()
+{
+	static int s_state = -1;
+	if (s_state != -1) return (s_state == 1);
+	FILE* fp = fopen("/data/data/com.muonline.client/files/disable_autologin", "r");
+	if (fp) {
+		fclose(fp);
+		s_state = 0;
+		return false;
+	}
+	s_state = 1;
+	return true;
+}
+#endif
+
 void ReceiveServerList( BYTE *ReceiveBuffer )
 {
 	LPPHEADER_DEFAULT_SUBCODE_WORD Data = (LPPHEADER_DEFAULT_SUBCODE_WORD)ReceiveBuffer;
@@ -398,10 +414,25 @@ void ReceiveServerList( BYTE *ReceiveBuffer )
 	CUIMng& rUIMng = CUIMng::Instance();
 	if (!rUIMng.m_CreditWin.IsShow())
 	{
+		rUIMng.ShowWin(&rUIMng.m_LoginMainWin);
 		rUIMng.ShowWin(&rUIMng.m_ServerSelWin);
 		rUIMng.m_ServerSelWin.UpdateDisplay();
-		rUIMng.ShowWin(&rUIMng.m_LoginMainWin);
+		rUIMng.m_ServerSelWin.Active(true);
+		rUIMng.m_ServerSelWin.ActiveBtns(true);
 	}
+
+#if defined(__ANDROID__) && defined(ENABLE_AUTO_LOGIN_TEST) && ENABLE_AUTO_LOGIN_TEST
+	if (IsAutoLoginTestActive())
+	{
+		static bool s_autoConnectServer = false;
+		if (!s_autoConnectServer)
+		{
+			s_autoConnectServer = true;
+			g_ErrorReport.Write("[AutoLogin] Automatically connecting to Server index 0...\r\n");
+			rUIMng.m_ServerSelWin.ConnectServerButtonIndex(0);
+		}
+	}
+#endif
 	
 	g_ErrorReport.Write ( "Success Receive Server List.\r\n");
 		
@@ -464,6 +495,43 @@ void ReceiveJoinServer( BYTE *ReceiveBuffer )
 			rUIMng.ShowWin(&rUIMng.m_LoginWin);
             HeroKey = ((int)(Data2->NumberH)<<8) + Data2->NumberL;
             CurrentProtocolState = RECEIVE_JOIN_SERVER_SUCCESS;
+#if defined(__ANDROID__) && defined(ENABLE_AUTO_LOGIN_TEST) && ENABLE_AUTO_LOGIN_TEST
+			if (IsAutoLoginTestActive())
+			{
+				static bool s_autoLoginSent = false;
+				if (!s_autoLoginSent)
+				{
+					s_autoLoginSent = true;
+					char u[64] = "admin";
+					char p[64] = "1";
+					FILE* cfp = fopen("credentials.dat", "r");
+					if (cfp)
+					{
+						char bu[64] = {0}, bp[64] = {0};
+						if (fgets(bu, sizeof(bu), cfp))
+						{
+							bu[strcspn(bu, "\r\n")] = '\0';
+							if (fgets(bp, sizeof(bp), cfp))
+							{
+								bp[strcspn(bp, "\r\n")] = '\0';
+							}
+							if (bu[0] != '\0')
+							{
+								strncpy(u, bu, sizeof(u) - 1);
+								strncpy(p, bp, sizeof(p) - 1);
+							}
+						}
+						fclose(cfp);
+					}
+					g_ErrorReport.Write("[AutoLogin] Sending login credentials %s...\r\n", u);
+#ifdef NEW_PROTOCOL_SYSTEM
+					gProtocolSend.SendRequestLogInNew(u, p);
+#else
+					SendRequestLogIn(u, p);
+#endif
+				}
+			}
+#endif
             break;
 			
         default:
@@ -560,6 +628,9 @@ void ReceiveChangePassword( BYTE *ReceiveBuffer )
 	}
 }
 
+extern void StartGame();
+extern int SelectedHero;
+
 void ReceiveCharacterList( BYTE *ReceiveBuffer )
 {
 	InitGuildWar();
@@ -616,6 +687,33 @@ void ReceiveCharacterList( BYTE *ReceiveBuffer )
 		Offset += sizeof(PRECEIVE_CHARACTER_LIST);
 	}
 	CurrentProtocolState = RECEIVE_CHARACTERS_LIST;
+
+#if defined(__ANDROID__) && defined(ENABLE_AUTO_LOGIN_TEST) && ENABLE_AUTO_LOGIN_TEST
+	if (IsAutoLoginTestActive())
+	{
+		if (Data->Value > 0)
+		{
+			static bool s_autoCharacterSelected = false;
+			if (!s_autoCharacterSelected)
+			{
+				s_autoCharacterSelected = true;
+				SelectedHero = 0;
+				g_ErrorReport.Write("[AutoLogin] Auto-starting game with character index 0...\r\n");
+				StartGame();
+			}
+		}
+		else
+		{
+			static bool s_autoCharacterCreated = false;
+			if (!s_autoCharacterCreated)
+			{
+				s_autoCharacterCreated = true;
+				g_ErrorReport.Write("[AutoLogin] No characters found, auto-creating character 'admin'...\r\n");
+				SendRequestCreateCharacter((char*)"admin", 0, 0);
+			}
+		}
+	}
+#endif
 }
 CHARACTER_ENABLE g_CharCardEnable;
 

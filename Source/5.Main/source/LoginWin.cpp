@@ -16,6 +16,7 @@
 #include "wsclientinline.h"
 #include "DSPlaySound.h"
 #include "./Utilities/Log/muConsoleDebug.h"
+
 #include "ProtocolSend.h"
 #include "ServerListManager.h"
 #include "Reconnect.h"
@@ -25,6 +26,8 @@
 #if(CB_AUTOLOGINWIN)
 #include "CB_AutoLogin.h"
 #endif
+#include "GameConfig/GameConfig.h"
+#include "Platform/MobilePlatform.h"
 #define	LIW_ACCOUNT		0
 #define	LIW_PASSWORD	1
 
@@ -34,24 +37,22 @@
 extern float g_fScreenRate_x;
 extern float g_fScreenRate_y;
 extern int g_iChatInputType;
+extern char m_Username[11];
+extern char m_Password[11];
+extern bool IsEnterPressed();
+extern void SetEnterPressed(bool enterpressed);
 
 namespace
 {
 #if defined(__ANDROID__) || defined(MU_IOS)
 float GetLoginUiScale()
 {
-	float scale = 1.0f;
 	if (g_fScreenRate_y > 1.0f)
 	{
-		scale += ((g_fScreenRate_y - 1.0f) * 0.55f);
+		return g_fScreenRate_y;
 	}
 
-	if (scale > 1.65f)
-	{
-		scale = 1.65f;
-	}
-
-	return scale;
+	return 1.0f;
 }
 #else
 float GetLoginUiScale()
@@ -111,23 +112,31 @@ void CLoginWin::Create()
 	SAFE_DELETE(m_pIDInputBox);
 
 	m_pIDInputBox = new CUITextInputBox;
-	m_pIDInputBox->Init(g_hWnd, ScaleLoginMetric(140), ScaleLoginMetric(14), MAX_ID_SIZE);
+	m_pIDInputBox->Init(g_hWnd, 140, 14, MAX_ID_SIZE);
 	m_pIDInputBox->SetBackColor(0, 0, 0, 255);
 	m_pIDInputBox->SetTextColor(255, 255, 230, 210);
 	m_pIDInputBox->SetFont(g_hFixFont);
 	m_pIDInputBox->SetState(UISTATE_NORMAL);
-	 m_pIDInputBox->SetOption(UIOPTION_NOLOCALIZEDCHARACTERS | UIOPTION_ENTERASTAB);
-	m_pIDInputBox->SetText(m_ID);
+	if (m_ID[0] == '\0' && m_Username[0] != '\0')
+	{
+		strncpy(m_ID, m_Username, sizeof(m_ID) - 1);
+		m_ID[sizeof(m_ID) - 1] = '\0';
+	}
+	m_pIDInputBox->SetText(m_ID[0] ? m_ID : m_Username);
 
 	SAFE_DELETE(m_pPassInputBox);
 
 	m_pPassInputBox = new CUITextInputBox;
-	m_pPassInputBox->Init(g_hWnd, ScaleLoginMetric(140), ScaleLoginMetric(14), MAX_PASSWORD_SIZE, TRUE);
+	m_pPassInputBox->Init(g_hWnd, 140, 14, MAX_PASSWORD_SIZE, TRUE);
 	m_pPassInputBox->SetBackColor(0, 0, 0, 25);
 	m_pPassInputBox->SetTextColor(255, 255, 230, 210);
 	m_pPassInputBox->SetFont(g_hFixFont);
 	m_pPassInputBox->SetState(UISTATE_NORMAL);
-	 m_pPassInputBox->SetOption(UIOPTION_NOLOCALIZEDCHARACTERS);
+	m_pPassInputBox->SetOption(UIOPTION_NOLOCALIZEDCHARACTERS);
+	if (m_Password[0] != '\0')
+	{
+		m_pPassInputBox->SetText(m_Password);
+	}
 	m_pIDInputBox->SetTabTarget(m_pPassInputBox);
 #if defined(__ANDROID__) || defined(MU_IOS)
 	m_pPassInputBox->SetTabTarget(NULL);
@@ -142,7 +151,10 @@ void CLoginWin::Create()
 	{
 		gCB_AutoLogin->ReadConfigs();
 		gCB_AutoLogin->SetShowListAccount(false);
-		gCB_AutoLogin->SetSelectedAccount(0);
+		if (gCB_AutoLogin->totalSavedAcc > 0)
+		{
+			gCB_AutoLogin->SetSelectedAccount(0);
+		}
 	}
 #endif
 }
@@ -185,12 +197,55 @@ void CLoginWin::Show(bool bShow)
 	{
 		m_asprInputBox[i].Show(bShow);
 		m_aBtn[i].Show(bShow);
-
-
 	}
-	//===
 #if(CB_DANGKYINGAME)
 	m_DangKy.Show(bShow);
+#endif
+
+#if defined(__ANDROID__) || defined(MU_IOS)
+	if (bShow)
+	{
+#if(CB_AUTOLOGINWIN)
+		if (gCB_AutoLogin && gCB_AutoLogin->totalSavedAcc > 0)
+		{
+			gCB_AutoLogin->SetSelectedAccount(0);
+		}
+#endif
+		if (m_ID[0] == '\0' && m_Username[0] != '\0')
+		{
+			strncpy(m_ID, m_Username, sizeof(m_ID) - 1);
+			m_ID[sizeof(m_ID) - 1] = '\0';
+		}
+		if (m_pIDInputBox != nullptr)
+		{
+			char curId[MAX_ID_SIZE + 1] = {0};
+			m_pIDInputBox->GetText(curId, MAX_ID_SIZE);
+			if (curId[0] == '\0' && m_ID[0] != '\0')
+			{
+				m_pIDInputBox->SetText(m_ID);
+			}
+		}
+		if (m_pPassInputBox != nullptr)
+		{
+			char curPass[MAX_PASSWORD_SIZE + 1] = {0};
+			m_pPassInputBox->GetText(curPass, MAX_PASSWORD_SIZE);
+			if (curPass[0] == '\0' && m_Password[0] != '\0')
+			{
+				m_pPassInputBox->SetText(m_Password);
+			}
+		}
+
+		if (strlen(m_ID) > 0 && m_pPassInputBox != nullptr)
+		{
+			m_pPassInputBox->GiveFocus(TRUE);
+			MU_MobileStartTextInput();
+		}
+		else if (m_pIDInputBox != nullptr)
+		{
+			m_pIDInputBox->GiveFocus(TRUE);
+			MU_MobileStartTextInput();
+		}
+	}
 #endif
 }
 
@@ -201,13 +256,15 @@ bool CLoginWin::FocusInputAt(float uiX, float uiY)
 		return false;
 	}
 
-	auto hitSprite = [uiX, uiY](CSprite& sprite)
+	const float paddingX = 12.0f;
+	const float paddingY = 8.0f;
+
+	auto hitSprite = [uiX, uiY, paddingX, paddingY](CSprite& sprite)
 	{
 		float spriteX = static_cast<float>(sprite.GetXPos());
 		float spriteY = static_cast<float>(sprite.GetYPos());
 		float spriteW = static_cast<float>(sprite.GetWidth());
 		float spriteH = static_cast<float>(sprite.GetHeight());
-#if defined(__ANDROID__) || defined(MU_IOS)
 		if (g_fScreenRate_x > 0.0f)
 		{
 			spriteX /= g_fScreenRate_x;
@@ -218,33 +275,38 @@ bool CLoginWin::FocusInputAt(float uiX, float uiY)
 			spriteY /= g_fScreenRate_y;
 			spriteH /= g_fScreenRate_y;
 		}
-#endif
 		return sprite.IsShow()
-			&& uiX >= spriteX
-			&& uiX <= (spriteX + spriteW)
-			&& uiY >= spriteY
-			&& uiY <= (spriteY + spriteH);
+			&& uiX >= (spriteX - paddingX)
+			&& uiX <= (spriteX + spriteW + paddingX)
+			&& uiY >= (spriteY - paddingY)
+			&& uiY <= (spriteY + spriteH + paddingY);
 	};
 
-	auto hitInput = [uiX, uiY](CUITextInputBox* input)
+	auto hitInput = [uiX, uiY, paddingX, paddingY](CUITextInputBox* input)
 	{
 		return input != NULL
 			&& input->GetState() == UISTATE_NORMAL
-			&& uiX >= input->GetPosition_x()
-			&& uiX <= (input->GetPosition_x() + input->GetWidth())
-			&& uiY >= input->GetPosition_y()
-			&& uiY <= (input->GetPosition_y() + input->GetHeight());
+			&& uiX >= (input->GetPosition_x() - paddingX)
+			&& uiX <= (input->GetPosition_x() + input->GetWidth() + paddingX)
+			&& uiY >= (input->GetPosition_y() - paddingY)
+			&& uiY <= (input->GetPosition_y() + input->GetHeight() + paddingY);
 	};
 
 	if (hitInput(m_pIDInputBox) || hitSprite(m_asprInputBox[LIW_ACCOUNT]))
 	{
 		m_pIDInputBox->GiveFocus(TRUE);
+#if defined(__ANDROID__) || defined(MU_IOS)
+		MU_MobileStartTextInput();
+#endif
 		return true;
 	}
 
 	if (hitInput(m_pPassInputBox) || hitSprite(m_asprInputBox[LIW_PASSWORD]))
 	{
 		m_pPassInputBox->GiveFocus(TRUE);
+#if defined(__ANDROID__) || defined(MU_IOS)
+		MU_MobileStartTextInput();
+#endif
 		return true;
 	}
 
@@ -289,8 +351,9 @@ void CLoginWin::UpdateWhileActive(double dDeltaTick)
 		if (gCB_DangKyInGame) gCB_DangKyInGame->OpenOnOff();
 	}
 #endif
-	else if (CInput::Instance().IsKeyDown(VK_RETURN))
+	else if (CInput::Instance().IsKeyDown(VK_RETURN) || IsEnterPressed())
 	{
+		SetEnterPressed(false);
 		::PlayBuffer(SOUND_CLICK01);
 		RequestLogin();
 	}
@@ -333,12 +396,10 @@ void CLoginWin::RenderControls()
 
 	if (this->FirstLoad == 1)
 	{
-#if !defined(__ANDROID__) && !defined(MU_IOS)
 		if (strlen(m_ID) > 0)
 			CUIMng::Instance().m_LoginWin.GetPassInputBox()->GiveFocus();
 		else
 			CUIMng::Instance().m_LoginWin.GetIDInputBox()->GiveFocus();
-#endif
 		this->FirstLoad = 0;
 	}
 
@@ -409,6 +470,20 @@ void CLoginWin::RequestLogin()
 	else
 	{
 		CUIMng::Instance().HideWin(this);
+#if defined(__ANDROID__) || defined(MU_IOS)
+		strncpy(m_ID, szID, sizeof(m_ID) - 1);
+		m_ID[sizeof(m_ID) - 1] = '\0';
+		strncpy(m_Username, szID, sizeof(m_Username) - 1);
+		m_Username[sizeof(m_Username) - 1] = '\0';
+		strncpy(m_Password, szPass, sizeof(m_Password) - 1);
+		m_Password[sizeof(m_Password) - 1] = '\0';
+
+		wchar_t wUser[MAX_ID_SIZE + 1] = {0};
+		wchar_t wPass[MAX_PASSWORD_SIZE + 1] = {0};
+		mbstowcs(wUser, szID, MAX_ID_SIZE);
+		mbstowcs(wPass, szPass, MAX_PASSWORD_SIZE);
+		GameConfig::GetInstance().EncryptAndSaveCredentials(wUser, wPass);
+#endif
 #if(UseReconnect)
 		memcpy(g_pReconnect->s_Data.ReconnectAccount, szID, 11);  //Add
 		memcpy(g_pReconnect->s_Data.ReconnectPassword, szPass, 11);  //Add

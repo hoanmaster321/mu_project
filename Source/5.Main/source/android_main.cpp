@@ -189,16 +189,19 @@ static void UpdateAndroidScreenMetrics(int screenW, int screenH)
 {
     WindowWidth = static_cast<unsigned int>(screenW);
     WindowHeight = static_cast<unsigned int>(screenH);
-    g_fScreenRate_x = static_cast<float>(WindowWidth) / 640.0f;
-    g_fScreenRate_y = static_cast<float>(WindowHeight) / 480.0f;
 
-    DisplayWin = 640;
+    // Uniform aspect scaling based on standard 480p height (matches PC WIDE_SCREEN mode)
+    const float scale = (screenH > 0) ? (static_cast<float>(screenH) / 480.0f) : 1.0f;
+    g_fScreenRate_x = scale;
+    g_fScreenRate_y = scale;
+
     DisplayHeight = 480;
-    DisplayWinMid = 320;
-    DisplayWinExt = 0;
-    DisplayWinReal = 640;
-    DisplayWinCDepthBox = 0;
     DisplayHeightExt = 0;
+    DisplayWin = (scale > 0.0f) ? static_cast<int>(static_cast<float>(WindowWidth) / scale) : 640;
+    DisplayWinMid = DisplayWin / 2;
+    DisplayWinExt = static_cast<int>((DisplayWin * 0.5f) - 320.0f);
+    DisplayWinReal = static_cast<int>(DisplayWin / 640.0f);
+    DisplayWinCDepthBox = DisplayWin - 640;
 }
 
 static std::string ReadAndroidSystemProperty(const char* key)
@@ -1231,7 +1234,7 @@ bool FocusVirtualLoginInputAt(float uiX, float uiY)
     return uiMng.m_LoginWin.FocusInputAt(uiX, uiY);
 }
 
-bool AndroidPointInTextInputBox(CUITextInputBox* input, float uiX, float uiY, float padding = 6.0f)
+bool AndroidPointInTextInputBox(CUITextInputBox* input, float uiX, float uiY, float padding = 12.0f)
 {
     if (input == nullptr || input->GetState() == UISTATE_HIDE)
     {
@@ -1283,6 +1286,21 @@ void AndroidHideKeyboardForOutsideTap(float uiX, float uiY)
     if (AndroidFocusedTextInputContainsPoint(uiX, uiY))
     {
         return;
+    }
+
+    CUIMng& uiMng = CUIMng::Instance();
+    if (uiMng.m_LoginWin.IsShow())
+    {
+        float loginX = static_cast<float>(uiMng.m_LoginWin.GetXPos());
+        float loginY = static_cast<float>(uiMng.m_LoginWin.GetYPos());
+        float loginW = static_cast<float>(uiMng.m_LoginWin.GetWidth());
+        float loginH = static_cast<float>(uiMng.m_LoginWin.GetHeight());
+        if (g_fScreenRate_x > 0.0f) { loginX /= g_fScreenRate_x; loginW /= g_fScreenRate_x; }
+        if (g_fScreenRate_y > 0.0f) { loginY /= g_fScreenRate_y; loginH /= g_fScreenRate_y; }
+        if (uiX >= loginX && uiX <= (loginX + loginW) && uiY >= loginY && uiY <= (loginY + loginH))
+        {
+            return;
+        }
     }
 
     AndroidClearFocusedTextInput();
@@ -1981,8 +1999,10 @@ void TouchToVirtualUi(const SDL_TouchFingerEvent& touch, float& outX, float& out
 {
     const float nx = std::clamp(touch.x, 0.0f, 1.0f);
     const float ny = std::clamp(touch.y, 0.0f, 1.0f);
-    outX = nx * 640.0f;
-    outY = ny * 480.0f;
+    const float virtualWidth = (DisplayWin > 0) ? static_cast<float>(DisplayWin) : 640.0f;
+    const float virtualHeight = (DisplayHeight > 0) ? static_cast<float>(DisplayHeight) : 480.0f;
+    outX = nx * virtualWidth;
+    outY = ny * virtualHeight;
 }
 
 bool IsTouchOverInventoryWindow(float uiX, float uiY)
@@ -2011,8 +2031,10 @@ ITEM* FindAndroidInventoryHotKeyItemAt(float uiX, float uiY)
         return nullptr;
     }
 
-    const int mouseX = std::clamp(static_cast<int>(uiX), 0, 640);
-    const int mouseY = std::clamp(static_cast<int>(uiY), 0, 480);
+    const int maxMouseX = (DisplayWin > 0) ? DisplayWin : 640;
+    const int maxMouseY = (DisplayHeight > 0) ? DisplayHeight : 480;
+    const int mouseX = std::clamp(static_cast<int>(uiX), 0, maxMouseX);
+    const int mouseY = std::clamp(static_cast<int>(uiY), 0, maxMouseY);
 
     if (SEASON3B::CNewUIInventoryCtrl::GetPickedItem() != nullptr)
     {
@@ -6762,10 +6784,10 @@ static void UpdateMouseFromPixel(int pixelX, int pixelY, int screenW, int screen
     const int clampedX = std::clamp(pixelX, 0, safeW - 1);
     const int clampedY = std::clamp(pixelY, 0, safeH - 1);
 
-    MouseX = (int)((float)clampedX * 640.0f / (float)safeW);
-    MouseY = (int)((float)clampedY * 480.0f / (float)safeH);
-    MouseX = std::clamp(MouseX, 0, 640);
-    MouseY = std::clamp(MouseY, 0, 480);
+    MouseX = (g_fScreenRate_x > 0.0f) ? static_cast<int>(static_cast<float>(clampedX) / g_fScreenRate_x) : clampedX;
+    MouseY = (g_fScreenRate_y > 0.0f) ? static_cast<int>(static_cast<float>(clampedY) / g_fScreenRate_y) : clampedY;
+    MouseX = std::clamp(MouseX, 0, DisplayWin);
+    MouseY = std::clamp(MouseY, 0, DisplayHeight);
 }
 
 static void UpdateMouseFromTouch(const SDL_TouchFingerEvent& touch, int screenW, int screenH)
@@ -8214,8 +8236,7 @@ static void HandleSDLEvent(const SDL_Event& ev, int& screenW, int& screenH)
             break;
         default:
             if (AndroidHasFocusedTextInput()
-                && ev.key.repeat == 0
-                && FocusedTextInputHasOption(UIOPTION_NUMBERONLY))
+                && ev.key.repeat == 0)
             {
                 const wchar_t fallbackCharacter = TranslateKeyToAsciiFallback(ev.key);
                 if (fallbackCharacter != 0)
@@ -8932,6 +8953,11 @@ static bool InitializeAndroidGame()
         GameConfig::GetInstance().DecryptCredentials(usernameW, passwordW, _countof(usernameW), _countof(passwordW));
         std::wcstombs(m_Username, usernameW, _countof(m_Username) - 1);
         std::wcstombs(m_Password, passwordW, _countof(m_Password) - 1);
+        if (m_ID[0] == '\0' && m_Username[0] != '\0')
+        {
+            std::strncpy(m_ID, m_Username, sizeof(m_ID) - 1);
+            m_ID[sizeof(m_ID) - 1] = '\0';
+        }
     }
 
     std::wstring langSel = GameConfig::GetInstance().GetLanguageSelection();

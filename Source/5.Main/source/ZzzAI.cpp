@@ -1,8 +1,8 @@
 ///////////////////////////////////////////////////////////////////////////////
-// AI°ü·Ã ÇÔ¼ö
-// Å¸ÄÏ¹æÇâÀ¸·Î ¹æÇâ Æ²±â, ±æÃ£±â, fps±¸ÇÏ±â µîµî
+// AIê´€ë ¨ í•¨ìˆ˜
+// íƒ€ì¼“ë°©í–¥ìœ¼ë¡œ ë°©í–¥ í‹€ê¸°, ê¸¸ì°¾ê¸°, fpsêµ¬í•˜ê¸° ë“±ë“±
 //
-// *** ÇÔ¼ö ·¹º§: 2
+// *** í•¨ìˆ˜ ë ˆë²¨: 2
 ///////////////////////////////////////////////////////////////////////////////
 
 #include "stdafx.h"
@@ -312,7 +312,7 @@ void SetAction_Fenrir_Damage(CHARACTER* c, OBJECT* o)
 		SetAction(o, PLAYER_FENRIR_DAMAGE_ONE_LEFT);
 	else if(c->Weapon[0].Type != -1 && c->Weapon[1].Type != -1 && c->Weapon[0].Type ==MODEL_BOW+15)//CustomArrow Cung
 		SetAction(o, PLAYER_FENRIR_DAMAGE_ONE_LEFT);
-	else	// ¸Ç¼Õ
+	else	// ë§¨ì†
 		SetAction(o, PLAYER_FENRIR_DAMAGE);
 #ifdef PBG_ADD_NEWCHAR_MONK_ANI
 	}
@@ -863,6 +863,15 @@ void CalcFPS()
 	}
 
 	last = WorldTime;
+
+#ifdef __ANDROID__
+	static double s_lastFpsLogTime = 0.0;
+	if (WorldTime - s_lastFpsLogTime >= 1000.0)
+	{
+		s_lastFpsLogTime = WorldTime;
+		__android_log_print(ANDROID_LOG_INFO, "MuMain", "[FPS] Current FPS: %.1f | AVG: %.1f (SceneFlag=%d)", FPS, FPS_AVG, SceneFlag);
+	}
+#endif
 
 	if (SceneFlag == MAIN_SCENE)
 	{

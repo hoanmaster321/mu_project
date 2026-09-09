@@ -64,8 +64,10 @@ void CInput::Update()
 		= m_bLBtnDn = m_bRBtnDn = m_bMBtnDn
 		= m_bLBtnDbl = m_bRBtnDbl = m_bMBtnDbl = false;
 
+#if !defined(__ANDROID__) && !defined(MU_IOS)
 	::GetCursorPos(&m_ptCursor);
 	::ScreenToClient(m_hWnd, &m_ptCursor);
+#endif
 
 	m_ptCursor.x = LIMIT(m_ptCursor.x, 0, m_lScreenWidth - 1);
 	m_ptCursor.y = LIMIT(m_ptCursor.y, 0, m_lScreenHeight - 1);

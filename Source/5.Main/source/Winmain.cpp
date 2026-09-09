@@ -198,6 +198,7 @@ int GetMp3PlayPosition()
 
 extern int  LogIn;
 extern char LogInID[];
+extern BOOL g_bGameServerConnected;
 
 void CheckHack( void)
 {
@@ -206,6 +207,12 @@ void CheckHack( void)
 	#else
 		SendCheck();
 	#endif
+#if defined(__ANDROID__) || defined(MU_IOS)
+	if (g_bGameServerConnected)
+	{
+		g_ErrorReport.Write("[Heartbeat] Sent keepalive packet 0x0E to GameServer\r\n");
+	}
+#endif
 }
 
 GLvoid KillGLWindow(GLvoid)								
@@ -920,6 +927,28 @@ LONG FAR PASCAL WndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
     return DefWindowProc(hwnd,msg,wParam,lParam);
 }
 
+#if defined(__ANDROID__) || defined(MU_IOS)
+static void UpdateScreenMetrics(int screenW, int screenH)
+{
+	if (screenW < screenH)
+	{
+		std::swap(screenW, screenH);
+	}
+	WindowWidth = static_cast<unsigned int>(screenW);
+	WindowHeight = static_cast<unsigned int>(screenH);
+	const float scale = (screenH > 0) ? (static_cast<float>(screenH) / 480.0f) : 1.0f;
+	g_fScreenRate_x = scale;
+	g_fScreenRate_y = scale;
+	DisplayHeight = 480;
+	DisplayHeightExt = 0;
+	DisplayWin = (scale > 0.0f) ? static_cast<int>(static_cast<float>(WindowWidth) / scale) : 640;
+	DisplayWinMid = DisplayWin / 2;
+	DisplayWinExt = static_cast<int>((DisplayWin * 0.5f) - 320.0f);
+	DisplayWinReal = static_cast<int>(DisplayWin / 640.0f);
+	DisplayWinCDepthBox = DisplayWin - 640;
+}
+#endif
+
 bool CreateOpenglWindow()
 {
 #if !defined(__ANDROID__) && !defined(MU_IOS)
@@ -951,15 +980,8 @@ bool CreateOpenglWindow()
 		int pxW = 0, pxH = 0;
 		if (SDL_GetWindowSizeInPixels(VulkanSDL3Context::Instance().GetWindow(), &pxW, &pxH) && pxW > 0 && pxH > 0)
 		{
-			if (pxW < pxH)
-			{
-				std::swap(pxW, pxH);
-			}
-			WindowWidth = pxW;
-			WindowHeight = pxH;
-			g_fScreenRate_x = static_cast<float>(WindowWidth) / 640.0f;
-			g_fScreenRate_y = static_cast<float>(WindowHeight) / 480.0f;
-			g_ErrorReport.Write("[Android] Screen resolution detected: %dx%d (rate: %.2f, %.2f)\r\n", pxW, pxH, g_fScreenRate_x, g_fScreenRate_y);
+			UpdateScreenMetrics(pxW, pxH);
+			g_ErrorReport.Write("[Android] Screen resolution detected: %dx%d (scale: %.2f, DisplayWin: %d)\r\n", WindowWidth, WindowHeight, g_fScreenRate_x, DisplayWin);
 		}
 #endif
 		GPUContext::Instance().Init(VulkanSDL3Context::Instance().GetWindow(), WindowWidth, WindowHeight);
@@ -967,11 +989,8 @@ bool CreateOpenglWindow()
 		const auto& swapExtent = GPUContext::Instance().GetSwapchainExtent();
 		if (swapExtent.width > 0 && swapExtent.height > 0)
 		{
-			WindowWidth = swapExtent.width;
-			WindowHeight = swapExtent.height;
-			g_fScreenRate_x = static_cast<float>(WindowWidth) / 640.0f;
-			g_fScreenRate_y = static_cast<float>(WindowHeight) / 480.0f;
-			g_ErrorReport.Write("[Android] Synced resolution with Vulkan swapchain: %dx%d\r\n", WindowWidth, WindowHeight);
+			UpdateScreenMetrics(swapExtent.width, swapExtent.height);
+			g_ErrorReport.Write("[Android] Synced resolution with Vulkan swapchain: %dx%d (scale: %.2f, DisplayWin: %d)\r\n", WindowWidth, WindowHeight, g_fScreenRate_x, DisplayWin);
 		}
 #endif
 	}
@@ -1119,6 +1138,8 @@ HWND StartWindow(HINSTANCE hCurrentInst,int nCmdShow)
 }
 
 char m_ID[11];
+char m_Username[11] = {};
+char m_Password[11] = {};
 char m_Pass[21];
 char m_Version[11];
 char m_ExeVersion[11];
@@ -1593,6 +1614,8 @@ void SleepForMilliseconds(int milliseconds) {
 		QueryPerformanceCounter(&end);
 	} while ((end.QuadPart - start.QuadPart) * 1000 / frequency.QuadPart < milliseconds);
 }
+void CALLBACK MUHelperTimerProc(HWND hwnd, UINT uMsg, UINT_PTR idEvent, DWORD dwTime);
+
 MSG MainLoop()
 {
 	MSG msg;
@@ -1612,8 +1635,9 @@ MSG MainLoop()
 			{
 				const int pxX = std::clamp((int)(ev.tfinger.x * (float)WindowWidth), 0, (int)WindowWidth - 1);
 				const int pxY = std::clamp((int)(ev.tfinger.y * (float)WindowHeight), 0, (int)WindowHeight - 1);
-				MouseX = std::clamp((int)((float)pxX * 640.0f / (float)WindowWidth), 0, 640);
-				MouseY = std::clamp((int)((float)pxY * 480.0f / (float)WindowHeight), 0, 480);
+				MouseX = (g_fScreenRate_x > 0.0f) ? std::clamp((int)((float)pxX / g_fScreenRate_x), 0, DisplayWin) : pxX;
+				MouseY = (g_fScreenRate_y > 0.0f) ? std::clamp((int)((float)pxY / g_fScreenRate_y), 0, DisplayHeight) : pxY;
+				CInput::Instance().SetCursorPos(pxX, pxY);
 				MouseLButton = true;
 				MouseLButtonPush = true;
 			}
@@ -1621,8 +1645,9 @@ MSG MainLoop()
 			{
 				const int pxX = std::clamp((int)(ev.tfinger.x * (float)WindowWidth), 0, (int)WindowWidth - 1);
 				const int pxY = std::clamp((int)(ev.tfinger.y * (float)WindowHeight), 0, (int)WindowHeight - 1);
-				MouseX = std::clamp((int)((float)pxX * 640.0f / (float)WindowWidth), 0, 640);
-				MouseY = std::clamp((int)((float)pxY * 480.0f / (float)WindowHeight), 0, 480);
+				MouseX = (g_fScreenRate_x > 0.0f) ? std::clamp((int)((float)pxX / g_fScreenRate_x), 0, DisplayWin) : pxX;
+				MouseY = (g_fScreenRate_y > 0.0f) ? std::clamp((int)((float)pxY / g_fScreenRate_y), 0, DisplayHeight) : pxY;
+				CInput::Instance().SetCursorPos(pxX, pxY);
 				MouseLButton = false;
 				MouseLButtonPop = true;
 			}
@@ -1630,15 +1655,17 @@ MSG MainLoop()
 			{
 				const int pxX = std::clamp((int)(ev.tfinger.x * (float)WindowWidth), 0, (int)WindowWidth - 1);
 				const int pxY = std::clamp((int)(ev.tfinger.y * (float)WindowHeight), 0, (int)WindowHeight - 1);
-				MouseX = std::clamp((int)((float)pxX * 640.0f / (float)WindowWidth), 0, 640);
-				MouseY = std::clamp((int)((float)pxY * 480.0f / (float)WindowHeight), 0, 480);
+				MouseX = (g_fScreenRate_x > 0.0f) ? std::clamp((int)((float)pxX / g_fScreenRate_x), 0, DisplayWin) : pxX;
+				MouseY = (g_fScreenRate_y > 0.0f) ? std::clamp((int)((float)pxY / g_fScreenRate_y), 0, DisplayHeight) : pxY;
+				CInput::Instance().SetCursorPos(pxX, pxY);
 			}
 			else if (ev.type == SDL_EVENT_MOUSE_BUTTON_DOWN)
 			{
 				const int pxX = std::clamp((int)ev.button.x, 0, (int)WindowWidth - 1);
 				const int pxY = std::clamp((int)ev.button.y, 0, (int)WindowHeight - 1);
-				MouseX = std::clamp((int)((float)pxX * 640.0f / (float)WindowWidth), 0, 640);
-				MouseY = std::clamp((int)((float)pxY * 480.0f / (float)WindowHeight), 0, 480);
+				MouseX = (g_fScreenRate_x > 0.0f) ? std::clamp((int)((float)pxX / g_fScreenRate_x), 0, DisplayWin) : pxX;
+				MouseY = (g_fScreenRate_y > 0.0f) ? std::clamp((int)((float)pxY / g_fScreenRate_y), 0, DisplayHeight) : pxY;
+				CInput::Instance().SetCursorPos(pxX, pxY);
 				if (ev.button.button == SDL_BUTTON_LEFT)
 				{
 					MouseLButton = true;
@@ -1654,8 +1681,9 @@ MSG MainLoop()
 			{
 				const int pxX = std::clamp((int)ev.button.x, 0, (int)WindowWidth - 1);
 				const int pxY = std::clamp((int)ev.button.y, 0, (int)WindowHeight - 1);
-				MouseX = std::clamp((int)((float)pxX * 640.0f / (float)WindowWidth), 0, 640);
-				MouseY = std::clamp((int)((float)pxY * 480.0f / (float)WindowHeight), 0, 480);
+				MouseX = (g_fScreenRate_x > 0.0f) ? std::clamp((int)((float)pxX / g_fScreenRate_x), 0, DisplayWin) : pxX;
+				MouseY = (g_fScreenRate_y > 0.0f) ? std::clamp((int)((float)pxY / g_fScreenRate_y), 0, DisplayHeight) : pxY;
+				CInput::Instance().SetCursorPos(pxX, pxY);
 				if (ev.button.button == SDL_BUTTON_LEFT)
 				{
 					MouseLButton = false;
@@ -1671,14 +1699,72 @@ MSG MainLoop()
 			{
 				const int pxX = std::clamp((int)ev.motion.x, 0, (int)WindowWidth - 1);
 				const int pxY = std::clamp((int)ev.motion.y, 0, (int)WindowHeight - 1);
-				MouseX = std::clamp((int)((float)pxX * 640.0f / (float)WindowWidth), 0, 640);
-				MouseY = std::clamp((int)((float)pxY * 480.0f / (float)WindowHeight), 0, 480);
+				MouseX = (g_fScreenRate_x > 0.0f) ? std::clamp((int)((float)pxX / g_fScreenRate_x), 0, DisplayWin) : pxX;
+				MouseY = (g_fScreenRate_y > 0.0f) ? std::clamp((int)((float)pxY / g_fScreenRate_y), 0, DisplayHeight) : pxY;
+				CInput::Instance().SetCursorPos(pxX, pxY);
+			}
+			else if (ev.type == SDL_EVENT_TEXT_INPUT)
+			{
+				if (ev.text.text && ev.text.text[0])
+				{
+					AndroidInjectUtf8ToFocusedTextInput(ev.text.text);
+				}
+			}
+			else if (ev.type == SDL_EVENT_KEY_DOWN)
+			{
+				if (ev.key.key == SDLK_BACKSPACE)
+				{
+					AndroidInjectCharToFocusedTextInput(VK_BACK);
+				}
+				else if (ev.key.key == SDLK_RETURN || ev.key.key == SDLK_KP_ENTER)
+				{
+					const HWND focusedBeforeReturn = GetFocus();
+					AndroidInjectCharToFocusedTextInput(VK_RETURN);
+					if (GetFocus() == focusedBeforeReturn)
+					{
+						SetEnterPressed(true);
+					}
+				}
+				else if (ev.key.key == SDLK_TAB)
+				{
+					AndroidInjectCharToFocusedTextInput(VK_TAB);
+				}
 			}
 		}
 
 		if (Destroy) break;
 
+#if defined(__ANDROID__) || defined(MU_IOS)
+		// Periodic timers for Android/iOS (replaces Win32 WM_TIMER / SetTimer)
+		{
+			const uint32_t nowTicks = SDL_GetTicks();
+
+			// 1. Keepalive / Heartbeat to GameServer every 10s (GameServer drops client after 60s without packet 0x0E)
+			static uint32_t s_lastHackTick = 0;
+			if (nowTicks - s_lastHackTick >= 10000)
+			{
+				s_lastHackTick = nowTicks;
+				CheckHack();
+			}
+
+			// 2. MU Helper bot processing every 250ms
+			static uint32_t s_lastHelperTick = 0;
+			if (nowTicks - s_lastHelperTick >= 250)
+			{
+				s_lastHelperTick = nowTicks;
+				MUHelperTimerProc(NULL, 0, 0, 0);
+			}
+		}
+#endif
+
 		Scene(g_hDC);
+#if defined(__ANDROID__) || defined(MU_IOS)
+		MouseLButtonPush = false;
+		MouseRButtonPush = false;
+		MouseMButtonPush = false;
+		MouseLButtonPop = false;
+		MouseRButtonPop = false;
+#endif
 #else
 		if (PeekMessage(&msg, NULL, 0, 0, PM_NOREMOVE))
 		{
@@ -2040,11 +2126,15 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR szCmdLin
 	FontHeight = FontHeight + m_FontSizePlus;
 	iFontSize = FontHeight - 1;
 	nFixFontSize = nFixFontHeight - 1;
+#if defined(__ANDROID__) || defined(MU_IOS)
+	iFontSize = 18;
+	nFixFontSize = 18;
+#endif
 
 	g_hFont		= CreateFont(iFontSize,0,0,0,FW_NORMAL,0,0,0,DEFAULT_CHARSET,OUT_DEFAULT_PRECIS,CLIP_DEFAULT_PRECIS,NONANTIALIASED_QUALITY,DEFAULT_PITCH|FF_DONTCARE, m_FontName);
 	g_hFontBold = CreateFont(iFontSize,0,0,0,FW_BOLD,0,0,0,DEFAULT_CHARSET,OUT_DEFAULT_PRECIS,CLIP_DEFAULT_PRECIS,NONANTIALIASED_QUALITY,DEFAULT_PITCH|FF_DONTCARE, m_FontName);
 	g_hFontBoldName = CreateFont(15, 0, 0, 0, FW_BOLD, 0, 0, 0, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, NONANTIALIASED_QUALITY, DEFAULT_PITCH | FF_DONTCARE, m_FontName);
-	g_hFontBig	= CreateFont(iFontSize*2,0,0,0,FW_BOLD,0,0,0,DEFAULT_CHARSET,OUT_DEFAULT_PRECIS,CLIP_DEFAULT_PRECIS,NONANTIALIASED_QUALITY,DEFAULT_PITCH|FF_DONTCARE, m_FontName);
+	g_hFontBig	= CreateFont((iFontSize*2 > 28) ? 28 : (iFontSize*2),0,0,0,FW_BOLD,0,0,0,DEFAULT_CHARSET,OUT_DEFAULT_PRECIS,CLIP_DEFAULT_PRECIS,NONANTIALIASED_QUALITY,DEFAULT_PITCH|FF_DONTCARE, m_FontName);
 	g_hFixFont	= CreateFont(nFixFontSize,0,0,0,FW_NORMAL,0,0,0,DEFAULT_CHARSET,OUT_DEFAULT_PRECIS,CLIP_DEFAULT_PRECIS,NONANTIALIASED_QUALITY,DEFAULT_PITCH | FF_DONTCARE, m_FontName);
 	g_hFontMini = CreateFont(10, 0, 0, 0, FW_NORMAL, 0, 0, 0, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, NONANTIALIASED_QUALITY, DEFAULT_PITCH | FF_DONTCARE, m_FontName);
 	setlocale( LC_ALL, "english");

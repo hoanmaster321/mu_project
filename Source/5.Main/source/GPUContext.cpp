@@ -1772,7 +1772,7 @@ bool GPUContext::Present()
     presentInfo.pImageIndices = &m_imageIndex;
 
     VkResult result = vkQueuePresentKHR(m_presentQueue, &presentInfo);
-    if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR) {
+    if (result == VK_ERROR_OUT_OF_DATE_KHR) {
         RecreateSwapchain();
     }
 
@@ -1783,7 +1783,7 @@ bool GPUContext::Present()
     }
 
     m_currentFrame = (m_currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
-    return (result == VK_SUCCESS);
+    return (result == VK_SUCCESS || result == VK_SUBOPTIMAL_KHR);
 }
 
 void GPUContext::RequestScreenshot(const std::string& filename)

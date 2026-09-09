@@ -3013,7 +3013,7 @@ void CUIRenderTextOriginal::RenderText(int iPos_x, int iPos_y, const unicode::t_
 	{
 		SIZE RealSectionLine = { (long)ComputeSectionSpan(iRealRenderWidth, LIMIT_WIDTH, i, iNumberOfSections), (long)RealRenderingSize.cy };
 		
-		WriteText(LIMIT_WIDTH*i*3+iClipMove, RealSectionLine.cx, RealSectionLine.cy);
+		WriteText(LIMIT_WIDTH*i*3 + iClipMove*3, RealSectionLine.cx, RealSectionLine.cy);
 		UploadText(RealBoxPos.x+LIMIT_WIDTH*i+iTab, RealBoxPos.y, RealSectionLine.cx, RealSectionLine.cy);
 	}
 

@@ -11,8 +11,10 @@
 #include "ZzzInterface.h"
 #include "./ExternalObject/leaf/regkey.h"
 #include "UIMng.h"
-#if(CB_AUTOLOGINWIN)
 CB_AutoLogin* gCB_AutoLogin;
+extern char m_ID[11];
+extern char m_Username[11];
+extern char m_Password[11];
 
 CB_AutoLogin::CB_AutoLogin()
 {
@@ -71,10 +73,7 @@ void CB_AutoLogin::DrawInfo(int XPos, int YPos)
 			this->showListAccount ^= 1;
 			this->TickCount = GetTickCount();
 		}
-
 	}
-
-
 }
 void CB_AutoLogin::SetShowListAccount(bool show)
 {
@@ -94,6 +93,20 @@ void CB_AutoLogin::SetSelectedAccount(int Index)
 		rUIMng.m_LoginWin.GetIDInputBox()->SetText(this->saved_acc[this->selectedAccount].ID);
 		rUIMng.m_LoginWin.GetPassInputBox()->SetText("");
 	}
+#if defined(__ANDROID__) || defined(MU_IOS)
+	if (this->totalSavedAcc > 0 && Index >= 0 && Index < this->totalSavedAcc)
+	{
+		strncpy(m_ID, this->saved_acc[Index].ID, sizeof(m_ID) - 1);
+		m_ID[sizeof(m_ID) - 1] = '\0';
+		strncpy(m_Username, this->saved_acc[Index].ID, sizeof(m_Username) - 1);
+		m_Username[sizeof(m_Username) - 1] = '\0';
+		if (m_SavePassOnOff)
+		{
+			strncpy(m_Password, this->saved_acc[Index].PW, sizeof(m_Password) - 1);
+			m_Password[sizeof(m_Password) - 1] = '\0';
+		}
+	}
+#endif
 }
 void CB_AutoLogin::RemoveAccount(int Index)
 {
@@ -101,6 +114,20 @@ void CB_AutoLogin::RemoveAccount(int Index)
 	{
 		return;
 	}
+#if defined(__ANDROID__) || defined(MU_IOS)
+	FILE* fp = fopen("autologin.dat", "w");
+	if (fp)
+	{
+		fprintf(fp, "%d\n", m_SavePassOnOff ? 1 : 0);
+		for (int i = 0; i < this->totalSavedAcc; ++i)
+		{
+			if (i == Index) continue;
+			fprintf(fp, "%s %s\n", this->saved_acc[i].ID, this->saved_acc[i].PW);
+		}
+		fclose(fp);
+	}
+	this->ReadConfigs();
+#else
 	leaf::CRegKey regkey;
 	regkey.SetKey(leaf::CRegKey::_HKEY_CURRENT_USER, "SOFTWARE\\Webzen\\Mu\\Config");
 	if (Index == 0)
@@ -117,9 +144,79 @@ void CB_AutoLogin::RemoveAccount(int Index)
 		regkey.WriteString(zKey, "");
 	}
 	this->ReadConfigs();
+#endif
 }
 void CB_AutoLogin::ReadConfigs()
 {
+#if defined(__ANDROID__) || defined(MU_IOS)
+	this->totalSavedAcc = 0;
+	m_SavePassOnOff = true;
+	FILE* fp = fopen("autologin.dat", "r");
+	if (fp)
+	{
+		int savePass = 1;
+		if (fscanf(fp, "%d\n", &savePass) == 1)
+		{
+			m_SavePassOnOff = (savePass != 0);
+		}
+		char line[128];
+		while (this->totalSavedAcc < MAX_ACCOUNT_SAVE && fgets(line, sizeof(line), fp))
+		{
+			char id[32] = {0};
+			char pw[32] = {0};
+			if (sscanf(line, "%31s %31s", id, pw) == 2)
+			{
+				strncpy(this->saved_acc[this->totalSavedAcc].ID, id, 10);
+				this->saved_acc[this->totalSavedAcc].ID[10] = '\0';
+				strncpy(this->saved_acc[this->totalSavedAcc].PW, pw, 10);
+				this->saved_acc[this->totalSavedAcc].PW[10] = '\0';
+				this->saved_acc[this->totalSavedAcc].index = this->totalSavedAcc;
+				this->totalSavedAcc++;
+			}
+		}
+		fclose(fp);
+	}
+	if (this->totalSavedAcc == 0)
+	{
+		FILE* cfp = fopen("credentials.dat", "r");
+		if (cfp)
+		{
+			char u[128] = {0};
+			char p[128] = {0};
+			if (fgets(u, sizeof(u), cfp))
+			{
+				u[strcspn(u, "\r\n")] = '\0';
+				if (fgets(p, sizeof(p), cfp))
+				{
+					p[strcspn(p, "\r\n")] = '\0';
+				}
+				if (u[0] != '\0')
+				{
+					strncpy(this->saved_acc[0].ID, u, 10);
+					this->saved_acc[0].ID[10] = '\0';
+					strncpy(this->saved_acc[0].PW, p, 10);
+					this->saved_acc[0].PW[10] = '\0';
+					this->saved_acc[0].index = 0;
+					this->totalSavedAcc = 1;
+					m_SavePassOnOff = 1;
+				}
+			}
+			fclose(cfp);
+		}
+	}
+	if (this->totalSavedAcc > 0)
+	{
+		strncpy(m_ID, this->saved_acc[0].ID, sizeof(m_ID) - 1);
+		m_ID[sizeof(m_ID) - 1] = '\0';
+		strncpy(m_Username, this->saved_acc[0].ID, sizeof(m_Username) - 1);
+		m_Username[sizeof(m_Username) - 1] = '\0';
+		if (m_SavePassOnOff)
+		{
+			strncpy(m_Password, this->saved_acc[0].PW, sizeof(m_Password) - 1);
+			m_Password[sizeof(m_Password) - 1] = '\0';
+		}
+	}
+#else
 	HKEY hKey;
 	DWORD dwDisp;
 	DWORD dwSize;
@@ -166,10 +263,30 @@ void CB_AutoLogin::ReadConfigs()
 	}
 
 	m_SavePassOnOff = true;
+#endif
 }
 
 void CB_AutoLogin::SaveData(char* szID, char* szPass)
 {
+#if defined(__ANDROID__) || defined(MU_IOS)
+	if (!szID || szID[0] == '\0') return;
+	FILE* fp = fopen("autologin.dat", "w");
+	if (fp)
+	{
+		fprintf(fp, "%d\n", m_SavePassOnOff ? 1 : 0);
+		fprintf(fp, "%s %s\n", szID, szPass ? szPass : "");
+		int successCount = 1;
+		for (int i = 0; i < this->totalSavedAcc; ++i)
+		{
+			if (successCount >= MAX_ACCOUNT_SAVE) break;
+			if (strcmp(szID, this->saved_acc[i].ID) == 0) continue;
+			fprintf(fp, "%s %s\n", this->saved_acc[i].ID, this->saved_acc[i].PW);
+			successCount++;
+		}
+		fclose(fp);
+	}
+	this->ReadConfigs();
+#else
 	leaf::CRegKey regkey;
 	regkey.SetKey(leaf::CRegKey::_HKEY_CURRENT_USER, "SOFTWARE\\Webzen\\Mu\\Config");
 	char zKey[50];
@@ -201,5 +318,5 @@ void CB_AutoLogin::SaveData(char* szID, char* szPass)
 	regkey.WriteString("ID", szID);
 	regkey.WriteString("PW", szPass);
 	regkey.WriteDword("SavePass", m_SavePassOnOff ? 1 : 0);
-}
 #endif
+}

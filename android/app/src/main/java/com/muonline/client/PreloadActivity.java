@@ -813,9 +813,9 @@ public class PreloadActivity extends Activity {
 
     private boolean shouldSkipDownload(File existingDataDir, File externalRoot) {
         File marker = new File(externalRoot, DATA_READY_MARKER_FILE);
-        if (isDataFolderUsable(existingDataDir)) {
+        if (marker.exists() || isDataFolderUsable(existingDataDir) || (existingDataDir != null && existingDataDir.exists())) {
             writeDataReadyMarker(externalRoot, existingDataDir);
-            Log.i(TAG, "Skip download, usable data exists: " + existingDataDir.getAbsolutePath()
+            Log.i(TAG, "Skip download, usable data exists: " + (existingDataDir != null ? existingDataDir.getAbsolutePath() : "null")
                 + " markerWasPresent=" + marker.exists());
             return true;
         }

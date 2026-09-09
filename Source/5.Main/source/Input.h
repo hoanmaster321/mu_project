@@ -68,6 +68,7 @@ public:
 	}
 
 	POINT GetCursorPos(){ return m_ptCursor; }
+	void SetCursorPos(long x, long y){ m_ptCursor.x = x; m_ptCursor.y = y; }
 	long GetCursorX(){ return m_ptCursor.x; }
 	long GetCursorY(){ return m_ptCursor.y; }
 	long GetDX(){ return m_lDX; }

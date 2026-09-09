@@ -44,7 +44,7 @@
         <activity
             android:name=".MuMainActivity"
             android:label="MU Online"
-            android:exported="false"
+            android:exported="true"
             android:alwaysRetainTaskState="true"
             android:launchMode="singleInstance"
             android:screenOrientation="sensorLandscape"

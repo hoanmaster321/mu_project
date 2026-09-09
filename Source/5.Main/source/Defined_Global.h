@@ -8,6 +8,15 @@
 
 //===========Custom Config ========================//
 
+//=============================================================================
+// CỜ AUTO LOGIN TEST CHO ANDROID
+// 1: Bật tự động đăng nhập (server 0 -> tài khoản "admin" / mật khẩu "1" -> vào game) để test
+// 0: Tắt / ẩn hoàn toàn tính năng auto login khi xuất build gửi cho người khác
+//=============================================================================
+#ifndef ENABLE_AUTO_LOGIN_TEST
+#define ENABLE_AUTO_LOGIN_TEST 1
+#endif
+
 #define GET_ITEMOPT_LEVEL(x)		((x >> 3) & 0xF)
 #define SET_ITEMOPT_LEVEL(x)		(x << 3)
 #define ITEM_INTER					1171

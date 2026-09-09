@@ -235,18 +235,19 @@ void CMsgWin::RenderControls()
 	}
 	else if (2 == m_nMsgLine)
 	{
-		nTextPosX = int((m_sprBack.GetXPos() + 25) / g_fScreenRate_x);
+		nTextPosX = int(m_sprBack.GetXPos() / g_fScreenRate_x);
+		int nBoxW = int(m_sprBack.GetWidth() / g_fScreenRate_x);
 		if (MWT_NON != m_eType)
 			nTextPosY = int((m_sprBack.GetYPos() + 32) / g_fScreenRate_y);
 		else
 			nTextPosY = int((m_sprBack.GetYPos() + 44) / g_fScreenRate_y);
-		g_pRenderText->RenderText(nTextPosX, nTextPosY, m_aszMsg[0]);
+		g_pRenderText->RenderText(nTextPosX, nTextPosY, m_aszMsg[0], nBoxW, 0, RT3_SORT_CENTER);
 
 		if (MWT_NON != m_eType)
 			nTextPosY = int((m_sprBack.GetYPos() + 51) / g_fScreenRate_y);
 		else
 			nTextPosY = int((m_sprBack.GetYPos() + 66) / g_fScreenRate_y);
-		g_pRenderText->RenderText(nTextPosX, nTextPosY, m_aszMsg[1]);
+		g_pRenderText->RenderText(nTextPosX, nTextPosY, m_aszMsg[1], nBoxW, 0, RT3_SORT_CENTER);
 	}
 
 	m_sprInput.Render();
@@ -279,7 +280,7 @@ void CMsgWin::SetMsg(MSG_WIN_TYPE eType, LPCTSTR lpszMsg, LPCTSTR lpszMsg2)
 	if (NULL == lpszMsg2)
 	{
 		m_nMsgLine = ::SeparateTextIntoLines(
-			(char*)lpszMsg, m_aszMsg[0], MW_MSG_LINE_MAX, MW_MSG_ROW_MAX);
+			(char*)lpszMsg, m_aszMsg[0], MW_MSG_LINE_MAX, 32);
 	}
 	else
 	{
