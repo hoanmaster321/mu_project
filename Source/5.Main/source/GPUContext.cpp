@@ -1304,7 +1304,7 @@ static VkPipeline CreatePipelineHelper(
         colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;
     } else if (blendMode == BLEND_ADD) {
         colorBlendAttachment.blendEnable = VK_TRUE;
-        colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+        colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_ONE;
         colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE;
         colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;
         colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
@@ -1387,31 +1387,54 @@ bool GPUContext::CreatePipelines()
         attrDescs[1].binding = 0; attrDescs[1].location = 1; attrDescs[1].format = VK_FORMAT_R32G32_SFLOAT; attrDescs[1].offset = sizeof(float) * 3;
         attrDescs[2].binding = 0; attrDescs[2].location = 2; attrDescs[2].format = VK_FORMAT_R8G8B8A8_UNORM; attrDescs[2].offset = sizeof(float) * 5;
 
-        VkSpecializationMapEntry specEntry{};
-        specEntry.constantID = 0;
-        specEntry.offset = 0;
-        specEntry.size = sizeof(VkBool32);
+        struct TerrainFragSpecData {
+            VkBool32 enableDynamicLight;
+            float alphaCutoff;
+        };
 
-        VkBool32 lightTrue = VK_TRUE;
-        VkSpecializationInfo specInfoWithLight{};
-        specInfoWithLight.mapEntryCount = 1;
-        specInfoWithLight.pMapEntries = &specEntry;
-        specInfoWithLight.dataSize = sizeof(VkBool32);
-        specInfoWithLight.pData = &lightTrue;
+        std::array<VkSpecializationMapEntry, 2> specEntries{};
+        specEntries[0].constantID = 0;
+        specEntries[0].offset = offsetof(TerrainFragSpecData, enableDynamicLight);
+        specEntries[0].size = sizeof(VkBool32);
 
-        VkBool32 lightFalse = VK_FALSE;
-        VkSpecializationInfo specInfoNoLight{};
-        specInfoNoLight.mapEntryCount = 1;
-        specInfoNoLight.pMapEntries = &specEntry;
-        specInfoNoLight.dataSize = sizeof(VkBool32);
-        specInfoNoLight.pData = &lightFalse;
+        specEntries[1].constantID = 1;
+        specEntries[1].offset = offsetof(TerrainFragSpecData, alphaCutoff);
+        specEntries[1].size = sizeof(float);
 
-        m_terrainPipelineOpaque = CreatePipelineHelper(m_device, m_renderPass, m_terrainPipelineLayout, vertModule, fragModule, &bindingDesc, 1, attrDescs.data(), (uint32_t)attrDescs.size(), BLEND_NONE, true, true, VK_CULL_MODE_NONE, false, &specInfoWithLight);
-        m_terrainPipelineBlend = CreatePipelineHelper(m_device, m_renderPass, m_terrainPipelineLayout, vertModule, fragModule, &bindingDesc, 1, attrDescs.data(), (uint32_t)attrDescs.size(), BLEND_ALPHA, true, false, VK_CULL_MODE_NONE, false, &specInfoWithLight);
-        m_terrainPipelineAdd = CreatePipelineHelper(m_device, m_renderPass, m_terrainPipelineLayout, vertModule, fragModule, &bindingDesc, 1, attrDescs.data(), (uint32_t)attrDescs.size(), BLEND_ADD, true, false, VK_CULL_MODE_NONE, false, &specInfoNoLight);
-        m_terrainPipelineDark = CreatePipelineHelper(m_device, m_renderPass, m_terrainPipelineLayout, vertModule, fragModule, &bindingDesc, 1, attrDescs.data(), (uint32_t)attrDescs.size(), BLEND_DARK, true, false, VK_CULL_MODE_NONE, false, &specInfoNoLight);
-        m_terrainPipelineBlendNoDepth = CreatePipelineHelper(m_device, m_renderPass, m_terrainPipelineLayout, vertModule, fragModule, &bindingDesc, 1, attrDescs.data(), (uint32_t)attrDescs.size(), BLEND_ALPHA, false, false, VK_CULL_MODE_NONE, false, &specInfoWithLight);
-        m_terrainPipelineAddNoDepth = CreatePipelineHelper(m_device, m_renderPass, m_terrainPipelineLayout, vertModule, fragModule, &bindingDesc, 1, attrDescs.data(), (uint32_t)attrDescs.size(), BLEND_ADD, false, false, VK_CULL_MODE_NONE, false, &specInfoNoLight);
+        TerrainFragSpecData specDataOpaque = { VK_TRUE, 0.25f };
+        VkSpecializationInfo specInfoOpaque{};
+        specInfoOpaque.mapEntryCount = 2;
+        specInfoOpaque.pMapEntries = specEntries.data();
+        specInfoOpaque.dataSize = sizeof(TerrainFragSpecData);
+        specInfoOpaque.pData = &specDataOpaque;
+
+        TerrainFragSpecData specDataBlend = { VK_TRUE, 0.01f };
+        VkSpecializationInfo specInfoBlend{};
+        specInfoBlend.mapEntryCount = 2;
+        specInfoBlend.pMapEntries = specEntries.data();
+        specInfoBlend.dataSize = sizeof(TerrainFragSpecData);
+        specInfoBlend.pData = &specDataBlend;
+
+        TerrainFragSpecData specDataAdd = { VK_FALSE, 0.0f };
+        VkSpecializationInfo specInfoAdd{};
+        specInfoAdd.mapEntryCount = 2;
+        specInfoAdd.pMapEntries = specEntries.data();
+        specInfoAdd.dataSize = sizeof(TerrainFragSpecData);
+        specInfoAdd.pData = &specDataAdd;
+
+        TerrainFragSpecData specDataDark = { VK_FALSE, 0.01f };
+        VkSpecializationInfo specInfoDark{};
+        specInfoDark.mapEntryCount = 2;
+        specInfoDark.pMapEntries = specEntries.data();
+        specInfoDark.dataSize = sizeof(TerrainFragSpecData);
+        specInfoDark.pData = &specDataDark;
+
+        m_terrainPipelineOpaque = CreatePipelineHelper(m_device, m_renderPass, m_terrainPipelineLayout, vertModule, fragModule, &bindingDesc, 1, attrDescs.data(), (uint32_t)attrDescs.size(), BLEND_NONE, true, true, VK_CULL_MODE_NONE, false, &specInfoOpaque);
+        m_terrainPipelineBlend = CreatePipelineHelper(m_device, m_renderPass, m_terrainPipelineLayout, vertModule, fragModule, &bindingDesc, 1, attrDescs.data(), (uint32_t)attrDescs.size(), BLEND_ALPHA, true, false, VK_CULL_MODE_NONE, false, &specInfoBlend);
+        m_terrainPipelineAdd = CreatePipelineHelper(m_device, m_renderPass, m_terrainPipelineLayout, vertModule, fragModule, &bindingDesc, 1, attrDescs.data(), (uint32_t)attrDescs.size(), BLEND_ADD, true, false, VK_CULL_MODE_NONE, false, &specInfoAdd);
+        m_terrainPipelineDark = CreatePipelineHelper(m_device, m_renderPass, m_terrainPipelineLayout, vertModule, fragModule, &bindingDesc, 1, attrDescs.data(), (uint32_t)attrDescs.size(), BLEND_DARK, true, false, VK_CULL_MODE_NONE, false, &specInfoDark);
+        m_terrainPipelineBlendNoDepth = CreatePipelineHelper(m_device, m_renderPass, m_terrainPipelineLayout, vertModule, fragModule, &bindingDesc, 1, attrDescs.data(), (uint32_t)attrDescs.size(), BLEND_ALPHA, false, false, VK_CULL_MODE_NONE, false, &specInfoBlend);
+        m_terrainPipelineAddNoDepth = CreatePipelineHelper(m_device, m_renderPass, m_terrainPipelineLayout, vertModule, fragModule, &bindingDesc, 1, attrDescs.data(), (uint32_t)attrDescs.size(), BLEND_ADD, false, false, VK_CULL_MODE_NONE, false, &specInfoAdd);
 
         if (vertModule) vkDestroyShaderModule(m_device, vertModule, nullptr);
         if (fragModule) vkDestroyShaderModule(m_device, fragModule, nullptr);
@@ -2029,12 +2052,12 @@ void GPUContext::ReplaySingleTerrainDraw(const DeferredTerrainDraw& draw)
 
     for (const auto& batch : draw.batches) {
         VkPipeline pipeline = m_terrainPipelineOpaque;
-        const bool noDepth = (batch.renderFlags & 1) != 0 || (batch.batchType == 6) || (batch.batchType == 7);
-        if (batch.batchType == 1 || batch.batchType == 4 || batch.batchType == 7) {
+        const bool noDepth = (batch.renderFlags & 0x2000) != 0 || (batch.renderFlags & 1) != 0 || (batch.batchType == 6) || (batch.batchType == 7);
+        if (batch.batchType == 4 || batch.batchType == 7) {
             pipeline = (noDepth && m_terrainPipelineAddNoDepth != VK_NULL_HANDLE) ? m_terrainPipelineAddNoDepth : m_terrainPipelineAdd;
         } else if (batch.batchType == 5) {
             pipeline = (m_terrainPipelineDark != VK_NULL_HANDLE) ? m_terrainPipelineDark : ((noDepth && m_terrainPipelineBlendNoDepth != VK_NULL_HANDLE) ? m_terrainPipelineBlendNoDepth : m_terrainPipelineBlend);
-        } else if (batch.batchType == 2 || batch.batchType == 3 || batch.batchType == 6) {
+        } else if (batch.batchType == 1 || batch.batchType == 2 || batch.batchType == 3 || batch.batchType == 6) {
             pipeline = (noDepth && m_terrainPipelineBlendNoDepth != VK_NULL_HANDLE) ? m_terrainPipelineBlendNoDepth : m_terrainPipelineBlend;
         }
         if (pipeline != lastPipeline && pipeline != VK_NULL_HANDLE) {

@@ -1316,20 +1316,29 @@ void BMD::RenderMesh(int i,int RenderFlag,float Alpha,int BlendMesh,float BlendM
 		passFlags |= RENDER_NODEPTH;
 	}
 
-	if ((RenderFlag & RENDER_BRIGHT) == RENDER_BRIGHT || Render == RENDER_BRIGHT || Render == RENDER_CHROME || Render == RENDER_CHROME4)
-	{
-		batchType = TERRAIN_BATCH_GRASS_ADD;
-	}
-	else if ((RenderFlag & RENDER_DARK) == RENDER_DARK)
+	const bool isBlendMesh = (BlendMesh <= -2 || m->Texture == BlendMesh);
+	if ((RenderFlag & RENDER_DARK) == RENDER_DARK)
 	{
 		batchType = TERRAIN_BATCH_BLEND;
+	}
+	else if ((RenderFlag & RENDER_BRIGHT) == RENDER_BRIGHT || Render == RENDER_BRIGHT || Render == RENDER_CHROME || Render == RENDER_CHROME4 || isBlendMesh)
+	{
+		batchType = TERRAIN_BATCH_GRASS_ADD;
 	}
 	else if (Alpha < 0.99f || (pBitmap && pBitmap->Components == 4) || Render == RENDER_COLOR)
 	{
 		batchType = TERRAIN_BATCH_ALPHA;
 	}
 
-	int passTexture = (Render == RENDER_COLOR) ? -1 : Texture;
+	int passTexture = (Render == RENDER_COLOR || Render == RENDER_BRIGHT) ? -1 : CachTexture;
+	if (passTexture >= 0 && batchType == TERRAIN_BATCH_OPAQUE)
+	{
+		BITMAP_t* pPassBitmap = Bitmaps.GetTexture(passTexture);
+		if (pPassBitmap && pPassBitmap->Components == 4)
+		{
+			batchType = TERRAIN_BATCH_ALPHA;
+		}
+	}
 	const float vertexAlpha = (Alpha >= 0.99f) ? 1.0f : Alpha;
 
 	// Build vertex buffer for this mesh

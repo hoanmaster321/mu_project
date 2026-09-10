@@ -23,6 +23,7 @@ layout(std140, set = 1, binding = 0) uniform TerrainUBO {
 };
 
 layout(constant_id = 0) const bool ENABLE_DYNAMIC_LIGHT = true;
+layout(constant_id = 1) const float ALPHA_CUTOFF = 0.01;
 
 // Fragment samplers (set=2)
 layout(set = 2, binding = 0) uniform sampler2D uTexture;
@@ -31,7 +32,7 @@ void main()
 {
     vec4 texColor = texture(uTexture, vUV);
     float finalAlpha = vColor.a * texColor.a;
-    if (finalAlpha < 0.01) discard;
+    if (ALPHA_CUTOFF > 0.0 && finalAlpha < ALPHA_CUTOFF) discard;
 
     vec3 dynamicLight = vec3(0.0);
     if (ENABLE_DYNAMIC_LIGHT)

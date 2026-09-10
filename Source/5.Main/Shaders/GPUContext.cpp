@@ -7,6 +7,7 @@
 #include "New_RenderBMD.h"
 #include "EmbeddedShaders.h"
 #include "ZzzTexture.h"
+#include "GlobalBitmap.h"
 #include "./Utilities/Log/ErrorReport.h"
 #include <iostream>
 #include <fstream>
@@ -110,6 +111,7 @@ bool GPUContext::Init(SDL_Window* window, int width, int height)
     }
 
     m_initialized = true;
+    Bitmaps.UploadAllTexturesToVulkan();
     std::cout << "[GPUContext] Native Vulkan rendering engine initialized successfully (" << width << "x" << height << ")." << std::endl;
     return true;
 }
@@ -393,22 +395,66 @@ bool GPUContext::CreateSwapchain(int width, int height)
     m_swapchainImageFormat = surfaceFormat.format;
     g_ErrorReport.Write("[GPUContext] Selected format=%d colorSpace=%d\r\n", (int)surfaceFormat.format, (int)surfaceFormat.colorSpace);
 
+    VkSurfaceTransformFlagBitsKHR preTransform = capabilities.currentTransform;
+#if defined(__ANDROID__)
+    if (capabilities.supportedTransforms & VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR) {
+        preTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
+    }
+#endif
+
     VkExtent2D extent;
+#if defined(__ANDROID__)
+    uint32_t targetW = (width > 0) ? static_cast<uint32_t>(width) : 1280;
+    uint32_t targetH = (height > 0) ? static_cast<uint32_t>(height) : 720;
+    if (targetW < targetH) {
+        std::swap(targetW, targetH);
+    }
+
+    if (preTransform == VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR) {
+        extent.width = targetW;
+        extent.height = targetH;
+        if (capabilities.currentExtent.width != 0xFFFFFFFF && capabilities.currentExtent.width > 0 && capabilities.currentExtent.height > 0) {
+            uint32_t curW = capabilities.currentExtent.width;
+            uint32_t curH = capabilities.currentExtent.height;
+            if (curW < curH) std::swap(curW, curH);
+            extent.width = curW;
+            extent.height = curH;
+        }
+        uint32_t minDim = (std::min)(capabilities.minImageExtent.width, capabilities.minImageExtent.height);
+        uint32_t maxDim = (std::max)(capabilities.maxImageExtent.width, capabilities.maxImageExtent.height);
+        extent.width = (std::clamp)(extent.width, minDim, maxDim);
+        extent.height = (std::clamp)(extent.height, minDim, maxDim);
+        if (extent.width < extent.height) {
+            std::swap(extent.width, extent.height);
+        }
+    } else {
+        if (capabilities.currentExtent.width != 0xFFFFFFFF && capabilities.currentExtent.width > 0 && capabilities.currentExtent.height > 0) {
+            extent = capabilities.currentExtent;
+        } else {
+            extent = { targetW, targetH };
+            extent.width = (std::clamp)(extent.width, capabilities.minImageExtent.width, capabilities.maxImageExtent.width);
+            extent.height = (std::clamp)(extent.height, capabilities.minImageExtent.height, capabilities.maxImageExtent.height);
+        }
+    }
+#else
     if (capabilities.currentExtent.width != 0xFFFFFFFF && capabilities.currentExtent.width > 0 && capabilities.currentExtent.height > 0) {
         extent = capabilities.currentExtent;
     } else {
         extent = { static_cast<uint32_t>(width), static_cast<uint32_t>(height) };
-        extent.width = std::clamp(extent.width, capabilities.minImageExtent.width, capabilities.maxImageExtent.width);
-        extent.height = std::clamp(extent.height, capabilities.minImageExtent.height, capabilities.maxImageExtent.height);
+        extent.width = (std::clamp)(extent.width, capabilities.minImageExtent.width, capabilities.maxImageExtent.width);
+        extent.height = (std::clamp)(extent.height, capabilities.minImageExtent.height, capabilities.maxImageExtent.height);
     }
+#endif
     if (extent.width == 0 || extent.height == 0) {
         g_ErrorReport.Write("[GPUContext] Swapchain extent is 0x0, window may not be visible yet\r\n");
         extent.width = (width > 0) ? static_cast<uint32_t>(width) : 1280;
         extent.height = (height > 0) ? static_cast<uint32_t>(height) : 720;
-        extent.width = std::clamp(extent.width, capabilities.minImageExtent.width, capabilities.maxImageExtent.width);
-        extent.height = std::clamp(extent.height, capabilities.minImageExtent.height, capabilities.maxImageExtent.height);
+        extent.width = (std::clamp)(extent.width, capabilities.minImageExtent.width, capabilities.maxImageExtent.width);
+        extent.height = (std::clamp)(extent.height, capabilities.minImageExtent.height, capabilities.maxImageExtent.height);
     }
     m_swapchainExtent = extent;
+    m_width = static_cast<int>(extent.width);
+    m_height = static_cast<int>(extent.height);
 
     uint32_t imageCount = capabilities.minImageCount + 1;
     if (capabilities.maxImageCount > 0 && imageCount > capabilities.maxImageCount) {
@@ -458,7 +504,7 @@ bool GPUContext::CreateSwapchain(int width, int height)
         createInfo.pQueueFamilyIndices = nullptr;
     }
 
-    createInfo.preTransform = capabilities.currentTransform;
+    createInfo.preTransform = preTransform;
 
     VkCompositeAlphaFlagBitsKHR compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
     if (!(capabilities.supportedCompositeAlpha & VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR)) {
@@ -1258,7 +1304,7 @@ static VkPipeline CreatePipelineHelper(
         colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;
     } else if (blendMode == BLEND_ADD) {
         colorBlendAttachment.blendEnable = VK_TRUE;
-        colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+        colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_ONE;
         colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE;
         colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;
         colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
@@ -1341,31 +1387,54 @@ bool GPUContext::CreatePipelines()
         attrDescs[1].binding = 0; attrDescs[1].location = 1; attrDescs[1].format = VK_FORMAT_R32G32_SFLOAT; attrDescs[1].offset = sizeof(float) * 3;
         attrDescs[2].binding = 0; attrDescs[2].location = 2; attrDescs[2].format = VK_FORMAT_R8G8B8A8_UNORM; attrDescs[2].offset = sizeof(float) * 5;
 
-        VkSpecializationMapEntry specEntry{};
-        specEntry.constantID = 0;
-        specEntry.offset = 0;
-        specEntry.size = sizeof(VkBool32);
+        struct TerrainFragSpecData {
+            VkBool32 enableDynamicLight;
+            float alphaCutoff;
+        };
 
-        VkBool32 lightTrue = VK_TRUE;
-        VkSpecializationInfo specInfoWithLight{};
-        specInfoWithLight.mapEntryCount = 1;
-        specInfoWithLight.pMapEntries = &specEntry;
-        specInfoWithLight.dataSize = sizeof(VkBool32);
-        specInfoWithLight.pData = &lightTrue;
+        std::array<VkSpecializationMapEntry, 2> specEntries{};
+        specEntries[0].constantID = 0;
+        specEntries[0].offset = offsetof(TerrainFragSpecData, enableDynamicLight);
+        specEntries[0].size = sizeof(VkBool32);
 
-        VkBool32 lightFalse = VK_FALSE;
-        VkSpecializationInfo specInfoNoLight{};
-        specInfoNoLight.mapEntryCount = 1;
-        specInfoNoLight.pMapEntries = &specEntry;
-        specInfoNoLight.dataSize = sizeof(VkBool32);
-        specInfoNoLight.pData = &lightFalse;
+        specEntries[1].constantID = 1;
+        specEntries[1].offset = offsetof(TerrainFragSpecData, alphaCutoff);
+        specEntries[1].size = sizeof(float);
 
-        m_terrainPipelineOpaque = CreatePipelineHelper(m_device, m_renderPass, m_terrainPipelineLayout, vertModule, fragModule, &bindingDesc, 1, attrDescs.data(), (uint32_t)attrDescs.size(), BLEND_NONE, true, true, VK_CULL_MODE_NONE, false, &specInfoWithLight);
-        m_terrainPipelineBlend = CreatePipelineHelper(m_device, m_renderPass, m_terrainPipelineLayout, vertModule, fragModule, &bindingDesc, 1, attrDescs.data(), (uint32_t)attrDescs.size(), BLEND_ALPHA, true, false, VK_CULL_MODE_NONE, false, &specInfoWithLight);
-        m_terrainPipelineAdd = CreatePipelineHelper(m_device, m_renderPass, m_terrainPipelineLayout, vertModule, fragModule, &bindingDesc, 1, attrDescs.data(), (uint32_t)attrDescs.size(), BLEND_ADD, true, false, VK_CULL_MODE_NONE, false, &specInfoNoLight);
-        m_terrainPipelineDark = CreatePipelineHelper(m_device, m_renderPass, m_terrainPipelineLayout, vertModule, fragModule, &bindingDesc, 1, attrDescs.data(), (uint32_t)attrDescs.size(), BLEND_DARK, true, false, VK_CULL_MODE_NONE, false, &specInfoNoLight);
-        m_terrainPipelineBlendNoDepth = CreatePipelineHelper(m_device, m_renderPass, m_terrainPipelineLayout, vertModule, fragModule, &bindingDesc, 1, attrDescs.data(), (uint32_t)attrDescs.size(), BLEND_ALPHA, false, false, VK_CULL_MODE_NONE, false, &specInfoWithLight);
-        m_terrainPipelineAddNoDepth = CreatePipelineHelper(m_device, m_renderPass, m_terrainPipelineLayout, vertModule, fragModule, &bindingDesc, 1, attrDescs.data(), (uint32_t)attrDescs.size(), BLEND_ADD, false, false, VK_CULL_MODE_NONE, false, &specInfoNoLight);
+        TerrainFragSpecData specDataOpaque = { VK_TRUE, 0.25f };
+        VkSpecializationInfo specInfoOpaque{};
+        specInfoOpaque.mapEntryCount = 2;
+        specInfoOpaque.pMapEntries = specEntries.data();
+        specInfoOpaque.dataSize = sizeof(TerrainFragSpecData);
+        specInfoOpaque.pData = &specDataOpaque;
+
+        TerrainFragSpecData specDataBlend = { VK_TRUE, 0.01f };
+        VkSpecializationInfo specInfoBlend{};
+        specInfoBlend.mapEntryCount = 2;
+        specInfoBlend.pMapEntries = specEntries.data();
+        specInfoBlend.dataSize = sizeof(TerrainFragSpecData);
+        specInfoBlend.pData = &specDataBlend;
+
+        TerrainFragSpecData specDataAdd = { VK_FALSE, 0.0f };
+        VkSpecializationInfo specInfoAdd{};
+        specInfoAdd.mapEntryCount = 2;
+        specInfoAdd.pMapEntries = specEntries.data();
+        specInfoAdd.dataSize = sizeof(TerrainFragSpecData);
+        specInfoAdd.pData = &specDataAdd;
+
+        TerrainFragSpecData specDataDark = { VK_FALSE, 0.01f };
+        VkSpecializationInfo specInfoDark{};
+        specInfoDark.mapEntryCount = 2;
+        specInfoDark.pMapEntries = specEntries.data();
+        specInfoDark.dataSize = sizeof(TerrainFragSpecData);
+        specInfoDark.pData = &specDataDark;
+
+        m_terrainPipelineOpaque = CreatePipelineHelper(m_device, m_renderPass, m_terrainPipelineLayout, vertModule, fragModule, &bindingDesc, 1, attrDescs.data(), (uint32_t)attrDescs.size(), BLEND_NONE, true, true, VK_CULL_MODE_NONE, false, &specInfoOpaque);
+        m_terrainPipelineBlend = CreatePipelineHelper(m_device, m_renderPass, m_terrainPipelineLayout, vertModule, fragModule, &bindingDesc, 1, attrDescs.data(), (uint32_t)attrDescs.size(), BLEND_ALPHA, true, false, VK_CULL_MODE_NONE, false, &specInfoBlend);
+        m_terrainPipelineAdd = CreatePipelineHelper(m_device, m_renderPass, m_terrainPipelineLayout, vertModule, fragModule, &bindingDesc, 1, attrDescs.data(), (uint32_t)attrDescs.size(), BLEND_ADD, true, false, VK_CULL_MODE_NONE, false, &specInfoAdd);
+        m_terrainPipelineDark = CreatePipelineHelper(m_device, m_renderPass, m_terrainPipelineLayout, vertModule, fragModule, &bindingDesc, 1, attrDescs.data(), (uint32_t)attrDescs.size(), BLEND_DARK, true, false, VK_CULL_MODE_NONE, false, &specInfoDark);
+        m_terrainPipelineBlendNoDepth = CreatePipelineHelper(m_device, m_renderPass, m_terrainPipelineLayout, vertModule, fragModule, &bindingDesc, 1, attrDescs.data(), (uint32_t)attrDescs.size(), BLEND_ALPHA, false, false, VK_CULL_MODE_NONE, false, &specInfoBlend);
+        m_terrainPipelineAddNoDepth = CreatePipelineHelper(m_device, m_renderPass, m_terrainPipelineLayout, vertModule, fragModule, &bindingDesc, 1, attrDescs.data(), (uint32_t)attrDescs.size(), BLEND_ADD, false, false, VK_CULL_MODE_NONE, false, &specInfoAdd);
 
         if (vertModule) vkDestroyShaderModule(m_device, vertModule, nullptr);
         if (fragModule) vkDestroyShaderModule(m_device, fragModule, nullptr);
@@ -1569,7 +1638,7 @@ bool GPUContext::BeginFrame()
     if (!m_initialized) return false;
 
     if (m_frameActive) {
-        EndFrame();
+        return true;
     }
 
     vkWaitForFences(m_device, 1, &m_inFlightFences[m_currentFrame], VK_TRUE, UINT64_MAX);
@@ -1616,11 +1685,13 @@ bool GPUContext::BeginFrame()
     m_deferredMeshDraws.clear();
     m_deferredSpriteDraws.clear();
     m_deferredImageDraws.clear();
-    if (m_deferredCommands.capacity() < 512) m_deferredCommands.reserve(512);
-    if (m_deferredTerrainDraws.capacity() < 64) m_deferredTerrainDraws.reserve(64);
-    if (m_deferredMeshDraws.capacity() < 256) m_deferredMeshDraws.reserve(256);
-    if (m_deferredSpriteDraws.capacity() < 256) m_deferredSpriteDraws.reserve(256);
-    if (m_deferredImageDraws.capacity() < 256) m_deferredImageDraws.reserve(256);
+    m_deferredViewports.clear();
+    m_deferredScissors.clear();
+    if (m_deferredCommands.capacity() < 2048) m_deferredCommands.reserve(2048);
+    if (m_deferredTerrainDraws.capacity() < 256) m_deferredTerrainDraws.reserve(256);
+    if (m_deferredMeshDraws.capacity() < 1024) m_deferredMeshDraws.reserve(1024);
+    if (m_deferredSpriteDraws.capacity() < 512) m_deferredSpriteDraws.reserve(512);
+    if (m_deferredImageDraws.capacity() < 512) m_deferredImageDraws.reserve(512);
     return true;
 }
 
@@ -1724,7 +1795,7 @@ bool GPUContext::Present()
     presentInfo.pImageIndices = &m_imageIndex;
 
     VkResult result = vkQueuePresentKHR(m_presentQueue, &presentInfo);
-    if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR) {
+    if (result == VK_ERROR_OUT_OF_DATE_KHR) {
         RecreateSwapchain();
     }
 
@@ -1735,7 +1806,7 @@ bool GPUContext::Present()
     }
 
     m_currentFrame = (m_currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
-    return (result == VK_SUCCESS);
+    return (result == VK_SUCCESS || result == VK_SUBOPTIMAL_KHR);
 }
 
 void GPUContext::RequestScreenshot(const std::string& filename)
@@ -1893,24 +1964,6 @@ void GPUContext::OnResize(int width, int height)
     }
 }
 
-void GPUContext::SetViewport(float x, float y, float width, float height)
-{
-    if (!m_frameActive) return;
-    VkViewport vp{ x, y, width, height, 0.0f, 1.0f };
-    vkCmdSetViewport(m_commandBuffers[m_currentFrame], 0, 1, &vp);
-}
-
-void GPUContext::SetScissor(int32_t x, int32_t y, uint32_t width, uint32_t height)
-{
-    if (!m_frameActive) return;
-    VkRect2D sc{ {x, y}, {width, height} };
-    vkCmdSetScissor(m_commandBuffers[m_currentFrame], 0, 1, &sc);
-}
-
-void GPUContext::SetRenderState(const GPURenderState& state)
-{
-}
-
 TerrainVertex_t* GPUContext::AllocateTerrainVertexBuffer(uint32_t vertexCount, uint32_t& outVertOffset)
 {
     if (!m_frameActive || vertexCount == 0) return nullptr;
@@ -1939,7 +1992,7 @@ uint32_t* GPUContext::AllocateTerrainIndexBuffer(uint32_t indexCount, uint32_t& 
     return reinterpret_cast<uint32_t*>(static_cast<char*>(res.indexMapped) + outIdxOffset);
 }
 
-void GPUContext::DrawTerrainMergedPreallocated(uint32_t vertOffset, uint32_t vertByteSize, uint32_t idxOffset, uint32_t idxByteSize, const std::vector<TerrainMergedBatch>& batches, const TerrainVertUBO& ubo)
+void GPUContext::DrawTerrainMergedPreallocated(uint32_t vertOffset, uint32_t vertByteSize, uint32_t idxOffset, uint32_t idxByteSize, std::vector<TerrainMergedBatch> batches, const TerrainVertUBO& ubo)
 {
     if (!m_frameActive || vertByteSize == 0 || idxByteSize == 0 || batches.empty()) return;
 
@@ -1948,7 +2001,7 @@ void GPUContext::DrawTerrainMergedPreallocated(uint32_t vertOffset, uint32_t ver
     draw.vertByteSize = vertByteSize;
     draw.idxOffset = idxOffset;
     draw.idxByteSize = idxByteSize;
-    draw.batches = batches;
+    draw.batches = std::move(batches);
     draw.ubo = ubo;
     m_deferredTerrainDraws.push_back(std::move(draw));
 
@@ -1999,12 +2052,12 @@ void GPUContext::ReplaySingleTerrainDraw(const DeferredTerrainDraw& draw)
 
     for (const auto& batch : draw.batches) {
         VkPipeline pipeline = m_terrainPipelineOpaque;
-        const bool noDepth = (batch.renderFlags & 1) != 0 || (batch.batchType == 6) || (batch.batchType == 7);
-        if (batch.batchType == 1 || batch.batchType == 4 || batch.batchType == 7) {
+        const bool noDepth = (batch.renderFlags & 0x2000) != 0 || (batch.renderFlags & 1) != 0 || (batch.batchType == 6) || (batch.batchType == 7);
+        if (batch.batchType == 4 || batch.batchType == 7) {
             pipeline = (noDepth && m_terrainPipelineAddNoDepth != VK_NULL_HANDLE) ? m_terrainPipelineAddNoDepth : m_terrainPipelineAdd;
         } else if (batch.batchType == 5) {
             pipeline = (m_terrainPipelineDark != VK_NULL_HANDLE) ? m_terrainPipelineDark : ((noDepth && m_terrainPipelineBlendNoDepth != VK_NULL_HANDLE) ? m_terrainPipelineBlendNoDepth : m_terrainPipelineBlend);
-        } else if (batch.batchType == 2 || batch.batchType == 3 || batch.batchType == 6) {
+        } else if (batch.batchType == 1 || batch.batchType == 2 || batch.batchType == 3 || batch.batchType == 6) {
             pipeline = (noDepth && m_terrainPipelineBlendNoDepth != VK_NULL_HANDLE) ? m_terrainPipelineBlendNoDepth : m_terrainPipelineBlend;
         }
         if (pipeline != lastPipeline && pipeline != VK_NULL_HANDLE) {
@@ -2288,14 +2341,14 @@ GPUImageInstance* GPUContext::AllocateImageInstanceBuffer(uint32_t count, uint32
     return reinterpret_cast<GPUImageInstance*>(static_cast<char*>(res.instanceSSBOMapped) + outInstanceSSBOOffset);
 }
 
-void GPUContext::DrawImagesPreallocated(uint32_t baseInstance, uint32_t instanceSSBOOffset, const std::vector<ImageBatchRun>& batchRuns)
+void GPUContext::DrawImagesPreallocated(uint32_t baseInstance, uint32_t instanceSSBOOffset, std::vector<ImageBatchRun> batchRuns)
 {
     if (!m_frameActive || batchRuns.empty()) return;
 
     DeferredImageDraw draw{};
     draw.instanceSSBOOffset = instanceSSBOOffset;
     draw.baseInstance = baseInstance;
-    draw.batches = batchRuns;
+    draw.batches = std::move(batchRuns);
     m_deferredImageDraws.push_back(std::move(draw));
 
     DeferredCommand dcmd{};
@@ -2713,6 +2766,28 @@ void GPUContext::ClearDepthBuffer()
     m_deferredCommands.push_back(dcmd);
 }
 
+void GPUContext::SetViewport(float x, float y, float width, float height)
+{
+    if (!m_frameActive) return;
+    DeferredViewport vp{ x, y, width, height };
+    uint32_t idx = static_cast<uint32_t>(m_deferredViewports.size());
+    m_deferredViewports.push_back(vp);
+    m_deferredCommands.push_back({ DeferredCmdType::SetViewport, idx });
+}
+
+void GPUContext::SetScissor(int32_t x, int32_t y, uint32_t width, uint32_t height)
+{
+    if (!m_frameActive) return;
+    DeferredScissor sc{ x, y, width, height };
+    uint32_t idx = static_cast<uint32_t>(m_deferredScissors.size());
+    m_deferredScissors.push_back(sc);
+    m_deferredCommands.push_back({ DeferredCmdType::SetScissor, idx });
+}
+
+void GPUContext::SetRenderState(const GPURenderState& state)
+{
+}
+
 void GPUContext::ReplayMeshRange(size_t cmdStart, size_t cmdEnd)
 {
     FrameResource& res = m_frameResources[m_currentFrame];
@@ -2893,6 +2968,20 @@ void GPUContext::ReplayDeferredCommands()
                     vkCmdClearAttachments(cmd, 1, &clearAttachment, 1, &clearRect);
                 }
                 break;
+            case DeferredCmdType::SetViewport:
+                if (dcmd.index < m_deferredViewports.size()) {
+                    const auto& v = m_deferredViewports[dcmd.index];
+                    VkViewport vp{ v.x, v.y, v.width, v.height, 0.0f, 1.0f };
+                    vkCmdSetViewport(cmd, 0, 1, &vp);
+                }
+                break;
+            case DeferredCmdType::SetScissor:
+                if (dcmd.index < m_deferredScissors.size()) {
+                    const auto& s = m_deferredScissors[dcmd.index];
+                    VkRect2D sc{ { s.x, s.y }, { s.width, s.height } };
+                    vkCmdSetScissor(cmd, 0, 1, &sc);
+                }
+                break;
         }
     }
 
@@ -2901,6 +2990,8 @@ void GPUContext::ReplayDeferredCommands()
     m_deferredMeshDraws.clear();
     m_deferredSpriteDraws.clear();
     m_deferredImageDraws.clear();
+    m_deferredViewports.clear();
+    m_deferredScissors.clear();
 }
 
 // ============================================================================
@@ -3363,3 +3454,31 @@ void GPUContext::CleanupClothCompute()
     m_clothComputeInitialized = false;
 }
 
+// Bridge functions for native Vulkan viewport, scissor, clear operations
+void VulkanSetClearColor(float r, float g, float b, float a)
+{
+    if (GPUContext::Instance().IsInitialized()) {
+        GPUContext::Instance().SetClearColor(r, g, b, a);
+    }
+}
+
+void VulkanClearDepthBuffer()
+{
+    if (GPUContext::Instance().IsInitialized()) {
+        GPUContext::Instance().ClearDepthBuffer();
+    }
+}
+
+void VulkanSetViewport(float x, float y, float width, float height)
+{
+    if (GPUContext::Instance().IsInitialized()) {
+        GPUContext::Instance().SetViewport(x, y, width, height);
+    }
+}
+
+void VulkanSetScissor(int32_t x, int32_t y, uint32_t width, uint32_t height)
+{
+    if (GPUContext::Instance().IsInitialized()) {
+        GPUContext::Instance().SetScissor(x, y, width, height);
+    }
+}
