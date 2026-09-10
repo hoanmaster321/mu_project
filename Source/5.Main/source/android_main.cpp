@@ -493,6 +493,13 @@ extern int ActionTarget;
 extern int TargetX;
 extern int TargetY;
 extern int Attacking;
+extern MovementSkill g_MovementSkill;
+extern vec3_t CollisionPosition;
+extern float SelectXF;
+extern float SelectYF;
+extern float CreateAngle(float x1, float y1, float x2, float y2);
+extern float RequestTerrainHeight(float x, float y);
+extern int HeroKey;
 void CGAutoMove(int Type);
 
 namespace
@@ -526,19 +533,19 @@ constexpr float kVirtualPadInputMaxY = 426.0f;
 constexpr float kInventoryWindowWidth = 190.0f;
 constexpr float kInventoryWindowHeight = 429.0f;
 constexpr float kVirtualAutoAcquireMaxDistance = 10.0f;
-constexpr float kVirtualJoystickDefaultCenterX = 94.0f;
-constexpr float kVirtualJoystickDefaultCenterY = 356.0f;
-constexpr float kVirtualJoystickRadius = 58.0f;
-constexpr float kVirtualJoystickDeadZone = 10.0f;
-constexpr float kVirtualJoystickKnobRadius = 22.0f;
+constexpr float kVirtualJoystickDefaultCenterX = 100.0f;
+constexpr float kVirtualJoystickDefaultCenterY = 350.0f;
+constexpr float kVirtualJoystickRadius = 64.0f;
+constexpr float kVirtualJoystickDeadZone = 8.0f;
+constexpr float kVirtualJoystickKnobRadius = 26.0f;
 constexpr float kVirtualJoystickMouseMinRadius = 36.0f;
 constexpr float kVirtualJoystickMouseMaxRadius = 132.0f;
-constexpr float kVirtualJoystickDynamicAreaMinY = 210.0f;
-constexpr float kVirtualJoystickDynamicAreaMaxX = 212.0f;
-constexpr float kVirtualJoystickOuterRenderW = 115.0f;
-constexpr float kVirtualJoystickOuterRenderH = 114.0f;
-constexpr float kVirtualJoystickKnobRenderW = 53.0f;
-constexpr float kVirtualJoystickKnobRenderH = 54.0f;
+constexpr float kVirtualJoystickDynamicAreaMinY = 70.0f;
+constexpr float kVirtualJoystickDynamicAreaMaxX = 320.0f;
+constexpr float kVirtualJoystickOuterRenderW = 128.0f;
+constexpr float kVirtualJoystickOuterRenderH = 128.0f;
+constexpr float kVirtualJoystickKnobRenderW = 56.0f;
+constexpr float kVirtualJoystickKnobRenderH = 56.0f;
 constexpr SDL_FingerID kPcMouseJoystickFingerId = static_cast<SDL_FingerID>(-2);
 constexpr bool kShowVirtualAttackButton = kEnableVirtualCombatOverlay;
 constexpr bool kShowVirtualSkillButtons = kEnableVirtualCombatOverlay;
@@ -550,26 +557,26 @@ struct VirtualButtonLayout
     float radius;
 };
 
-constexpr float kVirtualAttackButtonCx = 596.0f;
-constexpr float kVirtualAttackButtonCy = 350.0f;
-constexpr float kVirtualAttackButtonRadius = 29.0f;
-constexpr float kVirtualSkillButtonRadius = 19.0f;
+constexpr float kVirtualAttackButtonCx = 582.0f;
+constexpr float kVirtualAttackButtonCy = 358.0f;
+constexpr float kVirtualAttackButtonRadius = 38.0f;
+constexpr float kVirtualSkillButtonRadius = 28.0f;
 struct VirtualUiOffset
 {
     float x;
     float y;
 };
 constexpr std::array<VirtualUiOffset, kVirtualVisibleSkillButtonCount> kVirtualSkillCenters = {
-    // Lift the whole right-side skill cluster above the main action bar.
-    VirtualUiOffset{ 565.0f, 284.0f },
-    VirtualUiOffset{ 610.0f, 284.0f },
-    VirtualUiOffset{ 547.0f, 323.0f },
-    VirtualUiOffset{ 547.0f, 368.0f },
-    VirtualUiOffset{ 565.0f, 414.0f },
-    VirtualUiOffset{ 610.0f, 414.0f },
+    // Fan-arc cluster around the attack button for comfortable right-thumb access
+    VirtualUiOffset{ 565.0f, 248.0f },
+    VirtualUiOffset{ 512.0f, 278.0f },
+    VirtualUiOffset{ 475.0f, 340.0f },
+    VirtualUiOffset{ 485.0f, 402.0f },
+    VirtualUiOffset{ 548.0f, 432.0f },
+    VirtualUiOffset{ 624.0f, 268.0f },
 };
-constexpr float kVirtualSkillFrameW = 22.0f;
-constexpr float kVirtualSkillFrameH = 28.0f;
+constexpr float kVirtualSkillFrameW = 38.0f;
+constexpr float kVirtualSkillFrameH = 46.0f;
 constexpr float kVirtualSkillBaseFrameW = 32.0f;
 constexpr float kVirtualSkillBaseFrameH = 38.0f;
 constexpr float kVirtualSkillSourceIconW = 20.0f;
@@ -942,6 +949,18 @@ struct ActiveVirtualTouch
     int button = -1;
     uint32_t downMs = 0;
     uint32_t lastRepeatMs = 0;
+
+    // Drag-to-Aim fields
+    float startUiX = 0.0f;
+    float startUiY = 0.0f;
+    float curUiX = 0.0f;
+    float curUiY = 0.0f;
+    float dragDist = 0.0f;
+    bool isAimDragging = false;
+    bool isCancel = false;
+    int aimTileX = -1;
+    int aimTileY = -1;
+    int aimTargetMonster = -1;
 };
 
 struct ActiveVirtualJoystick
@@ -1401,6 +1420,47 @@ int GetSkillTypeFromIndex(int skillIndex)
 
     const int skillType = CharacterAttribute->Skill[skillIndex];
     return (skillType > 0 && skillType < MAX_SKILLS) ? skillType : 0;
+}
+
+int ResolveSkillSlotIndex(int skillSlotOrType)
+{
+    if (skillSlotOrType >= AT_PET_COMMAND_DEFAULT && skillSlotOrType < AT_PET_COMMAND_END)
+    {
+        return skillSlotOrType;
+    }
+    if (CharacterAttribute == nullptr)
+    {
+        return -1;
+    }
+    if (skillSlotOrType >= 0 && skillSlotOrType < MAX_MAGIC && CharacterAttribute->Skill[skillSlotOrType] > 0)
+    {
+        return skillSlotOrType;
+    }
+    return FindSkillIndexByType(skillSlotOrType);
+}
+
+int ResolveSkillType(int skillSlotOrType)
+{
+    if (skillSlotOrType >= AT_PET_COMMAND_DEFAULT && skillSlotOrType < AT_PET_COMMAND_END)
+    {
+        return skillSlotOrType;
+    }
+    if (CharacterAttribute == nullptr)
+    {
+        return -1;
+    }
+    if (skillSlotOrType >= 0 && skillSlotOrType < MAX_MAGIC && CharacterAttribute->Skill[skillSlotOrType] > 0)
+    {
+        return CharacterAttribute->Skill[skillSlotOrType];
+    }
+    if (skillSlotOrType > 0 && skillSlotOrType < MAX_SKILLS)
+    {
+        if (FindSkillIndexByType(skillSlotOrType) >= 0)
+        {
+            return skillSlotOrType;
+        }
+    }
+    return -1;
 }
 
 int GetHeroCharacterIndex();
@@ -2263,17 +2323,44 @@ float GetVirtualJoystickRenderCenterY()
         : kVirtualJoystickDefaultCenterY);
 }
 
+static bool IsTileWalkable(int x, int y)
+{
+    if (x < 0 || y < 0 || x >= 256 || y >= 256) return false;
+    int attr = TerrainWall[y * 256 + x];
+    if ((attr & TW_ACTION) == TW_ACTION) attr -= TW_ACTION;
+    if ((attr & TW_HEIGHT) == TW_HEIGHT) attr -= TW_HEIGHT;
+    if ((attr & TW_CAMERA_UP) == TW_CAMERA_UP) attr -= TW_CAMERA_UP;
+    return (attr < TW_NOMOVE);
+}
+
+static uint32_t g_lastJoystickMoveTick = 0;
+static float g_lastSentWDirX = 0.0f;
+static float g_lastSentWDirY = 0.0f;
+static bool g_virtualJoystickDrivingMove = false;
+
 void ReleaseVirtualJoystickMouseDrive()
 {
-    if (!g_virtualJoystickDrivingMouse)
+    if (g_virtualJoystickDrivingMove)
     {
-        return;
+        g_virtualJoystickDrivingMove = false;
+        if (Hero != nullptr && Hero->MovementType == MOVEMENT_MOVE)
+        {
+            Hero->Movement = false;
+            Hero->Path.PathNum = 0;
+            Hero->Path.CurrentPath = 0;
+            SetPlayerStop(Hero);
+            HeroAngle = (int)Hero->Object.Angle[2];
+            StandTime = 0;
+        }
     }
 
-    g_virtualJoystickDrivingMouse = false;
-    MouseLButtonPush = false;
-    MouseLButton = false;
-    MouseLButtonPop = false;
+    if (g_virtualJoystickDrivingMouse)
+    {
+        g_virtualJoystickDrivingMouse = false;
+        MouseLButtonPush = false;
+        MouseLButton = false;
+        MouseLButtonPop = false;
+    }
 }
 
 void ClearVirtualJoystick()
@@ -2388,45 +2475,111 @@ void ApplyVirtualJoystickMovement()
         return;
     }
 
-    if (!IsVirtualPadAvailable())
+    if (!IsVirtualPadAvailable() || Hero == nullptr || Hero->Dead > 0)
     {
         ClearVirtualJoystick();
         return;
     }
 
-    if (g_virtualJoystick.moveStrength <= 0.001f)
+    if (g_virtualJoystick.moveStrength <= 0.08f)
     {
         ReleaseVirtualJoystickMouseDrive();
         return;
     }
 
-    const float driveRadius = kVirtualJoystickMouseMinRadius
-        + (kVirtualJoystickMouseMaxRadius - kVirtualJoystickMouseMinRadius) * g_virtualJoystick.moveStrength;
-    const int targetMouseX = std::clamp(
-        static_cast<int>(320.0f + g_virtualJoystick.moveDirX * driveRadius),
-        0,
-        640);
-    const int targetMouseY = std::clamp(
-        static_cast<int>(180.0f - g_virtualJoystick.moveDirY * driveRadius),
-        0,
-        480);
-
-    MouseX = targetMouseX;
-    MouseY = targetMouseY;
-    g_iNoMouseTime = 0;
-
-    MouseLButtonPop = false;
-    if (!MouseLButton)
+    const uint32_t nowMs = MU_MobileGetTicks();
+    const float screenDirX = g_virtualJoystick.thumbOffsetX;
+    const float screenDirY = -g_virtualJoystick.thumbOffsetY; // Invert screen Y for MU map space
+    const float len = std::sqrt(screenDirX * screenDirX + screenDirY * screenDirY);
+    if (len < 0.001f)
     {
-        MouseLButtonPush = true;
-        MouseLButton = true;
-    }
-    else
-    {
-        MouseLButtonPush = false;
+        return;
     }
 
-    g_virtualJoystickDrivingMouse = true;
+    const float nDirX = screenDirX / len;
+    const float nDirY = screenDirY / len;
+
+    // Rotate 45 degrees for MU isometric camera projection
+    constexpr float cos45 = 0.70710678f;
+    constexpr float sin45 = 0.70710678f;
+    const float wDirX = nDirX * cos45 - nDirY * sin45;
+    const float wDirY = nDirX * sin45 + nDirY * cos45;
+
+    const float dot = (g_lastSentWDirX != 0.0f || g_lastSentWDirY != 0.0f)
+        ? (wDirX * g_lastSentWDirX + wDirY * g_lastSentWDirY)
+        : 1.0f;
+    const bool isSharpTurn = (dot < 0.85f);
+    const bool isPathNearEnd = (!Hero->Movement || Hero->Path.PathNum <= 2 || (Hero->Path.PathNum - Hero->Path.CurrentPath) <= 2);
+    const uint32_t elapsed = nowMs - g_lastJoystickMoveTick;
+
+    // Vuốt đổi hướng mượt mà, không bị khựng khi đi thẳng hoặc quẹo cua
+    if ((isSharpTurn && elapsed >= 16) || (isPathNearEnd && elapsed >= 40) || (!Hero->Movement && elapsed >= 12) || (elapsed >= 90))
+    {
+        g_lastJoystickMoveTick = nowMs;
+        g_lastSentWDirX = wDirX;
+        g_lastSentWDirY = wDirY;
+
+        const int step = static_cast<int>(3.0f + g_virtualJoystick.moveStrength * 3.5f);
+        bool found = false;
+        int bestTx = Hero->PositionX;
+        int bestTy = Hero->PositionY;
+
+        for (int s = step; s >= 1; --s)
+        {
+            const int tx = std::clamp(Hero->PositionX + static_cast<int>(std::round(wDirX * s)), 0, 255);
+            const int ty = std::clamp(Hero->PositionY + static_cast<int>(std::round(wDirY * s)), 0, 255);
+            if (tx == Hero->PositionX && ty == Hero->PositionY) continue;
+
+            if (IsTileWalkable(tx, ty) && PathFinding2(Hero->PositionX, Hero->PositionY, tx, ty, &Hero->Path))
+            {
+                bestTx = tx;
+                bestTy = ty;
+                found = true;
+                break;
+            }
+        }
+
+        // Wall sliding: trượt tường nếu bị vướng vật cản theo đường chéo
+        if (!found)
+        {
+            if (std::abs(wDirX) > 0.35f)
+            {
+                const int tx = std::clamp(Hero->PositionX + static_cast<int>(std::round(wDirX * 3.0f)), 0, 255);
+                const int ty = Hero->PositionY;
+                if (tx != Hero->PositionX && IsTileWalkable(tx, ty) && PathFinding2(Hero->PositionX, Hero->PositionY, tx, ty, &Hero->Path))
+                {
+                    bestTx = tx;
+                    bestTy = ty;
+                    found = true;
+                }
+            }
+            if (!found && std::abs(wDirY) > 0.35f)
+            {
+                const int tx = Hero->PositionX;
+                const int ty = std::clamp(Hero->PositionY + static_cast<int>(std::round(wDirY * 3.0f)), 0, 255);
+                if (ty != Hero->PositionY && IsTileWalkable(tx, ty) && PathFinding2(Hero->PositionX, Hero->PositionY, tx, ty, &Hero->Path))
+                {
+                    bestTx = tx;
+                    bestTy = ty;
+                    found = true;
+                }
+            }
+        }
+
+        if (found)
+        {
+            TargetX = bestTx;
+            TargetY = bestTy;
+            Hero->MovementType = MOVEMENT_MOVE;
+            Hero->Object.Angle[2] = CreateAngle(Hero->Object.Position[0], Hero->Object.Position[1],
+                                                static_cast<float>(bestTx * TERRAIN_SCALE + 50.0f),
+                                                static_cast<float>(bestTy * TERRAIN_SCALE + 50.0f));
+            HeroAngle = (int)Hero->Object.Angle[2];
+            StandTime = 0;
+            SendMove(Hero, &Hero->Object);
+            g_virtualJoystickDrivingMove = true;
+        }
+    }
 }
 
 bool IsMiniMapToggleAvailable()
@@ -2959,6 +3112,31 @@ void ClearActiveVirtualTouchSlot(int slot)
     g_activeVirtualTouches[slot] = ActiveVirtualTouch{};
 }
 
+int FindMonsterNearTile(int tileX, int tileY, float maxDist)
+{
+    if (Hero == nullptr || CharactersClient == nullptr) return -1;
+    int bestMonster = -1;
+    float bestDist = maxDist;
+
+    for (int i = 0; i < MAX_CHARACTERS_CLIENT; ++i)
+    {
+        CHARACTER* c = &CharactersClient[i];
+        OBJECT* o = &c->Object;
+        if (KIND_MONSTER == o->Kind && o->Live && o->Visible && o->Alpha > 0.0f && o->CurrentAction != 6 && c->Dead == 0)
+        {
+            const float dx = static_cast<float>(c->PositionX - tileX);
+            const float dy = static_cast<float>(c->PositionY - tileY);
+            const float d = std::hypot(dx, dy);
+            if (d < bestDist)
+            {
+                bestDist = d;
+                bestMonster = i;
+            }
+        }
+    }
+    return bestMonster;
+}
+
 bool IsValidAutoCombatTarget(int characterIndex)
 {
     if (!IsVirtualPadAvailable()
@@ -3406,6 +3584,70 @@ bool TriggerVirtualNormalAutoAttack()
     return true;
 }
 
+bool IsGroundTargetSkill(ActionSkillType skillType)
+{
+    switch (skillType)
+    {
+    case AT_SKILL_BLAST_FREEZE:
+    case AT_SKILL_ICE_UP:
+    case AT_SKILL_ICE_UP + 1:
+    case AT_SKILL_ICE_UP + 2:
+    case AT_SKILL_BLAST_POISON:
+    case MASTER_SKILL_ADD_DECAY_IMPROVED:
+    case AT_SKILL_FLAME:
+    case MASTER_SKILL_ADD_FLAME_IMPROVED1:
+    case MASTER_SKILL_ADD_FLAME_IMPROVED2:
+        return true;
+    default:
+        return false;
+    }
+}
+
+bool IsUntargetedAoeSkill(ActionSkillType skillType)
+{
+    switch (skillType)
+    {
+    case AT_SKILL_WHEEL:
+    case MASTER_SKILL_ADD_TWISTING_SLASH_IMPROVED1:
+    case MASTER_SKILL_ADD_TWISTING_SLASH_IMPROVED2:
+    case MASTER_SKILL_ADD_TWISTING_SLASH_ENHANCED:
+    case AT_SKILL_TORNADO_SWORDA_UP:
+    case AT_SKILL_TORNADO_SWORDA_UP + 1:
+    case AT_SKILL_TORNADO_SWORDA_UP + 2:
+    case AT_SKILL_TORNADO_SWORDA_UP + 3:
+    case AT_SKILL_TORNADO_SWORDA_UP + 4:
+    case AT_SKILL_TORNADO_SWORDB_UP:
+    case AT_SKILL_TORNADO_SWORDB_UP + 1:
+    case AT_SKILL_TORNADO_SWORDB_UP + 2:
+    case AT_SKILL_TORNADO_SWORDB_UP + 3:
+    case AT_SKILL_TORNADO_SWORDB_UP + 4:
+    case AT_SKILL_EVIL:
+    case AT_SKILL_EVIL_SPIRIT_UP:
+    case AT_SKILL_EVIL_SPIRIT_UP_M:
+    case MASTER_SKILL_ADD_EVIL_SPIRIT_IMPROVED1:
+    case MASTER_SKILL_ADD_EVIL_SPIRIT_IMPROVED2:
+    case AT_SKILL_STORM:
+    case AT_SKILL_GIGANTIC_STORM:
+    case AT_SKILL_HELL:
+    case AT_SKILL_HELL_FIRE_UP:
+    case MASTER_SKILL_ADD_HELL_FIRE_IMPROVED:
+    case AT_SKILL_INFERNO:
+    case MASTER_SKILL_ADD_INFERNO_IMPROVED1:
+    case MASTER_SKILL_ADD_INFERNO_IMPROVED2:
+    case AT_SKILL_DARK_HORSE:
+    case MASTER_SKILL_ADD_EARTHQUAKE_IMPROVED:
+    case MASTER_SKILL_ADD_EARTHQUAKE_ENHANCED:
+    case AT_SKILL_FLASH:
+        return true;
+    default:
+        return false;
+    }
+}
+
+int GetVirtualOverlayHotKeySkillIndex(int visualSlot);
+bool AndroidExecuteMobileSkillByIndex(int hotKeySkillIndex, bool isContinuousHold, int aimTileX = -1, int aimTileY = -1, int aimTargetMonster = -1, bool isManualAim = false);
+bool AndroidExecuteMobileSkillBySlot(int visualSlot, bool isContinuousHold, int aimTileX = -1, int aimTileY = -1, int aimTargetMonster = -1, bool isManualAim = false);
+
 void TriggerVirtualCombat(bool useNormalAttack, int skillSlot)
 {
     if (!IsVirtualPadAvailable() || Hero->Dead > 0)
@@ -3413,15 +3655,10 @@ void TriggerVirtualCombat(bool useNormalAttack, int skillSlot)
         return;
     }
 
-    static uint32_t s_lastVirtualCombatLog = 0;
-    const uint32_t nowMs = MU_MobileGetTicks();
-
     if (useNormalAttack)
     {
         EnsureNormalAttackTarget();
 
-        // Reject hero index â€” after ReceiveJoinMapServer, HeroIndex is random
-        // so SelectedCharacter could accidentally equal it.
         const int heroIdx = GetHeroCharacterIndex();
         if (SelectedCharacter == heroIdx && heroIdx >= 0)
         {
@@ -3431,117 +3668,18 @@ void TriggerVirtualCombat(bool useNormalAttack, int skillSlot)
         const int selectedBeforeAttack = SelectedCharacter;
         if (selectedBeforeAttack < 0)
         {
-            LOGI(
-                "VirtualPad: fire skipped mode=normal reason=no-target");
+            // Air swing fallback on mobile for instant visual & audio feedback
+            SetAttackSpeed();
+            SetPlayerAttack(Hero);
+            PlayBuffer(SOUND_BRANDISH_SWORD01 + rand() % 2);
             return;
         }
 
-        const bool triggered = TriggerVirtualNormalAutoAttack();
-        if ((nowMs - s_lastVirtualCombatLog) > 150)
-        {
-            s_lastVirtualCombatLog = nowMs;
-            LOGI(
-                "VirtualPad: fire mode=normal target=%d triggered=%d",
-                selectedBeforeAttack,
-                triggered ? 1 : 0);
-        }
+        TriggerVirtualNormalAutoAttack();
         return;
     }
 
-    LoadVirtualSkillSlots();
-
-    if (skillSlot < 0 || skillSlot >= kVirtualSkillSlotCount)
-    {
-        return;
-    }
-
-    if (!IsAssignableVirtualSkillIndex(g_virtualSkillSlots[skillSlot]))
-    {
-        const int currentSkillType = (IsValidSkillIndex(Hero->CurrentSkill) && CharacterAttribute != nullptr)
-            ? CharacterAttribute->Skill[Hero->CurrentSkill]
-            : -1;
-        LOGI(
-            "VirtualPad: slot%d empty; currentSkill=%d skillType=%d",
-            skillSlot,
-            Hero->CurrentSkill,
-            currentSkillType);
-        return;
-    }
-
-    const int previousSkillIndex = Hero->CurrentSkill;
-    Hero->CurrentSkill = static_cast<BYTE>(g_virtualSkillSlots[skillSlot]);
-    const int rawSkillType = CharacterAttribute->Skill[Hero->CurrentSkill];
-    if (rawSkillType <= 0 || rawSkillType >= MAX_SKILLS)
-    {
-        LOGW("VirtualPad: invalid skillType=%d skillIndex=%d", rawSkillType, Hero->CurrentSkill);
-        Hero->CurrentSkill = static_cast<BYTE>(previousSkillIndex);
-        return;
-    }
-
-    const ActionSkillType skillType = static_cast<ActionSkillType>(rawSkillType);
-    const bool supportSkill = IsSupportOrSelfSkill(skillType);
-    if (!supportSkill)
-    {
-        EnsureOffensiveSkillTarget();
-    }
-    else
-    {
-        // Buff/friendly skills are safer when explicitly bound to self target.
-        SelectedCharacter = GetHeroCharacterIndex();
-    }
-
-    const int selectedBeforeAttack = SelectedCharacter;
-    if (supportSkill && selectedBeforeAttack < 0)
-    {
-        LOGI(
-            "VirtualPad: fire skipped mode=skill slot=%d skillIndex=%d skillType=%d reason=self-target-unavailable",
-            skillSlot,
-            Hero->CurrentSkill,
-            static_cast<int>(skillType));
-        Hero->CurrentSkill = static_cast<BYTE>(previousSkillIndex);
-        return;
-    }
-
-    if (!supportSkill && selectedBeforeAttack < 0)
-    {
-        LOGI(
-            "VirtualPad: fire skipped mode=skill slot=%d skillIndex=%d skillType=%d reason=no-target",
-            skillSlot,
-            Hero->CurrentSkill,
-            static_cast<int>(skillType));
-        Hero->CurrentSkill = static_cast<BYTE>(previousSkillIndex);
-        return;
-    }
-
-    const bool isBuffType = IsCorrectSkillType_Buff(skillType) == TRUE;
-    const bool isFriendlyType = IsCorrectSkillType_FrendlySkill(skillType) == TRUE;
-    if ((nowMs - s_lastVirtualCombatLog) > 150)
-    {
-        s_lastVirtualCombatLog = nowMs;
-        LOGI(
-            "VirtualPad: fire mode=skill slot=%d skillIndex=%d skillType=%d target=%d",
-            skillSlot,
-            Hero->CurrentSkill,
-            static_cast<int>(skillType),
-            selectedBeforeAttack);
-        LOGI(
-            "VirtualPad: skill meta index=%d type=%d support=%d buff=%d friendly=%d target=%d",
-            Hero->CurrentSkill,
-            static_cast<int>(skillType),
-            supportSkill ? 1 : 0,
-            isBuffType ? 1 : 0,
-            isFriendlyType ? 1 : 0,
-            selectedBeforeAttack);
-    }
-
-    MouseRButtonPop = false;
-    MouseRButtonPush = true;
-    MouseRButton = true;
-    Attack(Hero);
-    MouseRButtonPush = false;
-    MouseRButton = false;
-
-    Hero->CurrentSkill = static_cast<BYTE>(previousSkillIndex);
+    AndroidExecuteMobileSkillBySlot(skillSlot, false);
 }
 
 bool AndroidTriggerNormalAttackButtonInternal()
@@ -3551,83 +3689,420 @@ bool AndroidTriggerNormalAttackButtonInternal()
         return false;
     }
 
-    const int selectedBefore = SelectedCharacter;
     TriggerVirtualCombat(true, -1);
-    return SelectedCharacter != -1 || selectedBefore != SelectedCharacter;
+    return true;
 }
 
-bool AndroidTriggerHotKeySkillTapInternal(int hotKeySkillIndex)
+bool AndroidExecuteMobileSkillByIndex(int hotKeySkillIndex, bool isContinuousHold, int aimTileX, int aimTileY, int aimTargetMonster, bool isManualAim)
 {
-    if (!IsVirtualPadAvailable()
-        || Hero == nullptr
-        || CharacterAttribute == nullptr
-        || Hero->Dead > 0)
+    if (!IsVirtualPadAvailable() || Hero == nullptr || CharacterAttribute == nullptr || Hero->Dead > 0)
     {
         return false;
     }
 
     if (hotKeySkillIndex >= AT_PET_COMMAND_DEFAULT && hotKeySkillIndex < AT_PET_COMMAND_END)
     {
-        if (Hero->m_pPet == nullptr)
-        {
-            return false;
-        }
-
+        if (Hero->m_pPet == nullptr) return false;
         Hero->CurrentSkill = static_cast<BYTE>(hotKeySkillIndex);
+        giPetManager::SendPetCommand(Hero, Hero->CurrentSkill);
         return true;
     }
 
-    if (!IsValidSkillIndex(hotKeySkillIndex))
+    const int actualSkillIndex = ResolveSkillSlotIndex(hotKeySkillIndex);
+    const int rawSkillType = ResolveSkillType(hotKeySkillIndex);
+    if (actualSkillIndex < 0 || rawSkillType <= 0 || rawSkillType >= MAX_SKILLS)
     {
         return false;
     }
 
-    const int rawSkillType = CharacterAttribute->Skill[hotKeySkillIndex];
-    if (rawSkillType <= 0 || rawSkillType >= MAX_SKILLS)
+    // 1. Unconditionally stop hero movement so animation state doesn't block skill execution
+    g_virtualJoystickDrivingMove = false;
+    Hero->Movement = false;
+    Hero->Path.PathNum = 0;
+    Hero->Path.CurrentPath = 0;
+    SetPlayerStop(Hero);
+
+    // Force animation to a valid STOP state so ExecuteSkill() doesn't reject the cast.
+    // On mobile, the character can be mid-walk/attack animation when skill button is tapped.
     {
-        return false;
+        OBJECT* ho = &Hero->Object;
+        const bool inStopAction =
+            (ho->CurrentAction >= PLAYER_STOP_MALE && ho->CurrentAction <= PLAYER_STOP_RIDE_WEAPON)
+            || ho->CurrentAction == PLAYER_STOP_TWO_HAND_SWORD_TWO
+            || ho->CurrentAction == PLAYER_SKILL_HELL_BEGIN
+            || ho->CurrentAction == PLAYER_DARKLORD_STAND
+            || ho->CurrentAction == PLAYER_STOP_RIDE_HORSE
+            || ho->CurrentAction == PLAYER_FENRIR_STAND
+            || ho->CurrentAction == PLAYER_FENRIR_STAND_TWO_SWORD
+            || ho->CurrentAction == PLAYER_FENRIR_STAND_ONE_RIGHT
+            || ho->CurrentAction == PLAYER_FENRIR_STAND_ONE_LEFT
+            || (ho->CurrentAction >= PLAYER_RAGE_FENRIR_STAND && ho->CurrentAction <= PLAYER_RAGE_FENRIR_STAND_ONE_LEFT)
+            || ho->CurrentAction == PLAYER_RAGE_UNI_STOP_ONE_RIGHT
+            || ho->CurrentAction == PLAYER_STOP_RAGEFIGHTER;
+        if (!inStopAction)
+        {
+            // Reset to a generic stop action that ExecuteSkill() accepts
+            ho->CurrentAction = PLAYER_STOP_MALE;
+            ho->AnimationFrame = 0.0f;
+        }
     }
 
-    const int previousSkillIndex = Hero->CurrentSkill;
+    Hero->CurrentSkill = static_cast<BYTE>(actualSkillIndex);
+
     const ActionSkillType skillType = static_cast<ActionSkillType>(rawSkillType);
-    const bool supportSkill = IsSupportOrSelfSkill(skillType);
+    const float skillDistance = gSkillManager.GetSkillDistance(skillType, Hero);
+    g_MovementSkill.m_bMagic = TRUE;
+    g_MovementSkill.m_iSkill = actualSkillIndex;
+    Attacking = 2;
 
-    if (supportSkill)
+    // Check delay cooldown
+    if (!gSkillManager.CheckSkillDelay(Hero->CurrentSkill))
     {
-        SelectedCharacter = GetHeroCharacterIndex();
+        return false;
+    }
+
+    // Check Mana & SkillMana (AG)
+    int iMana = 0, iSkillMana = 0;
+    gSkillManager.GetSkillInformation(skillType, 1, NULL, &iMana, NULL, &iSkillMana);
+    if (CharacterAttribute->Mana < iMana)
+    {
+        int itemIdx = g_pMyInventory ? g_pMyInventory->FindManaItemIndex() : -1;
+        if (itemIdx != -1)
+        {
+            SendRequestUse(itemIdx, 0);
+        }
+        return false;
+    }
+    if (CharacterAttribute->SkillMana < iSkillMana)
+    {
+        return false;
+    }
+
+    // Case 1: Support / Self / Party Buff
+    if (IsSupportOrSelfSkill(skillType))
+    {
+        const int heroIdx = GetHeroCharacterIndex();
+        SelectedCharacter = (heroIdx >= 0) ? heroIdx : 0;
+        ActionTarget = SelectedCharacter;
+        g_MovementSkill.m_iTarget = SelectedCharacter;
+        TargetX = Hero->PositionX;
+        TargetY = Hero->PositionY;
+        VectorCopy(Hero->Object.Position, Hero->TargetPosition);
+
+        SendRequestMagic(skillType, HeroKey);
+        SetPlayerMagic(Hero);
+        return true;
+    }
+
+    // Set Target Position based on manual aim vs auto-target
+    if (isManualAim)
+    {
+        if (aimTargetMonster >= 0 && aimTargetMonster < MAX_CHARACTERS_CLIENT
+            && CharactersClient[aimTargetMonster].Object.Live
+            && CharactersClient[aimTargetMonster].Dead == 0)
+        {
+            SelectedCharacter = aimTargetMonster;
+            ActionTarget = aimTargetMonster;
+            g_MovementSkill.m_iTarget = aimTargetMonster;
+            TargetX = static_cast<int>(CharactersClient[aimTargetMonster].Object.Position[0] / TERRAIN_SCALE);
+            TargetY = static_cast<int>(CharactersClient[aimTargetMonster].Object.Position[1] / TERRAIN_SCALE);
+            VectorCopy(CharactersClient[aimTargetMonster].Object.Position, Hero->TargetPosition);
+            Hero->Object.Angle[2] = CreateAngle(Hero->Object.Position[0], Hero->Object.Position[1],
+                                                Hero->TargetPosition[0], Hero->TargetPosition[1]);
+            HeroAngle = (int)Hero->Object.Angle[2];
+        }
+        else
+        {
+            SelectedCharacter = -1;
+            ActionTarget = -1;
+            g_MovementSkill.m_iTarget = -1;
+            TargetX = std::clamp(aimTileX, 0, 255);
+            TargetY = std::clamp(aimTileY, 0, 255);
+            Hero->TargetPosition[0] = static_cast<float>(TargetX * TERRAIN_SCALE + 50.0f);
+            Hero->TargetPosition[1] = static_cast<float>(TargetY * TERRAIN_SCALE + 50.0f);
+            Hero->TargetPosition[2] = RequestTerrainHeight(Hero->TargetPosition[0], Hero->TargetPosition[1]);
+            Hero->Object.Angle[2] = CreateAngle(Hero->Object.Position[0], Hero->Object.Position[1],
+                                                Hero->TargetPosition[0], Hero->TargetPosition[1]);
+            HeroAngle = (int)Hero->Object.Angle[2];
+            SelectXF = static_cast<float>(TargetX);
+            SelectYF = static_cast<float>(TargetY);
+            VectorCopy(Hero->TargetPosition, CollisionPosition);
+        }
     }
     else
     {
         EnsureOffensiveSkillTarget();
+        if (SelectedCharacter >= 0 && SelectedCharacter < MAX_CHARACTERS_CLIENT
+            && CharactersClient[SelectedCharacter].Object.Live
+            && CharactersClient[SelectedCharacter].Dead == 0)
+        {
+            ActionTarget = SelectedCharacter;
+            g_MovementSkill.m_iTarget = SelectedCharacter;
+            TargetX = static_cast<int>(CharactersClient[SelectedCharacter].Object.Position[0] / TERRAIN_SCALE);
+            TargetY = static_cast<int>(CharactersClient[SelectedCharacter].Object.Position[1] / TERRAIN_SCALE);
+            VectorCopy(CharactersClient[SelectedCharacter].Object.Position, Hero->TargetPosition);
+            Hero->Object.Angle[2] = CreateAngle(Hero->Object.Position[0], Hero->Object.Position[1],
+                                                Hero->TargetPosition[0], Hero->TargetPosition[1]);
+            HeroAngle = (int)Hero->Object.Angle[2];
+        }
+        else
+        {
+            SelectedCharacter = -1;
+            ActionTarget = -1;
+            g_MovementSkill.m_iTarget = -1;
+            const float rad = glm::radians(Hero->Object.Angle[2]);
+            TargetX = std::clamp(Hero->PositionX + static_cast<int>(std::round(-sinf(rad) * 4.0f)), 0, 255);
+            TargetY = std::clamp(Hero->PositionY + static_cast<int>(std::round(cosf(rad) * 4.0f)), 0, 255);
+            Hero->TargetPosition[0] = static_cast<float>(TargetX * TERRAIN_SCALE + 50.0f);
+            Hero->TargetPosition[1] = static_cast<float>(TargetY * TERRAIN_SCALE + 50.0f);
+            Hero->TargetPosition[2] = RequestTerrainHeight(Hero->TargetPosition[0], Hero->TargetPosition[1]);
+        }
     }
 
-    if (SelectedCharacter < 0)
+    // Ground / Position Target Skills (Ice Storm / Mưa Băng Tuyết, Decay, Flame, Ice Up, etc.)
+    // Supports dragging to change target position dynamically ("thay đổi vị trí đánh ra khi nhấn giữ trượt")
+    if (IsGroundTargetSkill(skillType))
     {
-        LOGI(
-            "VirtualPad: hotkey skill skipped skillIndex=%d skillType=%d reason=no-target support=%d",
-            hotKeySkillIndex,
-            rawSkillType,
-            supportSkill ? 1 : 0);
-        return false;
+        WORD targetKey = 0xffff;
+        if (SelectedCharacter >= 0 && SelectedCharacter < MAX_CHARACTERS_CLIENT
+            && CharactersClient[SelectedCharacter].Object.Live
+            && CharactersClient[SelectedCharacter].Dead == 0)
+        {
+            targetKey = static_cast<WORD>(getTargetCharacterKey(Hero, SelectedCharacter));
+        }
+
+        const BYTE tx = static_cast<BYTE>(std::clamp(TargetX, 0, 255));
+        const BYTE ty = static_cast<BYTE>(std::clamp(TargetY, 0, 255));
+        const BYTE angle = static_cast<BYTE>(Hero->Object.Angle[2] / 360.0f * 256.0f);
+
+        SendRequestMagicContinue(skillType, tx, ty, angle, 0, 0, targetKey, 0);
+        SetPlayerMagic(Hero);
+        Hero->Movement = 0;
+        return true;
     }
 
-    const float skillDistance = gSkillManager.GetSkillDistance(skillType, Hero);
-    const int executeResult = ExecuteSkill(Hero, skillType, skillDistance);
-    const bool startedSkillMove = Hero->Movement && Hero->MovementType == MOVEMENT_SKILL;
+    // Case 2: Untargeted AOE Skills (Twisting Slash, Evil Spirit, Hellfire, Inferno, Dark Horse, etc.)
+    if (IsUntargetedAoeSkill(skillType))
+    {
+        WORD targetKey = 0xffff;
+        if (SelectedCharacter >= 0 && SelectedCharacter < MAX_CHARACTERS_CLIENT && CharactersClient[SelectedCharacter].Object.Live)
+        {
+            targetKey = static_cast<WORD>(getTargetCharacterKey(Hero, SelectedCharacter));
+            g_MovementSkill.m_iTarget = SelectedCharacter;
+        }
+        else
+        {
+            g_MovementSkill.m_iTarget = -1;
+        }
 
-    LOGI(
-        "VirtualPad: hotkey skill skillIndex=%d skillType=%d target=%d result=%d move=%d movementType=%d visible=%d",
-        hotKeySkillIndex,
-        rawSkillType,
-        SelectedCharacter,
-        executeResult,
-        startedSkillMove ? 1 : 0,
-        Hero->MovementType,
-        (SelectedCharacter >= 0 && SelectedCharacter < MAX_CHARACTERS_CLIENT && CharactersClient[SelectedCharacter].Object.Visible) ? 1 : 0);
+        if (skillType == AT_SKILL_WHEEL || (skillType >= AT_SKILL_TORNADO_SWORDA_UP && skillType <= AT_SKILL_TORNADO_SWORDB_UP + 4)
+            || skillType == MASTER_SKILL_ADD_TWISTING_SLASH_IMPROVED1 || skillType == MASTER_SKILL_ADD_TWISTING_SLASH_IMPROVED2
+            || skillType == MASTER_SKILL_ADD_TWISTING_SLASH_ENHANCED)
+        {
+            BYTE PathX[1] = { static_cast<BYTE>(Hero->PositionX) };
+            BYTE PathY[1] = { static_cast<BYTE>(Hero->PositionY) };
+#ifdef NEW_PROTOCOL_SYSTEM
+            gProtocolSend.SendCharacterMoveNew(Hero->Key, Hero->Object.Angle[2], 1, &PathX[0], &PathY[0], TargetX, TargetY);
+#else
+            SendCharacterMove(Hero->Key, Hero->Object.Angle[2], 1, &PathX[0], &PathY[0], TargetX, TargetY);
+#endif
+            SendRequestMagicContinue(skillType, Hero->PositionX, Hero->PositionY,
+                static_cast<BYTE>(Hero->Object.Angle[2] / 360.0f * 256.0f), 0, 0, targetKey, 0);
+            SetAttackSpeed();
+            SetAction(&Hero->Object, PLAYER_ATTACK_SKILL_WHEEL);
+            Hero->Movement = 0;
+            return true;
+        }
 
-    Hero->CurrentSkill = static_cast<BYTE>(previousSkillIndex);
-    return executeResult != 0 || startedSkillMove;
+        if (skillType == AT_SKILL_EVIL || skillType == AT_SKILL_EVIL_SPIRIT_UP || skillType == AT_SKILL_EVIL_SPIRIT_UP_M
+            || skillType == MASTER_SKILL_ADD_EVIL_SPIRIT_IMPROVED1 || skillType == MASTER_SKILL_ADD_EVIL_SPIRIT_IMPROVED2
+            || skillType == AT_SKILL_STORM || skillType == AT_SKILL_GIGANTIC_STORM)
+        {
+            SendRequestMagicContinue(skillType, Hero->PositionX, Hero->PositionY,
+                static_cast<BYTE>(Hero->Object.Angle[2] / 360.0f * 256.0f), 0, 0, 0xffff, &Hero->Object.m_bySkillSerialNum);
+            SetPlayerMagic(Hero);
+            Hero->Movement = 0;
+            return true;
+        }
 
+        if (skillType == AT_SKILL_HELL || skillType == AT_SKILL_HELL_FIRE_UP || skillType == MASTER_SKILL_ADD_HELL_FIRE_IMPROVED)
+        {
+            SendRequestMagicContinue(skillType, Hero->PositionX, Hero->PositionY,
+                static_cast<BYTE>(Hero->Object.Angle[2] / 360.0f * 256.0f), 0, 0, 0xffff, 0);
+            SetAttackSpeed();
+            SetAction(&Hero->Object, PLAYER_SKILL_HELL);
+            Hero->Movement = 0;
+            return true;
+        }
+
+        if (skillType == AT_SKILL_INFERNO || skillType == MASTER_SKILL_ADD_INFERNO_IMPROVED1 || skillType == MASTER_SKILL_ADD_INFERNO_IMPROVED2)
+        {
+            SendRequestMagicContinue(skillType, Hero->PositionX, Hero->PositionY,
+                static_cast<BYTE>(Hero->Object.Angle[2] / 360.0f * 256.0f), 0, 0, 0xffff, 0);
+            SetAttackSpeed();
+            SetAction(&Hero->Object, PLAYER_SKILL_INFERNO);
+            Hero->Movement = 0;
+            return true;
+        }
+
+        if (skillType == AT_SKILL_DARK_HORSE || skillType == MASTER_SKILL_ADD_EARTHQUAKE_IMPROVED || skillType == MASTER_SKILL_ADD_EARTHQUAKE_ENHANCED)
+        {
+            SendRequestMagicContinue(skillType, Hero->PositionX, Hero->PositionY,
+                static_cast<BYTE>(Hero->Object.Angle[2] / 360.0f * 256.0f), 0, 0, 0xffff, 0);
+            SetAttackSpeed();
+            SetAction(&Hero->Object, PLAYER_ATTACK_DARKHORSE);
+            Hero->Movement = 0;
+            return true;
+        }
+
+        // Generic AOE
+        SendRequestMagicContinue(skillType, Hero->PositionX, Hero->PositionY,
+            static_cast<BYTE>(Hero->Object.Angle[2] / 360.0f * 256.0f), 0, 0, targetKey, 0);
+        SetPlayerMagic(Hero);
+        Hero->Movement = 0;
+        return true;
+    }
+
+    // Case 3: Targeted & Weapon Skills (Cyclone, Slash, Falling Slash, Lunge, Energy Ball, Triple Shot, etc.)
+    if (SelectedCharacter >= 0 && SelectedCharacter < MAX_CHARACTERS_CLIENT
+        && CharactersClient[SelectedCharacter].Object.Live
+        && CharactersClient[SelectedCharacter].Dead == 0)
+    {
+        CHARACTER* targetChar = &CharactersClient[SelectedCharacter];
+        TargetX = static_cast<int>(targetChar->Object.Position[0] / TERRAIN_SCALE);
+        TargetY = static_cast<int>(targetChar->Object.Position[1] / TERRAIN_SCALE);
+        VectorCopy(targetChar->Object.Position, Hero->TargetPosition);
+        Hero->Object.Angle[2] = CreateAngle(Hero->Object.Position[0], Hero->Object.Position[1],
+                                            Hero->TargetPosition[0], Hero->TargetPosition[1]);
+        HeroAngle = (int)Hero->Object.Angle[2];
+        ActionTarget = SelectedCharacter;
+        g_MovementSkill.m_iTarget = SelectedCharacter;
+
+        const float dx = (Hero->Object.Position[0] - targetChar->Object.Position[0]) / TERRAIN_SCALE;
+        const float dy = (Hero->Object.Position[1] - targetChar->Object.Position[1]) / TERRAIN_SCALE;
+        const float dist = std::sqrt(dx * dx + dy * dy);
+        const float effDist = (std::max)(skillDistance, 2.0f);
+
+        if (dist <= effDist)
+        {
+            // Monster within striking distance: execute skill
+            int res = ExecuteSkill(Hero, skillType, skillDistance);
+            if (res != 0) return true;
+
+            // Fallback for weapon skills if ExecuteSkill returned 0
+            for (int eq = EQUIPMENT_WEAPON_RIGHT; eq <= EQUIPMENT_WEAPON_LEFT; ++eq)
+            {
+                if (CastWarriorSkill(Hero, &Hero->Object, &CharacterMachine->Equipment[eq], skillType))
+                {
+                    return true;
+                }
+            }
+
+            // Direct magic request fallback
+            WORD tKey = static_cast<WORD>(getTargetCharacterKey(Hero, SelectedCharacter));
+            SendRequestMagic(skillType, tKey);
+            SetPlayerMagic(Hero);
+            return true;
+        }
+        else if (!isManualAim)
+        {
+            // Monster further away: move into range
+            if (PathFinding2(Hero->PositionX, Hero->PositionY, TargetX, TargetY, &Hero->Path, effDist * 0.85f))
+            {
+                Hero->Movement = true;
+                Hero->MovementType = MOVEMENT_SKILL;
+                SendMove(Hero, &Hero->Object);
+                return true;
+            }
+        }
+    }
+    else if (isManualAim)
+    {
+        // Player dragged to aim weapon/targeted skill: check if any monster near the aimed tile
+        int nearMonster = FindMonsterNearTile(TargetX, TargetY, 3.5f);
+        if (nearMonster >= 0 && nearMonster < MAX_CHARACTERS_CLIENT
+            && CharactersClient[nearMonster].Object.Live
+            && CharactersClient[nearMonster].Dead == 0)
+        {
+            CHARACTER* targetChar = &CharactersClient[nearMonster];
+            SelectedCharacter = nearMonster;
+            ActionTarget = nearMonster;
+            g_MovementSkill.m_iTarget = nearMonster;
+            TargetX = static_cast<int>(targetChar->Object.Position[0] / TERRAIN_SCALE);
+            TargetY = static_cast<int>(targetChar->Object.Position[1] / TERRAIN_SCALE);
+            VectorCopy(targetChar->Object.Position, Hero->TargetPosition);
+            Hero->Object.Angle[2] = CreateAngle(Hero->Object.Position[0], Hero->Object.Position[1],
+                                                Hero->TargetPosition[0], Hero->TargetPosition[1]);
+            HeroAngle = (int)Hero->Object.Angle[2];
+
+            int res = ExecuteSkill(Hero, skillType, skillDistance);
+            if (res != 0) return true;
+
+            for (int eq = EQUIPMENT_WEAPON_RIGHT; eq <= EQUIPMENT_WEAPON_LEFT; ++eq)
+            {
+                if (CastWarriorSkill(Hero, &Hero->Object, &CharacterMachine->Equipment[eq], skillType))
+                {
+                    return true;
+                }
+            }
+
+            WORD tKey = static_cast<WORD>(getTargetCharacterKey(Hero, nearMonster));
+            SendRequestMagic(skillType, tKey);
+            SetPlayerMagic(Hero);
+            return true;
+        }
+    }
+
+    // Case 4: No monster nearby â€” cast into the air in facing direction
+    SelectedCharacter = -1;
+    ActionTarget = -1;
+    g_MovementSkill.m_iTarget = -1;
+    if (!isManualAim)
+    {
+        const float rad = glm::radians(Hero->Object.Angle[2]);
+        TargetX = std::clamp(Hero->PositionX + static_cast<int>(std::round(-sinf(rad) * 4.0f)), 0, 255);
+        TargetY = std::clamp(Hero->PositionY + static_cast<int>(std::round(cosf(rad) * 4.0f)), 0, 255);
+        Hero->TargetPosition[0] = static_cast<float>(TargetX * TERRAIN_SCALE + 50.0f);
+        Hero->TargetPosition[1] = static_cast<float>(TargetY * TERRAIN_SCALE + 50.0f);
+    }
+    Hero->Object.Angle[2] = CreateAngle(Hero->Object.Position[0], Hero->Object.Position[1],
+                                        Hero->TargetPosition[0], Hero->TargetPosition[1]);
+    HeroAngle = (int)Hero->Object.Angle[2];
+
+    const int baseClass = gCharacterManager.GetBaseClass(Hero->Class);
+    if (baseClass == CLASS_KNIGHT || baseClass == CLASS_DARK_LORD || baseClass == CLASS_RAGEFIGHTER)
+    {
+        SetAttackSpeed();
+        int action = PLAYER_ATTACK_SKILL_SWORD1;
+        if (skillType >= AT_SKILL_SWORD1 && skillType <= AT_SKILL_SWORD5)
+        {
+            action = PLAYER_ATTACK_SKILL_SWORD1 + (skillType - AT_SKILL_SWORD1);
+        }
+        SetAction(&Hero->Object, action);
+        PlayBuffer(SOUND_BRANDISH_SWORD01 + rand() % 2);
+        vec3_t light = { 1.0f, 1.0f, 1.0f };
+        CreateParticle(BITMAP_SHINY + 2, Hero->Object.Position, Hero->Object.Angle, light, 0, 0.0f, &Hero->Object);
+    }
+    else
+    {
+        SendRequestMagicContinue(skillType, static_cast<BYTE>(TargetX), static_cast<BYTE>(TargetY),
+            static_cast<BYTE>(Hero->Object.Angle[2] / 360.0f * 256.0f), 0, 0, 0xffff, 0);
+        SetPlayerMagic(Hero);
+    }
+
+    return true;
+}
+
+bool AndroidExecuteMobileSkillBySlot(int visualSlot, bool isContinuousHold, int aimTileX, int aimTileY, int aimTargetMonster, bool isManualAim)
+{
+    const int hotKeySkillIndex = GetVirtualOverlayHotKeySkillIndex(visualSlot);
+    return AndroidExecuteMobileSkillByIndex(hotKeySkillIndex, isContinuousHold, aimTileX, aimTileY, aimTargetMonster, isManualAim);
+}
+
+
+bool AndroidTriggerHotKeySkillTapInternal(int hotKeySkillIndex)
+{
+    return AndroidExecuteMobileSkillByIndex(hotKeySkillIndex, false);
 }
 
 int GetVirtualOverlayHotKeySlot(int visualSlot)
@@ -3642,13 +4117,41 @@ int GetVirtualOverlayHotKeySlot(int visualSlot)
 
 int GetVirtualOverlayHotKeySkillIndex(int visualSlot)
 {
-    if (g_pSkillList == nullptr)
+    if (visualSlot < 0 || visualSlot >= kVirtualVisibleSkillButtonCount)
     {
         return -1;
     }
 
-    const int hotKeySlot = GetVirtualOverlayHotKeySlot(visualSlot);
-    return (hotKeySlot >= 0) ? g_pSkillList->GetHotKey(hotKeySlot) : -1;
+    // 1. Check if hotkey is mapped in SkillList (slots 1..6)
+    if (g_pSkillList != nullptr)
+    {
+        const int hotKeySlot = GetVirtualOverlayHotKeySlot(visualSlot);
+        const int hotKeySkill = (hotKeySlot >= 0) ? g_pSkillList->GetHotKey(hotKeySlot) : -1;
+        if (hotKeySkill >= 0)
+        {
+            return hotKeySkill;
+        }
+    }
+
+    // 2. Fallback: Auto-bind character's learned skills to available slots
+    if (CharacterAttribute != nullptr)
+    {
+        int count = 0;
+        for (int i = 0; i < MAX_MAGIC; ++i)
+        {
+            const int skillType = CharacterAttribute->Skill[i];
+            if (skillType > 0 && skillType < MAX_SKILLS)
+            {
+                if (count == visualSlot)
+                {
+                    return i;
+                }
+                count++;
+            }
+        }
+    }
+
+    return -1;
 }
 
 void ClearVirtualCombatTouches()
@@ -5007,7 +5510,17 @@ bool HandleVirtualFingerDown(const SDL_TouchFingerEvent& touch)
             g_activeVirtualTouches[slot].fingerId = touch.fingerId;
             g_activeVirtualTouches[slot].button = kVirtualAttackButton;
             g_activeVirtualTouches[slot].downMs = nowMs;
-            g_activeVirtualTouches[slot].lastRepeatMs = g_activeVirtualTouches[slot].downMs;
+            g_activeVirtualTouches[slot].lastRepeatMs = nowMs;
+            g_activeVirtualTouches[slot].startUiX = kVirtualButtons[kVirtualAttackButton].cx;
+            g_activeVirtualTouches[slot].startUiY = kVirtualButtons[kVirtualAttackButton].cy;
+            g_activeVirtualTouches[slot].curUiX = uiX;
+            g_activeVirtualTouches[slot].curUiY = uiY;
+            g_activeVirtualTouches[slot].dragDist = 0.0f;
+            g_activeVirtualTouches[slot].isAimDragging = false;
+            g_activeVirtualTouches[slot].isCancel = false;
+            g_activeVirtualTouches[slot].aimTileX = Hero ? Hero->PositionX : 0;
+            g_activeVirtualTouches[slot].aimTileY = Hero ? Hero->PositionY : 0;
+            g_activeVirtualTouches[slot].aimTargetMonster = -1;
         }
 
         AndroidTriggerNormalAttackButtonInternal();
@@ -5047,12 +5560,21 @@ bool HandleVirtualFingerDown(const SDL_TouchFingerEvent& touch)
                 g_activeVirtualTouches[activeSlot].button = skillButton;
                 g_activeVirtualTouches[activeSlot].downMs = nowMs;
                 g_activeVirtualTouches[activeSlot].lastRepeatMs = nowMs;
-            }
+                g_activeVirtualTouches[activeSlot].startUiX = kVirtualButtons[skillButton].cx;
+                g_activeVirtualTouches[activeSlot].startUiY = kVirtualButtons[skillButton].cy;
+                g_activeVirtualTouches[activeSlot].curUiX = uiX;
+                g_activeVirtualTouches[activeSlot].curUiY = uiY;
+                g_activeVirtualTouches[activeSlot].dragDist = 0.0f;
+                g_activeVirtualTouches[activeSlot].isAimDragging = false;
+                g_activeVirtualTouches[activeSlot].isCancel = false;
+                g_activeVirtualTouches[activeSlot].aimTileX = Hero ? Hero->PositionX : 0;
+                g_activeVirtualTouches[activeSlot].aimTileY = Hero ? Hero->PositionY : 0;
+                g_activeVirtualTouches[activeSlot].aimTargetMonster = -1;
 
-            const int hotKeySkillIndex = GetVirtualOverlayHotKeySkillIndex(skillSlot);
-            if (!AndroidTriggerHotKeySkillTapInternal(hotKeySkillIndex))
-            {
-                TriggerVirtualCombat(false, skillSlot);
+                // Fire skill IMMEDIATELY on touch down (auto-target nearest monster)
+                // User can still drag to aim if they slide finger after this initial cast
+                const int hotKeySkillIndex = GetVirtualOverlayHotKeySkillIndex(skillSlot);
+                AndroidExecuteMobileSkillByIndex(hotKeySkillIndex, false, -1, -1, -1, false);
             }
         }
         return true;
@@ -5068,8 +5590,83 @@ bool HandleVirtualFingerMotion(const SDL_TouchFingerEvent& touch)
         return true;
     }
 
-    if (FindActiveVirtualTouchSlot(touch.fingerId) >= 0)
+    const int slot = FindActiveVirtualTouchSlot(touch.fingerId);
+    if (slot >= 0)
     {
+        ActiveVirtualTouch& active = g_activeVirtualTouches[slot];
+        float uiX = 0.0f;
+        float uiY = 0.0f;
+        TouchToVirtualUi(touch, uiX, uiY);
+
+        active.curUiX = uiX;
+        active.curUiY = uiY;
+        const float dx = uiX - active.startUiX;
+        const float dy = uiY - active.startUiY;
+        active.dragDist = std::hypot(dx, dy);
+
+        if (active.dragDist > 10.0f)
+        {
+            active.isAimDragging = true;
+            const float dirX = dx / active.dragDist;
+            const float dirY = dy / active.dragDist;
+
+            // Cancel check: drag upwards to cancel zone (cy ~180, dy < -100)
+            if (uiY < 210.0f || dy < -110.0f)
+            {
+                active.isCancel = true;
+            }
+            else
+            {
+                active.isCancel = false;
+            }
+
+            if (!active.isCancel && Hero != nullptr)
+            {
+                // Invert screen Y for isometric MU world (+Y up in world, +Y down on screen)
+                const float screenDirX = dirX;
+                const float screenDirY = -dirY;
+                const float rad = glm::radians(45.0f);
+                const float wDirX = screenDirX * cosf(rad) - screenDirY * sinf(rad);
+                const float wDirY = screenDirX * sinf(rad) + screenDirY * cosf(rad);
+
+                float maxRange = 6.0f;
+                if (active.button >= kVirtualSkillButtonBase && active.button < (kVirtualSkillButtonBase + kVirtualVisibleSkillButtonCount))
+                {
+                    const int skillSlot = active.button - kVirtualSkillButtonBase;
+                    const int hotKeySkillIndex = GetVirtualOverlayHotKeySkillIndex(skillSlot);
+                    const int rawSkillType = ResolveSkillType(hotKeySkillIndex);
+                    if (rawSkillType > 0)
+                    {
+                        maxRange = std::clamp(gSkillManager.GetSkillDistance(static_cast<ActionSkillType>(rawSkillType), Hero), 3.0f, 12.0f);
+                    }
+                }
+                else if (active.button == kVirtualAttackButton)
+                {
+                    const bool ranged = (gCharacterManager.GetEquipedBowType() != BOWTYPE_NONE) || (Hero->MonsterIndex == 0);
+                    maxRange = ranged ? 6.0f : 2.5f;
+                }
+
+                const float dragFactor = std::clamp((active.dragDist - 10.0f) / 55.0f, 0.0f, 1.0f);
+                const float aimTiles = 1.5f + dragFactor * (maxRange - 1.5f);
+
+                active.aimTileX = std::clamp(Hero->PositionX + static_cast<int>(std::round(wDirX * aimTiles)), 0, 255);
+                active.aimTileY = std::clamp(Hero->PositionY + static_cast<int>(std::round(wDirY * aimTiles)), 0, 255);
+
+                const float targetWorldX = static_cast<float>(active.aimTileX * TERRAIN_SCALE + 50.0f);
+                const float targetWorldY = static_cast<float>(active.aimTileY * TERRAIN_SCALE + 50.0f);
+                Hero->Object.Angle[2] = CreateAngle(Hero->Object.Position[0], Hero->Object.Position[1], targetWorldX, targetWorldY);
+                HeroAngle = static_cast<int>(Hero->Object.Angle[2]);
+
+                // Lock onto monster if near target tile
+                active.aimTargetMonster = FindMonsterNearTile(active.aimTileX, active.aimTileY, 2.5f);
+            }
+        }
+        else
+        {
+            active.isAimDragging = false;
+            active.isCancel = false;
+        }
+
         return true;
     }
 
@@ -5086,7 +5683,43 @@ bool HandleVirtualFingerUp(const SDL_TouchFingerEvent& touch)
     const int slot = FindActiveVirtualTouchSlot(touch.fingerId);
     if (slot >= 0)
     {
+        ActiveVirtualTouch active = g_activeVirtualTouches[slot];
         ClearActiveVirtualTouchSlot(slot);
+
+        if (active.isCancel)
+        {
+            PlayBuffer(SOUND_CLICK01);
+            return true;
+        }
+
+        if (active.button == kVirtualAttackButton)
+        {
+            if (active.isAimDragging && active.aimTargetMonster >= 0)
+            {
+                SelectedCharacter = active.aimTargetMonster;
+                ActionTarget = active.aimTargetMonster;
+                TriggerVirtualNormalAutoAttack();
+            }
+            else
+            {
+                AndroidTriggerNormalAttackButtonInternal();
+            }
+        }
+        else if (active.button >= kVirtualSkillButtonBase && active.button < (kVirtualSkillButtonBase + kVirtualVisibleSkillButtonCount))
+        {
+            const int skillSlot = active.button - kVirtualSkillButtonBase;
+            const int hotKeySkillIndex = GetVirtualOverlayHotKeySkillIndex(skillSlot);
+            if (active.isAimDragging)
+            {
+                // Drag release: fire at manual aimed location / target!
+                AndroidExecuteMobileSkillByIndex(hotKeySkillIndex, false, active.aimTileX, active.aimTileY, active.aimTargetMonster, true);
+            }
+            else
+            {
+                // Quick Tap: auto-target nearest monster!
+                AndroidExecuteMobileSkillByIndex(hotKeySkillIndex, false, -1, -1, -1, false);
+            }
+        }
         return true;
     }
 
@@ -5284,8 +5917,18 @@ void UpdateVirtualPadHolds()
     const uint32_t nowMs = MU_MobileGetTicks();
     for (ActiveVirtualTouch& active : g_activeVirtualTouches)
     {
-        if (active.fingerId == static_cast<SDL_FingerID>(-1)
-            || active.button != kVirtualAttackButton)
+        if (active.fingerId == static_cast<SDL_FingerID>(-1))
+        {
+            continue;
+        }
+
+        if (active.isCancel)
+        {
+            continue;
+        }
+
+        // Must hold for at least 80ms before auto-repeat begins (was 200ms, reduced for mobile responsiveness)
+        if ((nowMs - active.downMs) < 80)
         {
             continue;
         }
@@ -5293,7 +5936,26 @@ void UpdateVirtualPadHolds()
         if ((nowMs - active.lastRepeatMs) >= kVirtualAttackRepeatMs)
         {
             active.lastRepeatMs = nowMs;
-            AndroidTriggerNormalAttackButtonInternal();
+            if (active.button == kVirtualAttackButton)
+            {
+                if (active.isAimDragging && active.aimTargetMonster >= 0)
+                {
+                    SelectedCharacter = active.aimTargetMonster;
+                    ActionTarget = active.aimTargetMonster;
+                    TriggerVirtualNormalAutoAttack();
+                }
+                else
+                {
+                    AndroidTriggerNormalAttackButtonInternal();
+                }
+            }
+            else if (active.button >= kVirtualSkillButtonBase && active.button < (kVirtualSkillButtonBase + kVirtualVisibleSkillButtonCount))
+            {
+                const int skillSlot = active.button - kVirtualSkillButtonBase;
+                // Repeat cast while holding: as user slides finger around, each repeat casts at CURRENT aim position!
+                // ("thay đổi vị trí đánh ra khi nhấn giữ trượt")
+                AndroidExecuteMobileSkillBySlot(skillSlot, true, active.aimTileX, active.aimTileY, active.aimTargetMonster, active.isAimDragging);
+            }
         }
     }
 
@@ -6182,7 +6844,9 @@ void RenderVirtualMirrorHotKeySlots()
         EnableDepthTest();
         EnableDepthMask();
         glDisable(GL_BLEND);
-        glClear(GL_DEPTH_BUFFER_BIT);
+        // Use glDepthRange instead of glClear(GL_DEPTH_BUFFER_BIT) to avoid
+        // flushing tile memory on mobile TBDR GPUs (Adreno/Mali/PowerVR).
+        glDepthRange(0.0f, 0.01f);
 
         for (int slot = 0; slot < kVirtualMirrorHotKeySlotCount; ++slot)
         {
@@ -6212,6 +6876,8 @@ void RenderVirtualMirrorHotKeySlots()
         glPopMatrix();
         glMatrixMode(GL_PROJECTION);
         glPopMatrix();
+        // Restore full depth range after item icon rendering
+        glDepthRange(0.0f, 1.0f);
     }
 
     BeginBitmap();
@@ -6274,6 +6940,17 @@ void RenderVirtualPad()
     const float joystickCenterY = GetVirtualJoystickRenderCenterY();
     const float joystickThumbX = std::round(joystickCenterX + g_virtualJoystick.thumbOffsetX);
     const float joystickThumbY = std::round(joystickCenterY + g_virtualJoystick.thumbOffsetY);
+
+    // Draw outer base ring
+    DrawIconButton(
+        joystickCenterX - kVirtualJoystickOuterRenderW * 0.5f,
+        joystickCenterY - kVirtualJoystickOuterRenderH * 0.5f,
+        kVirtualJoystickOuterRenderW,
+        kVirtualJoystickOuterRenderH,
+        g_uiTex_joystick2,
+        joystickActive ? 0.75f : 0.40f);
+
+    // Draw inner knob
     DrawIconButtonUv(
         joystickThumbX - kVirtualJoystickKnobRenderW * 0.5f,
         joystickThumbY - kVirtualJoystickKnobRenderH * 0.5f,
@@ -6284,7 +6961,7 @@ void RenderVirtualPad()
         kJoystickKnobV,
         kJoystickKnobUW,
         kJoystickKnobVH,
-        joystickActive ? 1.0f : 0.90f);
+        joystickActive ? 1.0f : 0.85f);
     EndBitmap();
 
     DrawVirtualZoomButtons();
@@ -6333,9 +7010,9 @@ void RenderVirtualPad()
         {
             const int buttonIndex = kVirtualSkillButtonBase + visualSlot;
             const VirtualButtonLayout& button = kVirtualButtons[buttonIndex];
-            const bool pressed = IsVirtualButtonPressed(buttonIndex);
             const int hotKeySkillIndex = GetVirtualOverlayHotKeySkillIndex(visualSlot);
-            const bool selected = (Hero != nullptr && Hero->CurrentSkill == hotKeySkillIndex);
+            const int actualSlot = ResolveSkillSlotIndex(hotKeySkillIndex);
+            const bool selected = (Hero != nullptr && actualSlot >= 0 && Hero->CurrentSkill == actualSlot);
             const GLuint frameImage = (pressed || selected || assignModeActive)
                 ? SEASON3B::CNewUISkillList::IMAGE_SKILLBOX_USE
                 : SEASON3B::CNewUISkillList::IMAGE_SKILLBOX;
@@ -6348,10 +7025,10 @@ void RenderVirtualPad()
                 kVirtualSkillFrameW,
                 kVirtualSkillFrameH);
 
-            if (g_pSkillList != nullptr && hotKeySkillIndex >= 0)
+            if (g_pSkillList != nullptr && actualSlot >= 0)
             {
                 g_pSkillList->RenderSkillIcon(
-                    hotKeySkillIndex,
+                    actualSlot,
                     button.cx - renderSkillIconW * 0.5f,
                     button.cy - renderSkillIconH * 0.5f,
                     renderSkillIconW,
@@ -6630,7 +7307,9 @@ void RenderVirtualPad()
             EnableDepthTest();
             EnableDepthMask();
             glDisable(GL_BLEND);
-            glClear(GL_DEPTH_BUFFER_BIT);
+            // Use glDepthRange instead of glClear(GL_DEPTH_BUFFER_BIT) to avoid
+            // flushing tile memory on mobile TBDR GPUs (Adreno/Mali/PowerVR).
+            glDepthRange(0.0f, 0.01f);
 
             for (int i = 0; i < kVirtualConsumableSlotCount; ++i)
             {
@@ -6654,6 +7333,8 @@ void RenderVirtualPad()
             glPopMatrix();
             glMatrixMode(GL_PROJECTION);
             glPopMatrix();
+            // Restore full depth range after consumable icon rendering
+            glDepthRange(0.0f, 1.0f);
 
             BeginBitmap(); // back to 2D ortho for quantity numbers
             glEnable(GL_BLEND);
@@ -6719,6 +7400,118 @@ void RenderVirtualPad()
             layout.cy + layout.radius * 0.65f,
             qty);
     }
+    // ── Drag-to-Aim Indicator Overlay ──
+    for (const ActiveVirtualTouch& active : g_activeVirtualTouches)
+    {
+        if (active.fingerId == static_cast<SDL_FingerID>(-1) || !active.isAimDragging)
+        {
+            continue;
+        }
+
+        // 1. Cancel Zone Button (top of skill area)
+        const float cancelCx = 530.0f;
+        const float cancelCy = 180.0f;
+        const float cancelRadius = 28.0f;
+
+        if (active.isCancel)
+        {
+            DrawVirtualCircle(cancelCx, cancelCy, cancelRadius, 0.90f, 0.15f, 0.15f, 0.90f, true);
+            DrawVirtualCircle(cancelCx, cancelCy, cancelRadius, 1.0f, 0.80f, 0.80f, 1.0f, false);
+        }
+        else
+        {
+            DrawVirtualCircle(cancelCx, cancelCy, cancelRadius, 0.30f, 0.05f, 0.05f, 0.60f, true);
+            DrawVirtualCircle(cancelCx, cancelCy, cancelRadius, 0.80f, 0.25f, 0.25f, 0.80f, false);
+        }
+
+        if (g_pRenderText != nullptr)
+        {
+            g_pRenderText->SetFont(g_hFontBold != nullptr ? g_hFontBold : g_hFont);
+            g_pRenderText->SetBgColor(0);
+            g_pRenderText->SetTextColor(active.isCancel ? CLRDW_WHITE : CLRDW_BR_ORANGE);
+            g_pRenderText->RenderText(static_cast<int>(cancelCx - 14.0f), static_cast<int>(cancelCy - 6.0f), _T("HUY"));
+        }
+
+        // 2. Skill Drag Guide Ring and Knob
+        constexpr float aimGuideR = 50.0f;
+        DrawVirtualCircle(active.startUiX, active.startUiY, aimGuideR, 0.20f, 0.70f, 1.0f, 0.45f, false);
+
+        const float clampedDrag = std::min(active.dragDist, aimGuideR);
+        const float dirX = (active.dragDist > 0.001f) ? ((active.curUiX - active.startUiX) / active.dragDist) : 0.0f;
+        const float dirY = (active.dragDist > 0.001f) ? ((active.curUiY - active.startUiY) / active.dragDist) : 0.0f;
+        const float knobUiX = active.startUiX + dirX * clampedDrag;
+        const float knobUiY = active.startUiY + dirY * clampedDrag;
+
+        if (active.isCancel)
+        {
+            DrawVirtualCircle(knobUiX, knobUiY, 16.0f, 1.0f, 0.25f, 0.25f, 0.90f, true);
+            DrawVirtualCircle(knobUiX, knobUiY, 16.0f, 1.0f, 0.90f, 0.90f, 1.0f, false);
+        }
+        else
+        {
+            DrawVirtualCircle(knobUiX, knobUiY, 16.0f, 0.20f, 0.85f, 1.0f, 0.90f, true);
+            DrawVirtualCircle(knobUiX, knobUiY, 16.0f, 1.0f, 1.0f, 1.0f, 0.95f, false);
+        }
+
+        // 3. Ground Aim Indicators (in 3D world space)
+        if (!active.isCancel && Hero != nullptr)
+        {
+            vec3_t heroWorldPos;
+            VectorCopy(Hero->Object.Position, heroWorldPos);
+
+            vec3_t targetWorldPos;
+            if (active.aimTargetMonster >= 0 && active.aimTargetMonster < MAX_CHARACTERS_CLIENT
+                && CharactersClient != nullptr && CharactersClient[active.aimTargetMonster].Object.Live)
+            {
+                VectorCopy(CharactersClient[active.aimTargetMonster].Object.Position, targetWorldPos);
+            }
+            else
+            {
+                targetWorldPos[0] = static_cast<float>(active.aimTileX * TERRAIN_SCALE + 50.0f);
+                targetWorldPos[1] = static_cast<float>(active.aimTileY * TERRAIN_SCALE + 50.0f);
+                targetWorldPos[2] = RequestTerrainHeight(targetWorldPos[0], targetWorldPos[1]);
+            }
+
+            int targetSx = 0, targetSy = 0;
+            Projection(targetWorldPos, &targetSx, &targetSy);
+            int heroSx = 0, heroSy = 0;
+            Projection(heroWorldPos, &heroSx, &heroSy);
+
+            // Bead / Dot Trajectory
+            for (int step = 1; step <= 5; ++step)
+            {
+                const float t = static_cast<float>(step) / 5.0f;
+                vec3_t stepPos;
+                stepPos[0] = heroWorldPos[0] + (targetWorldPos[0] - heroWorldPos[0]) * t;
+                stepPos[1] = heroWorldPos[1] + (targetWorldPos[1] - heroWorldPos[1]) * t;
+                stepPos[2] = RequestTerrainHeight(stepPos[0], stepPos[1]) + 8.0f;
+                int ssx = 0, ssy = 0;
+                Projection(stepPos, &ssx, &ssy);
+                const float dotR = 2.5f + t * 2.0f;
+                DrawVirtualCircle(static_cast<float>(ssx), static_cast<float>(ssy), dotR,
+                    0.25f, 0.85f, 1.0f, 0.35f + t * 0.45f, true);
+            }
+
+            // Target Reticle
+            if (active.aimTargetMonster >= 0)
+            {
+                // Red locked-on target circle
+                DrawVirtualCircle(static_cast<float>(targetSx), static_cast<float>(targetSy), 24.0f,
+                    1.0f, 0.20f, 0.15f, 0.90f, false);
+                DrawVirtualCircle(static_cast<float>(targetSx), static_cast<float>(targetSy), 7.0f,
+                    1.0f, 0.35f, 0.20f, 0.95f, true);
+            }
+            else
+            {
+                // Cyan ground aim circle
+                DrawVirtualCircle(static_cast<float>(targetSx), static_cast<float>(targetSy), 20.0f,
+                    0.20f, 0.85f, 1.0f, 0.85f, false);
+                DrawVirtualCircle(static_cast<float>(targetSx), static_cast<float>(targetSy), 5.0f,
+                    0.30f, 0.95f, 1.0f, 0.90f, true);
+            }
+        }
+    }
+
     glColor4f(1.0f, 1.0f, 1.0f, 1.0f);
 
     EndBitmap();
@@ -10685,7 +11478,7 @@ sapp_desc sokol_main(int argc, char* argv[])
     desc.fullscreen = true;
     desc.high_dpi = true;
     desc.window_title = "MU Online";
-    desc.swap_interval = 0;
+    desc.swap_interval = 1; // Enable VSync - cap at display refresh rate to prevent GPU overheating
     desc.gl.major_version = 3;
     desc.gl.minor_version = 1;
     return desc;

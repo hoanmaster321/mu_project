@@ -45,6 +45,7 @@
 //==Load BCustom
 #include "Protect.h"
 #include "GameCensorship.h"
+#include "NewUIMainFrameMobile.h"
 
 #if !defined(__ANDROID__) && !defined(MU_IOS)
 #include <imm.h>
@@ -1633,31 +1634,43 @@ MSG MainLoop()
 			}
 			else if (ev.type == SDL_EVENT_FINGER_DOWN)
 			{
-				const int pxX = std::clamp((int)(ev.tfinger.x * (float)WindowWidth), 0, (int)WindowWidth - 1);
-				const int pxY = std::clamp((int)(ev.tfinger.y * (float)WindowHeight), 0, (int)WindowHeight - 1);
-				MouseX = (g_fScreenRate_x > 0.0f) ? std::clamp((int)((float)pxX / g_fScreenRate_x), 0, DisplayWin) : pxX;
-				MouseY = (g_fScreenRate_y > 0.0f) ? std::clamp((int)((float)pxY / g_fScreenRate_y), 0, DisplayHeight) : pxY;
-				CInput::Instance().SetCursorPos(pxX, pxY);
-				MouseLButton = true;
-				MouseLButtonPush = true;
+				bool handled = (g_pMainFrameMobile != nullptr && g_pMainFrameMobile->OnFingerDown(ev.tfinger));
+				if (!handled)
+				{
+					const int pxX = std::clamp((int)(ev.tfinger.x * (float)WindowWidth), 0, (int)WindowWidth - 1);
+					const int pxY = std::clamp((int)(ev.tfinger.y * (float)WindowHeight), 0, (int)WindowHeight - 1);
+					MouseX = (g_fScreenRate_x > 0.0f) ? std::clamp((int)((float)pxX / g_fScreenRate_x), 0, DisplayWin) : pxX;
+					MouseY = (g_fScreenRate_y > 0.0f) ? std::clamp((int)((float)pxY / g_fScreenRate_y), 0, DisplayHeight) : pxY;
+					CInput::Instance().SetCursorPos(pxX, pxY);
+					MouseLButton = true;
+					MouseLButtonPush = true;
+				}
 			}
 			else if (ev.type == SDL_EVENT_FINGER_UP)
 			{
-				const int pxX = std::clamp((int)(ev.tfinger.x * (float)WindowWidth), 0, (int)WindowWidth - 1);
-				const int pxY = std::clamp((int)(ev.tfinger.y * (float)WindowHeight), 0, (int)WindowHeight - 1);
-				MouseX = (g_fScreenRate_x > 0.0f) ? std::clamp((int)((float)pxX / g_fScreenRate_x), 0, DisplayWin) : pxX;
-				MouseY = (g_fScreenRate_y > 0.0f) ? std::clamp((int)((float)pxY / g_fScreenRate_y), 0, DisplayHeight) : pxY;
-				CInput::Instance().SetCursorPos(pxX, pxY);
-				MouseLButton = false;
-				MouseLButtonPop = true;
+				bool handled = (g_pMainFrameMobile != nullptr && g_pMainFrameMobile->OnFingerUp(ev.tfinger));
+				if (!handled)
+				{
+					const int pxX = std::clamp((int)(ev.tfinger.x * (float)WindowWidth), 0, (int)WindowWidth - 1);
+					const int pxY = std::clamp((int)(ev.tfinger.y * (float)WindowHeight), 0, (int)WindowHeight - 1);
+					MouseX = (g_fScreenRate_x > 0.0f) ? std::clamp((int)((float)pxX / g_fScreenRate_x), 0, DisplayWin) : pxX;
+					MouseY = (g_fScreenRate_y > 0.0f) ? std::clamp((int)((float)pxY / g_fScreenRate_y), 0, DisplayHeight) : pxY;
+					CInput::Instance().SetCursorPos(pxX, pxY);
+					MouseLButton = false;
+					MouseLButtonPop = true;
+				}
 			}
 			else if (ev.type == SDL_EVENT_FINGER_MOTION)
 			{
-				const int pxX = std::clamp((int)(ev.tfinger.x * (float)WindowWidth), 0, (int)WindowWidth - 1);
-				const int pxY = std::clamp((int)(ev.tfinger.y * (float)WindowHeight), 0, (int)WindowHeight - 1);
-				MouseX = (g_fScreenRate_x > 0.0f) ? std::clamp((int)((float)pxX / g_fScreenRate_x), 0, DisplayWin) : pxX;
-				MouseY = (g_fScreenRate_y > 0.0f) ? std::clamp((int)((float)pxY / g_fScreenRate_y), 0, DisplayHeight) : pxY;
-				CInput::Instance().SetCursorPos(pxX, pxY);
+				bool handled = (g_pMainFrameMobile != nullptr && g_pMainFrameMobile->OnFingerMotion(ev.tfinger));
+				if (!handled)
+				{
+					const int pxX = std::clamp((int)(ev.tfinger.x * (float)WindowWidth), 0, (int)WindowWidth - 1);
+					const int pxY = std::clamp((int)(ev.tfinger.y * (float)WindowHeight), 0, (int)WindowHeight - 1);
+					MouseX = (g_fScreenRate_x > 0.0f) ? std::clamp((int)((float)pxX / g_fScreenRate_x), 0, DisplayWin) : pxX;
+					MouseY = (g_fScreenRate_y > 0.0f) ? std::clamp((int)((float)pxY / g_fScreenRate_y), 0, DisplayHeight) : pxY;
+					CInput::Instance().SetCursorPos(pxX, pxY);
+				}
 			}
 			else if (ev.type == SDL_EVENT_MOUSE_BUTTON_DOWN)
 			{
@@ -1757,6 +1770,7 @@ MSG MainLoop()
 		}
 #endif
 
+		if (g_pMainFrameMobile != nullptr) g_pMainFrameMobile->Update();
 		Scene(g_hDC);
 #if defined(__ANDROID__) || defined(MU_IOS)
 		MouseLButtonPush = false;

@@ -2,6 +2,7 @@
 ///////////////////////////////////////////////////////////////////////////////
 
 #include "stdafx.h"
+#include "NewUIMainFrameMobile.h"
 #include "GPUContext.h"
 #include "UIManager.h"
 #include "GuildCache.h"
@@ -1163,7 +1164,7 @@ bool NewRenderCharacterScene(HDC hDC)
 	Height = GetWindowsY();
 	Width = GetWindowsX();//GetScreenWidth();
 	glClearColor(0.f, 0.f, 0.f, 1.f);
-	BeginOpengl(0, 25, GetWindowsX(), GetWindowsY() - 50);
+	BeginOpengl(0, 25, GetWindowsX(), GetWindowsY() - 50, true);
 #else
 	Height = 480;
 	Width = GetScreenWidth();
@@ -1466,7 +1467,7 @@ bool NewRenderLogInScene(HDC hDC)
 	Height = GetWindowsY();
 	Width = GetWindowsX();
 	glClearColor(0.f, 0.f, 0.f, 1.f);
-	BeginOpengl(0, 25, Width, Height - 50);
+	BeginOpengl(0, 25, Width, Height - 50, true);
 #else
 	Height = 480;
 	Width = GetScreenWidth();
@@ -2474,7 +2475,11 @@ bool RenderMainScene()
 		GPUContext::Instance().BeginFrame();
 	}
 
+#if(WIDE_SCREEN)
+	BeginOpengl(0,0,Width,Height, true);
+#else
 	BeginOpengl(0,0,Width,Height);
+#endif
 
 	CreateFrustrum((float)Width / 640.0f, (float)Height / 480.0f, pos);
 
@@ -2624,9 +2629,13 @@ bool RenderMainScene()
         byWaterMap = 2;
 
 		EndOpengl();
-	    BeginOpengl(0, 0, Width, Height );
+#if(WIDE_SCREEN)
+	    BeginOpengl(0, 0, Width, Height, true);
+#else
+	    BeginOpengl(0, 0, Width, Height);
+#endif
         RenderWaterTerrain();
-
+ 
 		phaseStart = MainScenePerfNow();
         RenderJoints(byWaterMap );
 		g_mainScenePerfSnapshot.jointsTicks += MainScenePerfElapsed(phaseStart);
@@ -2667,7 +2676,11 @@ bool RenderMainScene()
         g_BatchRenderer.FlushTerrainBatches();
 		EndOpengl();
 
+#if(WIDE_SCREEN)
+		BeginOpengl( 0, 0, Width, Height, true );
+#else
 		BeginOpengl( 0, 0, Width, Height );
+#endif
     }
 
     if(gMapManager.InBattleCastle())
@@ -2733,7 +2746,7 @@ void MoveCharacter(CHARACTER *c,OBJECT *o);
 int TimePrior = GetTickCount();
 
 #if defined(__ANDROID__) || defined(MU_IOS)
-float target_fps = 120.0f;
+float target_fps = 60.0f;  // Mobile: default 60fps (was 120, caused thermal throttle)
 #else
 float target_fps = 60.0f;
 #endif
@@ -2742,7 +2755,14 @@ float ms_per_frame = 1000.f / target_fps;
 void SetTargetFps(float targetFps)
 {
 #if defined(__ANDROID__) || defined(MU_IOS)
-	target_fps = (targetFps >= 120.0f) ? targetFps : 120.0f;
+	// Allow any reasonable FPS on mobile (was: force minimum 120, causing GPU overheating)
+	if (targetFps > 0.0f) {
+		target_fps = targetFps;
+		if (target_fps < 20.0f) target_fps = 20.0f;
+		if (target_fps > 120.0f) target_fps = 120.0f;
+	} else {
+		target_fps = 60.0f;
+	}
 	ms_per_frame = 1000.0f / target_fps;
 #else
 	target_fps = targetFps;
@@ -2982,9 +3002,12 @@ void MainScene(HDC hDC)
 			const int hudWidth = (DisplayWinReal > 0) ? DisplayWinReal : DisplayWin;
 			const int fpsX = (((hudWidth - size.cx) - 12) > 10) ? ((hudWidth - size.cx) - 12) : 10;
 			g_pRenderText->RenderText(fpsX, DisplayHeight - 26, szFpsText);
-			g_pRenderText->SetFont(g_hFont);
-
 			EndBitmap();
+		}
+
+		if (g_pMainFrameMobile != nullptr)
+		{
+			g_pMainFrameMobile->Render();
 		}
 #endif
 
@@ -2998,17 +3021,20 @@ void MainScene(HDC hDC)
 		}
 
 #if defined(__ANDROID__) || defined(MU_IOS)
-		if (!GPUContext::Instance().IsInitialized())
+		// Frame pacing: sleep to hit target FPS on mobile
+		// Note: runs regardless of GPUContext since sokol/GLES path doesn't initialize it.
 		{
 			const float current_frame_time_ms = current_tick_count - last_render_tick_count;
 			if (ms_per_frame > 0 && current_frame_time_ms > 0 && current_frame_time_ms < ms_per_frame)
 			{
 				const float rest_ms = ms_per_frame - current_frame_time_ms;
-				if (rest_ms > 2.0f)
+				if (rest_ms > 1.5f)
 				{
 					std::this_thread::sleep_for(std::chrono::milliseconds(static_cast<long>(rest_ms - 1.0f)));
 				}
-				current_tick_count += static_cast<int>(rest_ms);
+				// REMOVED: current_tick_count += static_cast<int>(rest_ms);
+				// ^ This was a bug: artificially inflating tick count caused the NEXT frame's
+				// delta to be negative/tiny, disabling sleep on alternating frames → stutter.
 			}
 		}
 #else

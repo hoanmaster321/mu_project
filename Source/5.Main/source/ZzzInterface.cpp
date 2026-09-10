@@ -291,7 +291,7 @@ void SetIME_Status (bool halfShape)
 	
     data = ::ImmGetContext( g_hWnd );
 	
-    //  ¹Ý°¢.
+    //  å¥©é™.
     dwConv = g_dwOldConv;
     dwSent = g_dwOldSent;
     if( halfShape )
@@ -453,8 +453,8 @@ void RenderTipText(int sx, int sy, const char* Text)
 	int BackupAlphaBlendType = AlphaBlendType;
 	EnableAlphaTest();
 	glColor4f(0.0f, 0.0f, 0.0f, 1.0f);
-	RenderColor ((float)sx - 2, (float)sy - 3, (float)TextSize.cx / g_fScreenRate_x + 4, (float)1);	// À§
-	RenderColor ((float)sx - 2, (float)sy - 3, (float)1, (float)TextSize.cy / g_fScreenRate_y + 4);	// ÁÂ
+	RenderColor ((float)sx - 2, (float)sy - 3, (float)TextSize.cx / g_fScreenRate_x + 4, (float)1);	// å¬ª
+	RenderColor ((float)sx - 2, (float)sy - 3, (float)1, (float)TextSize.cy / g_fScreenRate_y + 4);	// è¬
 	RenderColor ((float)sx - 2 + TextSize.cx / g_fScreenRate_x + 3, (float)sy - 3, (float)1, (float)TextSize.cy / g_fScreenRate_y + 4);	
 	RenderColor ((float)sx - 2, (float)sy - 3 + TextSize.cy / g_fScreenRate_y + 3, (float)TextSize.cx / g_fScreenRate_x + 4, (float)1);
 	
@@ -805,7 +805,7 @@ void SetBooleanPosition(CHAT* c)
 	SIZE Size[5];
 	memset(&Size[0], 0, sizeof(SIZE) * 5);
 
-	if (g_isCharacterBuff((&c->Owner->Object), eBuff_GMEffect) || // GM ÀÏ°æ¿ì
+	if (g_isCharacterBuff((&c->Owner->Object), eBuff_GMEffect) || // GM æ©¾å”³è¾¦
 		(c->Owner->CtlCode == CTLCODE_20OPERATOR) || (c->Owner->CtlCode == CTLCODE_08OPERATOR))
 	{
 		g_pRenderText->SetFont(g_hFontBold);
@@ -864,7 +864,7 @@ void SetPlayerColor(BYTE PK)
 	}
 }
 
-extern float g_fScreenRate_x;	// ¡Ø
+extern float g_fScreenRate_x;	// â‰¦
 extern float g_fScreenRate_y;
 const int ciSystemColor = 240;
 #if(ShadowText)
@@ -1099,7 +1099,7 @@ void RenderBoolean(int x, int y, CHAT* c)
 			if (c->Guild && c->Guild[0])
 			{
 				::CreateGuildMark(c->Owner->GuildMarkIndex);
-				::RenderBitmap(BITMAP_GUILD, float(x - 20), float(y), 18, 18);// ±æµå ¸¶Å©
+				::RenderBitmap(BITMAP_GUILD, float(x - 20), float(y), 18, 18);// æœ›è„ è‘†è§¼
 			}
 #endif
 		}
@@ -1341,7 +1341,7 @@ void RenderBoolean(int x, int y, CHAT* c)
 			if (c->Guild && c->Guild[0])
 			{
 				::CreateGuildMark(c->Owner->GuildMarkIndex);
-				::RenderBitmap(BITMAP_GUILD, float(x - 20), float(y), 18, 18);// ±æµå ¸¶Å©
+				::RenderBitmap(BITMAP_GUILD, float(x - 20), float(y), 18, 18);// æœ›è„ è‘†è§¼
 			}
 		}
 #endif
@@ -1864,7 +1864,7 @@ bool CheckAttack_Fenrir(CHARACTER* c)
 				
 		}
 				
-		if( c->GuildRelationShip == GR_RIVAL || c->GuildRelationShip == GR_RIVALUNION )		//¹ÚÁ¾ÈÆ Ç¥½Ã
+		if( c->GuildRelationShip == GR_RIVAL || c->GuildRelationShip == GR_RIVALUNION )		//å¤¢è¬™ï¿½ ã‚©è¡›
 		{
 			return true;
 		}
@@ -5017,12 +5017,12 @@ void CheckChatText(char *Text)
 		SetActionClass(c,o,PLAYER_AWKWARD1,AT_AWKWARD1);
 		SendRequestAction(AT_AWKWARD1,((BYTE)((o->Angle[2]+22.5f)/360.f*8.f+1.f)%8));
 	}
-	else if(FindText(Text,"¤Ð.¤Ð") || FindText(Text,"¤Ì.¤Ì") || FindText(Text,"T_T") || FindText(Text,GlobalText[306]) || FindText(Text,GlobalText[307]) || FindText(Text,GlobalText[308]) || FindText(Text,GlobalText[309]))
+	else if(FindText(Text,"å£¬.å£¬") || FindText(Text,"åŽ„.åŽ„") || FindText(Text,"T_T") || FindText(Text,GlobalText[306]) || FindText(Text,GlobalText[307]) || FindText(Text,GlobalText[308]) || FindText(Text,GlobalText[309]))
 	{
 		SetActionClass(c,o,PLAYER_CRY1,AT_CRY1);
 		SendRequestAction(AT_CRY1,((BYTE)((o->Angle[2]+22.5f)/360.f*8.f+1.f)%8));
 	}
-	else if(FindText(Text,"¤Ñ.¤Ñ") || FindText(Text,"¤Ñ.,¤Ñ") || FindText(Text,"¤Ñ,.¤Ñ") || FindText(Text,"-.-") || FindText(Text,"-_-") || FindText(Text,GlobalText[310]) || FindText(Text,GlobalText[311]))
+	else if(FindText(Text,"å¤©.å¤©") || FindText(Text,"å¤©.,å¤©") || FindText(Text,"å¤©,.å¤©") || FindText(Text,"-.-") || FindText(Text,"-_-") || FindText(Text,GlobalText[310]) || FindText(Text,GlobalText[311]))
 	{
 		SetActionClass(c,o,PLAYER_SEE1,AT_SEE1);
 		SendRequestAction(AT_SEE1,((BYTE)((o->Angle[2]+22.5f)/360.f*8.f+1.f)%8));
@@ -5062,7 +5062,7 @@ void CheckChatText(char *Text)
 		SetActionClass(c,o,PLAYER_RESPECT1,AT_RESPECT1);
 		SendRequestAction(AT_RESPECT1,((BYTE)((o->Angle[2]+22.5f)/360.f*8.f+1.f)%8));
 	}
-	else if(FindText(Text,GlobalText[342]) || FindText(Text,GlobalText[343]) || FindText(Text,"/¤Ñ") || FindText(Text,"¤Ñ^"))
+	else if(FindText(Text,GlobalText[342]) || FindText(Text,GlobalText[343]) || FindText(Text,"/å¤©") || FindText(Text,"å¤©^"))
 	{
 		SetActionClass(c,o,PLAYER_SALUTE1,AT_SALUTE1);
 		SendRequestAction(AT_SALUTE1,((BYTE)((o->Angle[2]+22.5f)/360.f*8.f+1.f)%8));
@@ -5161,6 +5161,15 @@ bool CheckTarget(CHARACTER *c)
 	}
 	else
 	{
+#if defined(__ANDROID__) || defined(MU_IOS)
+		if (c != NULL && (c->TargetPosition[0] != 0.0f || c->TargetPosition[1] != 0.0f))
+		{
+			VectorCopy(c->TargetPosition, CollisionPosition);
+			TargetX = (int)(c->TargetPosition[0] / TERRAIN_SCALE);
+			TargetY = (int)(c->TargetPosition[1] / TERRAIN_SCALE);
+			return true;
+		}
+#endif
 		RenderTerrain(true);
 		if(RenderTerrainTile(SelectXF,SelectYF,(int)SelectXF,(int)SelectYF,1.f,1,true))
 		{
@@ -7415,7 +7424,7 @@ bool CanExecuteSkill(CHARACTER* c, int Skill, float Distance)
 
 	if (c->SafeZone)
 	{
-		if ((gMapManager.InBloodCastle() == true) || gMapManager.InChaosCastle() == true)
+		if (true)
 		{
 			if (Skill != AT_SKILL_HEALING && Skill != AT_SKILL_DEFENSE && Skill != AT_SKILL_ATTACK
 				&& Skill != AT_SKILL_WIZARDDEFENSE && Skill != AT_SKILL_VITALITY
@@ -8079,6 +8088,7 @@ void MoveHero()
 	{
 		StandTime++;
 
+#if !defined(__ANDROID__) && !defined(MU_IOS)
 		if(StandTime >= 40 && !MouseOnWindow && !Hero->Dead &&
 			o->CurrentAction!=PLAYER_POSE1 && o->CurrentAction!=PLAYER_POSE_FEMALE1 &&
 			o->CurrentAction!=PLAYER_SIT1  && o->CurrentAction!=PLAYER_SIT_FEMALE1 && NoAutoAttacking &&
@@ -8105,6 +8115,7 @@ void MoveHero()
 				SendRequestAction(AT_STAND1,((BYTE)((HeroAngle+22.5f)/360.f*8.f+1.f)%8));
 			}
 		}
+#endif
 #ifdef PBG_ADD_NEWCHAR_MONK_SKILL
 	UseSkillRagePosition(c);
 #endif //PBG_ADD_NEWCHAR_MONK_SKILL
@@ -8346,7 +8357,11 @@ void MoveHero()
 							c->MovementType = MOVEMENT_MOVE;
 						}
 					}
+#if defined(__ANDROID__) || defined(MU_IOS)
+					else if (false) // Disabled on Android / iOS: remove mouse/touch terrain click-to-move
+#else
 					else if(HIBYTE(GetAsyncKeyState(VK_SHIFT)) != 128)
+#endif
 					{
 						RenderTerrain ( true );
 						bool Success = RenderTerrainTile(SelectXF,SelectYF,(int)SelectXF,(int)SelectYF,1.f,1,true);

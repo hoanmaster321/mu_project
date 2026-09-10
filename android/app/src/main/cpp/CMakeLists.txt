@@ -39,9 +39,6 @@ message(STATUS "BX_ROOT      = ${BX_ROOT}")
 message(STATUS "BIMG_ROOT    = ${BIMG_ROOT}")
 message(STATUS "MU_ENABLE_BGFX = ${MU_ENABLE_BGFX}")
 
-if(NOT EXISTS "${SOKOL_ROOT}/sokol_time.h")
-    message(FATAL_ERROR "Missing sokol_time.h in SOKOL_ROOT='${SOKOL_ROOT}'. Expected a local sokol checkout, e.g. D:/firstproject/sokol-master.")
-endif()
 
 add_compile_definitions(__ANDROID__ ANDROID NDEBUG _NDEBUG _NO_EDITOR USE_OPENGL_ES __NDK_FPABI__= SOKOL_GLES3)
 

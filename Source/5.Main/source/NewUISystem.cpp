@@ -30,6 +30,7 @@ SEASON3B::CNewUISystem::CNewUISystem()
 	m_pNewGuildMakeWindow = NULL;
 	m_pNewFriendWindow = NULL;
 	m_pNewMainFrameWindow = NULL;
+	m_pNewMainFrameMobile = NULL;
 	m_pNewSkillList = NULL;
 	m_pNewChatInputBox = NULL;
 	m_pNewItemMng = NULL;
@@ -183,6 +184,13 @@ bool SEASON3B::CNewUISystem::LoadMainSceneInterface()
 	if(m_pNewMainFrameWindow->Create(m_pNewUIMng, m_pNewUI3DRenderMng) == false)
 		return false;
 	ANDROID_UI_STAGE("main frame ok");
+
+#if defined(__ANDROID__) || defined(MU_IOS)
+	m_pNewMainFrameMobile = new CNewUIMainFrameMobile;
+	if(m_pNewMainFrameMobile->Create(m_pNewUIMng, m_pNewUI3DRenderMng) == false)
+		return false;
+	ANDROID_UI_STAGE("mobile main frame ok");
+#endif
 
 	m_pNewSkillList = new CNewUISkillList;
 	if(m_pNewSkillList->Create(m_pNewUIMng, m_pNewUI3DRenderMng) == false)
@@ -587,6 +595,7 @@ void SEASON3B::CNewUISystem::UnloadMainSceneInterface()
 	SAFE_DELETE(m_pNewNameWindow);
 	SAFE_DELETE(m_pNewSkillList);
 	SAFE_DELETE(m_pNewMainFrameWindow);
+	SAFE_DELETE(m_pNewMainFrameMobile);
 	SAFE_DELETE(m_pNewPartyInfoWindow );
 	SAFE_DELETE(m_pNewPartyListWindow );
 	SAFE_DELETE(m_pNewEnterBloodCastle );
@@ -1852,6 +1861,7 @@ bool SEASON3B::CNewUISystem::IsImpossibleDuelInterface()
 bool SEASON3B::CNewUISystem::IsImpossibleHideInterface(DWORD dwKey)
 {
 	if(dwKey == SEASON3B::INTERFACE_MAINFRAME
+		|| dwKey == SEASON3B::INTERFACE_MAINFRAME_MOBILE
 		|| dwKey == SEASON3B::INTERFACE_SKILL_LIST
 		|| dwKey == SEASON3B::INTERFACE_SLIDEWINDOW
 		|| dwKey == SEASON3B::INTERFACE_MESSAGEBOX
@@ -2151,6 +2161,11 @@ CNewUIFriendWindow* SEASON3B::CNewUISystem::GetUI_NewFriendWindow() const
 CNewUIMainFrameWindow* SEASON3B::CNewUISystem::GetUI_NewMainFrameWindow() const
 {
 	return m_pNewMainFrameWindow;
+}
+
+CNewUIMainFrameMobile* SEASON3B::CNewUISystem::GetUI_NewMainFrameMobile() const
+{
+	return m_pNewMainFrameMobile;
 }
 
 CNewUISkillList* SEASON3B::CNewUISystem::GetUI_NewSkillList() const

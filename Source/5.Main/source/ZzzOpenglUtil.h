@@ -102,6 +102,7 @@ void BindTexture(int tex);
 void BindTextureStream(int tex);
 extern int CachTexture;
 void EndTextureStream();
+void BeginOpengl(int x, int y, int Width, int Height, bool Screen);
 void BeginOpengl(int x=0,int y=0,int Width=640,int Height=480);
 void EndOpengl();
 void UpdateMousePositionn();
