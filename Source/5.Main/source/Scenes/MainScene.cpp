@@ -578,6 +578,8 @@ static void RenderGameWorld(BYTE& byWaterMap, int width, int height)
         phaseStart = MainScenePerfNow();
         RenderBlurs();
         g_mainScenePerfSnapshot.blursTicks += MainScenePerfElapsed(phaseStart);
+        g_BatchRenderer.FlushMeshBatches();
+        g_BatchRenderer.FlushTerrainBatches();
         CheckSprites();
         BeginSprite();
 
@@ -601,6 +603,8 @@ static void RenderGameWorld(BYTE& byWaterMap, int width, int height)
         g_mainScenePerfSnapshot.pointsTicks += MainScenePerfElapsed(phaseStart);
 
         EndSprite();
+        g_BatchRenderer.FlushMeshBatches();
+        g_BatchRenderer.FlushTerrainBatches();
         EndOpengl();
 
         BeginOpengl(0, 0, width, height);

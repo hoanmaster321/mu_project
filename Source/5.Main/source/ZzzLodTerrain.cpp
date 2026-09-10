@@ -2973,19 +2973,15 @@ void RenderTerrain(bool EditFlag)
 	if (g_pNewUISystem->GetUI_NewOptionWindow()->OnOffGrap[g_pNewUISystem->GetUI_NewOptionWindow()->eRenderTerrain] || SceneFlag != MAIN_SCENE) TerrainFlag = TERRAIN_MAP_NORMAL;
 
 
-    if (!EditFlag)
-    {
-        TerrainBatch_Begin();
-    }
+    TerrainBatch_Begin();
     RenderTerrainFrustrum ( EditFlag );
-    if (!EditFlag)
-    {
-        TerrainBatch_Flush();
-    }
+    TerrainBatch_Flush();
     //  
 	if ( EditFlag && SelectFlag )
 	{
+        TerrainBatch_Begin();
 		RenderTerrainTile ( SelectXF, SelectYF, (int)SelectXF, (int)SelectYF, 1.f, 1, EditFlag );
+        TerrainBatch_Flush();
 	}
 	if ( !EditFlag )
 	{
@@ -3013,7 +3009,9 @@ void RenderTerrain_After(bool EditFlag)
 
     const Uint64 afterTicksStart = static_cast<Uint64>(MU_MobilePerfNow());
 	TerrainFlag = TERRAIN_MAP_NORMAL;
+    TerrainBatch_Begin();
 	RenderTerrainFrustrum_After(EditFlag);
+    TerrainBatch_Flush();
     g_terrainPerfSnapshot.afterTicks += static_cast<unsigned long long>(MU_MobilePerfNow() - afterTicksStart);
 }
 
