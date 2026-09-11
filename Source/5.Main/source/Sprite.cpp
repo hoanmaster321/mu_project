@@ -53,7 +53,7 @@ void CSprite::Create(int nOrgWidth, int nOrgHeight, int nTexID, int nMaxFrame, S
 
 	m_nNowFrame = -1;
 
-	if (-1 < m_nTexID)
+	if (-1 < m_nTexID && m_pTexture && m_pTexture->Width > 0 && m_pTexture->Height > 0)
 	{
 		m_aTexCoord[LT].fTU = 0.5f / m_pTexture->Width;
 		m_aTexCoord[LT].fTV = 0.5f / m_pTexture->Height;

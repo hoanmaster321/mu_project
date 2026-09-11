@@ -24,10 +24,7 @@ AsioNetworkClient::~AsioNetworkClient()
 
 bool AsioNetworkClient::Connect(const char* host, uint16_t port, uint32_t /*timeoutMs*/)
 {
-    if (IsConnected())
-    {
-        Disconnect();
-    }
+    Disconnect();
 
     m_serverLost.store(false);
     m_connectedHost = (host ? host : "");
@@ -67,6 +64,7 @@ bool AsioNetworkClient::Connect(const char* host, uint16_t port, uint32_t /*time
     m_socket.set_option(boost::asio::ip::tcp::no_delay(true), ec);
 
     m_connected.store(true);
+    m_connectedPort.store(port);
     g_ErrorReport.Write("[AsioNetwork] Connected to %s:%d successfully\r\n",
         m_connectedHost.c_str(), port);
 
@@ -79,6 +77,7 @@ bool AsioNetworkClient::Connect(const char* host, uint16_t port, uint32_t /*time
         m_downloadKBps = 0.0f;
     }
 
+    m_ioContext.restart();
     m_workGuard = std::make_unique<WorkGuard>(boost::asio::make_work_guard(m_ioContext));
     m_workerThread = std::make_unique<std::thread>([this]() {
         try
@@ -98,14 +97,16 @@ bool AsioNetworkClient::Connect(const char* host, uint16_t port, uint32_t /*time
 
 void AsioNetworkClient::Disconnect()
 {
-    if (!m_connected.exchange(false) && !m_socket.is_open())
-    {
-        return;
-    }
+    m_connected.store(false);
 
     boost::system::error_code ec;
-    m_socket.shutdown(boost::asio::ip::tcp::socket::shutdown_both, ec);
-    m_socket.close(ec);
+    if (m_socket.is_open())
+    {
+        m_socket.shutdown(boost::asio::ip::tcp::socket::shutdown_both, ec);
+        m_socket.close(ec);
+    }
+
+    m_resolver.cancel();
 
     if (m_workGuard)
     {
@@ -114,11 +115,21 @@ void AsioNetworkClient::Disconnect()
 
     m_ioContext.stop();
 
-    if (m_workerThread && m_workerThread->joinable())
+    if (m_workerThread)
     {
-        m_workerThread->join();
+        if (m_workerThread->joinable())
+        {
+            if (m_workerThread->get_id() != std::this_thread::get_id())
+            {
+                m_workerThread->join();
+            }
+            else
+            {
+                m_workerThread->detach();
+            }
+        }
+        m_workerThread.reset();
     }
-    m_workerThread.reset();
 
     m_ioContext.restart();
 
@@ -241,7 +252,10 @@ void AsioNetworkClient::OnDataReceived(const boost::system::error_code& ec, size
 {
     if (ec)
     {
-        HandleDisconnect("read error: " + ec.message());
+        if (ec != boost::asio::error::operation_aborted)
+        {
+            HandleDisconnect("read error: " + ec.message());
+        }
         return;
     }
 
@@ -369,7 +383,10 @@ void AsioNetworkClient::OnDataWritten(const boost::system::error_code& ec, size_
 {
     if (ec)
     {
-        HandleDisconnect("write error: " + ec.message());
+        if (ec != boost::asio::error::operation_aborted)
+        {
+            HandleDisconnect("write error: " + ec.message());
+        }
         return;
     }
 

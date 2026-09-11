@@ -1545,6 +1545,7 @@ void CreateEffect(int Type, vec3_t Position, vec3_t Angle, vec3_t Light, int Sub
 				o->BlendMesh = -2;
 				o->Scale = 0.9f;
 				o->Velocity = 0.5f;
+				o->RenderType = RENDER_BRIGHT;
 				switch (o->SubType)
 				{
 				case 0:
@@ -2023,7 +2024,7 @@ void CreateEffect(int Type, vec3_t Position, vec3_t Angle, vec3_t Light, int Sub
 					o->BlendMesh = 0;
 					o->BlendMeshLight = o->Light[0];
 					o->Scale = 1.3f;
-					o->RenderType = RENDER_DARK;
+					o->RenderType = RENDER_BRIGHT;
 				}
 				else
 				{
@@ -2032,7 +2033,7 @@ void CreateEffect(int Type, vec3_t Position, vec3_t Angle, vec3_t Light, int Sub
 					o->BlendMesh = 0;
 					o->BlendMeshLight = 1.f;
 					o->Scale = 1.3f;
-					o->RenderType = RENDER_DARK;
+					o->RenderType = RENDER_BRIGHT;
 
 					o->Position[2] += (150.f) * FPS_ANIMATION_FACTOR;
 					Vector(0.f, -1.f, 0.f, o->Direction);
@@ -3329,6 +3330,7 @@ void CreateEffect(int Type, vec3_t Position, vec3_t Angle, vec3_t Light, int Sub
 				{
 					o->BlendMesh = -2;
 					o->BlendMeshLight = 1.f;
+					o->RenderType = RENDER_BRIGHT;
 					o->LifeTime = rand() % 15 + 15;
 					o->Gravity = -20.f;
 					o->Velocity = (float)(rand() % 360);
@@ -3392,6 +3394,7 @@ void CreateEffect(int Type, vec3_t Position, vec3_t Angle, vec3_t Light, int Sub
 				o->Gravity = 0.1f;
 				o->BlendMesh = -2;
 				o->BlendMeshLight = 1.f;
+				o->RenderType = RENDER_BRIGHT;
 				Vector(0.f, 0.f, 0.f, o->Angle);
 				VectorCopy(o->Position, o->StartPosition);
 				o->Position[2] += (50.f) * FPS_ANIMATION_FACTOR;
@@ -12736,6 +12739,7 @@ void MoveEffect(OBJECT * o, int iIndex)
 
 				o->StartPosition[0] -= (10.f) * FPS_ANIMATION_FACTOR;
 
+				Vector(0.8f, 0.9f, 1.0f, Light);
 				CreateParticle(BITMAP_FIRE + 2, o->Position, o->Angle, Light, 7, o->Scale);
 
 				o->Light[0] += (0.1f) * FPS_ANIMATION_FACTOR;
@@ -12753,6 +12757,7 @@ void MoveEffect(OBJECT * o, int iIndex)
 
 				o->StartPosition[0] -= (10.f) * FPS_ANIMATION_FACTOR;
 
+				Vector(0.8f, 0.9f, 1.0f, Light);
 				CreateParticle(BITMAP_FIRE + 2, o->Position, o->Angle, Light, 11, o->Scale);
 
 				o->Light[0] += (0.1f) * FPS_ANIMATION_FACTOR;
@@ -19522,6 +19527,7 @@ void RenderEffectShadows()
 				case BITMAP_FLAME:
 					if (o->SubType != 3 && o->SubType != 6)
 					{
+						EnableAlphaBlend();
 						Luminosity = (float)(rand() % 4 + 8) * 0.1f;
 						Vector(Luminosity, Luminosity, Luminosity, Light);
 						RenderTerrainAlphaBitmap(BITMAP_FLAME, o->Position[0], o->Position[1], 2.f, 2.f, Light, -o->Angle[2]);

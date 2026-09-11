@@ -163,8 +163,34 @@ void CCharSelMainWin::UpdateDisplay()
 
 void CCharSelMainWin::UpdateWhileActive(double dDeltaTick)
 {
-	if (m_aBtn[CSMW_BTN_CONNECT].IsClick())
+	bool connectClicked = m_aBtn[CSMW_BTN_CONNECT].IsClick();
+#if defined(__ANDROID__) || defined(MU_IOS)
+	CInput& rInput = CInput::Instance();
+	if (!connectClicked && (rInput.IsLBtnUp() || rInput.IsLBtnDn() || MouseLButtonPop || MouseLButtonPush))
+	{
+		const long cx = rInput.GetCursorX();
+		const long cy = rInput.GetCursorY();
+		if (m_aBtn[CSMW_BTN_CONNECT].PtInSprite(MouseX, MouseY, 25, 30) ||
+		    m_aBtn[CSMW_BTN_CONNECT].PtInSprite(cx, cy, 25, 30))
+		{
+			connectClicked = true;
+		}
+	}
+#endif
+	if (connectClicked)
+	{
+		extern int SelectedHero;
+		extern int SelectedCharacter;
+		if (SelectedHero < 0 && SelectedCharacter >= 0 && SelectedCharacter < 5)
+		{
+			SelectedHero = SelectedCharacter;
+		}
+		if (SelectedHero < 0)
+		{
+			SelectedHero = 0;
+		}
 		::StartGame();
+	}
 	else if (m_aBtn[CSMW_BTN_MENU].IsClick())
 	{
 		CUIMng& rUIMng = CUIMng::Instance();

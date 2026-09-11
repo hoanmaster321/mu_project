@@ -8517,7 +8517,7 @@ int SelectCharacter(BYTE Kind)
 					continue;
 				}
 				
-				if ( c->m_bIsSelected==false ) 
+				if (Main && c->m_bIsSelected==false) 
 				{
 					continue;
 				}

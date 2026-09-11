@@ -210,23 +210,28 @@ void NewMoveCharacterScene()
         return;
     }
 
-    if (rInput.IsLBtnDbl() && rUIMng.m_CharSelMainWin.IsShow())
+    if (rUIMng.m_CharSelMainWin.IsShow())
     {
-        if (SelectedCharacter < 0 || SelectedCharacter >= MAX_CHARACTERS_PER_ACCOUNT)
+        if (rInput.IsLBtnDbl() || MouseLButtonDBClick)
         {
-            return;
+            if (SelectedCharacter >= 0 && SelectedCharacter < MAX_CHARACTERS_PER_ACCOUNT)
+            {
+                SelectedHero = SelectedCharacter;
+                ::StartGame();
+            }
+            else if (SelectedHero >= 0 && SelectedHero < MAX_CHARACTERS_PER_ACCOUNT)
+            {
+                ::StartGame();
+            }
         }
-
-        SelectedHero = SelectedCharacter;
-        ::StartGame();
-    }
-    else if (rInput.IsLBtnDn())
-    {
-        if (SelectedCharacter < 0 || SelectedCharacter >= MAX_CHARACTERS_PER_ACCOUNT)
-            SelectedHero = -1;
-        else
-            SelectedHero = SelectedCharacter;
-        rUIMng.m_CharSelMainWin.UpdateDisplay();
+        else if (rInput.IsLBtnDn() || MouseLButtonPush)
+        {
+            if (SelectedCharacter >= 0 && SelectedCharacter < MAX_CHARACTERS_PER_ACCOUNT)
+            {
+                SelectedHero = SelectedCharacter;
+                rUIMng.m_CharSelMainWin.UpdateDisplay();
+            }
+        }
     }
 
     g_ConsoleDebug->UpdateMainScene();

@@ -235,8 +235,8 @@ bool CGMShaderBMD::RenderInstanced(const OGL330MODEL::MeshVAO& data, std::size_t
 		const uint32_t vkTextureId = pBitmap ? pBitmap->TextureNumber : (first.m_TextureID < 0 ? static_cast<uint32_t>(-first.m_TextureID) : 0);
 
 		int blendType = 0;
-		if ((first.m_FlagRender & RENDER_BRIGHT) == RENDER_BRIGHT || (first.m_FlagRender & (RENDER_CHROME3 | RENDER_CHROME4 | RENDER_CHROME5 | RENDER_CHROME7)) != 0) blendType = 2;
-		else if ((first.m_FlagRender & RENDER_DARK) == RENDER_DARK) blendType = 3;
+		if ((first.m_FlagRender & RENDER_BRIGHT) != 0 || (first.m_FlagRender & (RENDER_CHROME3 | RENDER_CHROME4 | RENDER_CHROME5 | RENDER_CHROME7)) != 0) blendType = 2;
+		else if ((first.m_FlagRender & RENDER_DARK) != 0) blendType = 3;
 		else if (first.m_isAlpha < 0.99f || (pBitmap && pBitmap->Components == 4)) blendType = 1;
 		bool depthWrite = ((first.m_FlagRender & RENDER_NODEPTH) == 0) && (blendType == 0);
 		bool depthTest = (first.m_FlagRender & RENDER_NODEPTH) == 0;
@@ -279,8 +279,8 @@ void CGMShaderBMD::Render(OGL330MODEL::RenderMeshVAO& r)
 		const uint32_t vkTextureId = pBitmap ? pBitmap->TextureNumber : (r.m_TextureID < 0 ? static_cast<uint32_t>(-r.m_TextureID) : 0);
 
 		int blendType = 0;
-		if ((r.m_FlagRender & RENDER_BRIGHT) == RENDER_BRIGHT || (r.m_FlagRender & (RENDER_CHROME3 | RENDER_CHROME4 | RENDER_CHROME5 | RENDER_CHROME7)) != 0) blendType = 2;
-		else if ((r.m_FlagRender & RENDER_DARK) == RENDER_DARK) blendType = 3;
+		if ((r.m_FlagRender & RENDER_BRIGHT) != 0 || (r.m_FlagRender & (RENDER_CHROME3 | RENDER_CHROME4 | RENDER_CHROME5 | RENDER_CHROME7)) != 0) blendType = 2;
+		else if ((r.m_FlagRender & RENDER_DARK) != 0) blendType = 3;
 		else if (r.m_isAlpha < 0.99f || (pBitmap && pBitmap->Components == 4)) blendType = 1;
 		bool depthWrite = ((r.m_FlagRender & RENDER_NODEPTH) == 0) && (blendType == 0);
 		bool depthTest = (r.m_FlagRender & RENDER_NODEPTH) == 0;

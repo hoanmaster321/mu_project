@@ -721,7 +721,7 @@ void CreateJoint(int Type, vec3_t Position, vec3_t TargetPosition, vec3_t Angle,
 			break;
 			case BITMAP_JOINT_SPIRIT:
 			case BITMAP_JOINT_SPIRIT2:
-				o->RenderType = RENDER_TYPE_ALPHA_BLEND_MINUS;
+				o->RenderType = RENDER_TYPE_ALPHA_BLEND;
 				switch (o->SubType)
 				{
 				case 0:

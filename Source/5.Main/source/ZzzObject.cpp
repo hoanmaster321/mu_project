@@ -2356,9 +2356,9 @@ void Draw_RenderObject(OBJECT *o,bool Translate,int Select, int ExtraMon)
             {
       			b->RenderBody(RENDER_TEXTURE,o->Alpha,o->BlendMesh,o->BlendMeshLight,o->BlendMeshTexCoordU,o->BlendMeshTexCoordV,o->HiddenMesh);
             }
-            else if ( o->Type==MODEL_COMBO && o->SubType==1 )
+            else if ( o->Type==MODEL_COMBO || o->Type==MODEL_SKILL_INFERNO || o->Type==MODEL_BLIZZARD || o->Type==MODEL_LASER )
 			{
-      			b->RenderBody(RENDER_TEXTURE|o->RenderType,o->Alpha,o->BlendMesh,o->BlendMeshLight,o->BlendMeshTexCoordU,o->BlendMeshTexCoordV,o->HiddenMesh);
+      			b->RenderBody(RENDER_TEXTURE|RENDER_BRIGHT,o->Alpha,o->BlendMesh,o->BlendMeshLight,o->BlendMeshTexCoordU,o->BlendMeshTexCoordV,o->HiddenMesh);
 			}
             else if ( o->Type==MODEL_CIRCLE_LIGHT && ( o->SubType==3 || o->SubType==4 ) )
             {

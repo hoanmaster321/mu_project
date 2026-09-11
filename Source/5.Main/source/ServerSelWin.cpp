@@ -541,9 +541,8 @@ void CServerSelWin::UpdateWhileActive(double dDeltaTick)
 		{
 			const long cx = rInput.GetCursorX();
 			const long cy = rInput.GetCursorY();
-			const long mx = (long)(MouseX * g_fScreenRate_x);
-			const long my = (long)(MouseY * g_fScreenRate_y);
-			if (m_aServerGroupBtn[i].PtInSprite(cx, cy, 20, 25) || m_aServerGroupBtn[i].PtInSprite(mx, my, 20, 25))
+			if (m_aServerGroupBtn[i].PtInSprite(MouseX, MouseY, 20, 25) ||
+			    m_aServerGroupBtn[i].PtInSprite(cx, cy, 20, 25))
 			{
 				clicked = true;
 			}
@@ -575,9 +574,8 @@ void CServerSelWin::UpdateWhileActive(double dDeltaTick)
 		{
 			const long cx = rInput.GetCursorX();
 			const long cy = rInput.GetCursorY();
-			const long mx = (long)(MouseX * g_fScreenRate_x);
-			const long my = (long)(MouseY * g_fScreenRate_y);
-			if (m_aServerBtn[i].PtInSprite(cx, cy, 25, 30) || m_aServerBtn[i].PtInSprite(mx, my, 25, 30))
+			if (m_aServerBtn[i].PtInSprite(MouseX, MouseY, 25, 30) ||
+			    m_aServerBtn[i].PtInSprite(cx, cy, 25, 30))
 			{
 				clicked = true;
 			}

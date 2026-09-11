@@ -14,7 +14,7 @@
 // 0: Tắt / ẩn hoàn toàn tính năng auto login khi xuất build gửi cho người khác
 //=============================================================================
 #ifndef ENABLE_AUTO_LOGIN_TEST
-#define ENABLE_AUTO_LOGIN_TEST 0
+#define ENABLE_AUTO_LOGIN_TEST 1
 #endif
 
 #define GET_ITEMOPT_LEVEL(x)		((x >> 3) & 0xF)

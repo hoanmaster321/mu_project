@@ -951,6 +951,11 @@ bool MoveMainCamera();
 
 void StartGame()
 {
+	if (SocketClient.GetSocket() == INVALID_SOCKET)
+	{
+		SEASON3B::CreateMessageBox(MSGBOX_LAYOUT_CLASS(SEASON3B::CServerLostMsgBoxLayout));
+		return;
+	}
 	{
 		if (CTLCODE_01BLOCKCHAR & CharactersClient[SelectedHero].CtlCode)
 			CUIMng::Instance().PopUpMsgWin(MESSAGE_BLOCKED_CHARACTER);
@@ -1105,23 +1110,28 @@ void NewMoveCharacterScene()
 		return;
 	}
 
-	if (rInput.IsLBtnDbl() && rUIMng.m_CharSelMainWin.IsShow())
+	if (rUIMng.m_CharSelMainWin.IsShow())
 	{
-		if (SelectedCharacter < 0 || SelectedCharacter > 4)
+		if (rInput.IsLBtnDbl() || MouseLButtonDBClick)
 		{
-			return;
+			if (SelectedCharacter >= 0 && SelectedCharacter < 5)
+			{
+				SelectedHero = SelectedCharacter;
+				::StartGame();
+			}
+			else if (SelectedHero >= 0 && SelectedHero < 5)
+			{
+				::StartGame();
+			}
 		}
-
-		SelectedHero = SelectedCharacter;
-		::StartGame();
-	}
-	else if(rInput.IsLBtnDn())
-	{
-		if (SelectedCharacter < 0 || SelectedCharacter > 4)
-			SelectedHero = -1;
-		else
-			SelectedHero = SelectedCharacter;
-		rUIMng.m_CharSelMainWin.UpdateDisplay();
+		else if (rInput.IsLBtnDn() || MouseLButtonPush)
+		{
+			if (SelectedCharacter >= 0 && SelectedCharacter < 5)
+			{
+				SelectedHero = SelectedCharacter;
+				rUIMng.m_CharSelMainWin.UpdateDisplay();
+			}
+		}
 	}
 
 	g_ConsoleDebug->UpdateMainScene();

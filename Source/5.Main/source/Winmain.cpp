@@ -203,7 +203,7 @@ extern BOOL g_bGameServerConnected;
 
 void CheckHack( void)
 {
-	if (SceneFlag != MAIN_SCENE || !g_bGameServerConnected)
+	if ((SceneFlag != MAIN_SCENE && SceneFlag != CHARACTER_SCENE) || !g_bGameServerConnected)
 	{
 		return;
 	}
@@ -1793,7 +1793,7 @@ MSG MainLoop()
 			if (nowTicks - s_lastHackTick >= 10000)
 			{
 				s_lastHackTick = nowTicks;
-				if (SceneFlag == MAIN_SCENE && g_bGameServerConnected)
+				if ((SceneFlag == MAIN_SCENE || SceneFlag == CHARACTER_SCENE) && g_bGameServerConnected)
 				{
 					CheckHack();
 				}
