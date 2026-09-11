@@ -5338,6 +5338,7 @@ void MoveCharacter(CHARACTER *c,OBJECT *o)
 				TargetPosition[0] = (float)(c->SkillX+0.5f)*TERRAIN_SCALE;
 				TargetPosition[1] = (float)(c->SkillY+0.5f)*TERRAIN_SCALE;
 				TargetPosition[2] = RequestTerrainHeight(TargetPosition[0],TargetPosition[1]);
+				Vector(1.0f, 1.0f, 1.0f, Light);
 
 				for( int i=0; i<10; ++i )
 				{

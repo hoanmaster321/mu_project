@@ -203,16 +203,17 @@ extern BOOL g_bGameServerConnected;
 
 void CheckHack( void)
 {
+	if (SceneFlag != MAIN_SCENE || !g_bGameServerConnected)
+	{
+		return;
+	}
 	#ifdef NEW_PROTOCOL_SYSTEM
 		gProtocolSend.SendCheckOnline();
 	#else
 		SendCheck();
 	#endif
 #if defined(__ANDROID__) || defined(MU_IOS)
-	if (g_bGameServerConnected)
-	{
-		g_ErrorReport.Write("[Heartbeat] Sent keepalive packet 0x0E to GameServer\r\n");
-	}
+	g_ErrorReport.Write("[Heartbeat] Sent keepalive packet 0x0E to GameServer\r\n");
 #endif
 }
 
@@ -1624,6 +1625,19 @@ MSG MainLoop()
 	{
 	
 #if defined(__ANDROID__) || defined(MU_IOS)
+		static bool s_touchPendingUp = false;
+		static int s_touchPendingUpX = 0;
+		static int s_touchPendingUpY = 0;
+		if (s_touchPendingUp)
+		{
+			s_touchPendingUp = false;
+			MouseLButton = false;
+			MouseLButtonPop = true;
+			MouseX = (g_fScreenRate_x > 0.0f) ? std::clamp((int)((float)s_touchPendingUpX / g_fScreenRate_x), 0, DisplayWin) : s_touchPendingUpX;
+			MouseY = (g_fScreenRate_y > 0.0f) ? std::clamp((int)((float)s_touchPendingUpY / g_fScreenRate_y), 0, DisplayHeight) : s_touchPendingUpY;
+			CInput::Instance().SetCursorPos(s_touchPendingUpX, s_touchPendingUpY);
+		}
+
 		SDL_Event ev;
 		while (SDL_PollEvent(&ev))
 		{
@@ -1644,6 +1658,8 @@ MSG MainLoop()
 					CInput::Instance().SetCursorPos(pxX, pxY);
 					MouseLButton = true;
 					MouseLButtonPush = true;
+					MouseLButtonPop = false;
+					s_touchPendingUp = false;
 				}
 			}
 			else if (ev.type == SDL_EVENT_FINGER_UP)
@@ -1656,8 +1672,17 @@ MSG MainLoop()
 					MouseX = (g_fScreenRate_x > 0.0f) ? std::clamp((int)((float)pxX / g_fScreenRate_x), 0, DisplayWin) : pxX;
 					MouseY = (g_fScreenRate_y > 0.0f) ? std::clamp((int)((float)pxY / g_fScreenRate_y), 0, DisplayHeight) : pxY;
 					CInput::Instance().SetCursorPos(pxX, pxY);
-					MouseLButton = false;
-					MouseLButtonPop = true;
+					if (MouseLButtonPush)
+					{
+						s_touchPendingUp = true;
+						s_touchPendingUpX = pxX;
+						s_touchPendingUpY = pxY;
+					}
+					else
+					{
+						MouseLButton = false;
+						MouseLButtonPop = true;
+					}
 				}
 			}
 			else if (ev.type == SDL_EVENT_FINGER_MOTION)
@@ -1683,6 +1708,8 @@ MSG MainLoop()
 				{
 					MouseLButton = true;
 					MouseLButtonPush = true;
+					MouseLButtonPop = false;
+					s_touchPendingUp = false;
 				}
 				else if (ev.button.button == SDL_BUTTON_RIGHT)
 				{
@@ -1699,8 +1726,17 @@ MSG MainLoop()
 				CInput::Instance().SetCursorPos(pxX, pxY);
 				if (ev.button.button == SDL_BUTTON_LEFT)
 				{
-					MouseLButton = false;
-					MouseLButtonPop = true;
+					if (MouseLButtonPush)
+					{
+						s_touchPendingUp = true;
+						s_touchPendingUpX = pxX;
+						s_touchPendingUpY = pxY;
+					}
+					else
+					{
+						MouseLButton = false;
+						MouseLButtonPop = true;
+					}
 				}
 				else if (ev.button.button == SDL_BUTTON_RIGHT)
 				{
@@ -1757,7 +1793,10 @@ MSG MainLoop()
 			if (nowTicks - s_lastHackTick >= 10000)
 			{
 				s_lastHackTick = nowTicks;
-				CheckHack();
+				if (SceneFlag == MAIN_SCENE && g_bGameServerConnected)
+				{
+					CheckHack();
+				}
 			}
 
 			// 2. MU Helper bot processing every 250ms

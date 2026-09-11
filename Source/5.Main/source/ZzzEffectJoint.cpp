@@ -7438,7 +7438,15 @@ void RenderJoints(BYTE bRenderOneMore)
                 }
             }
 
-            int batchType = (o->RenderType == RENDER_TYPE_ALPHA_TEST) ? TERRAIN_BATCH_ALPHA : TERRAIN_BATCH_BLEND;
+            int batchType = TERRAIN_BATCH_GRASS_ADD;
+            if (o->RenderType == RENDER_TYPE_ALPHA_TEST)
+                batchType = TERRAIN_BATCH_ALPHA;
+            else if (o->RenderType == RENDER_TYPE_ALPHA_BLEND_MINUS)
+                batchType = TERRAIN_BATCH_DARK;
+            else if (o->RenderType == RENDER_TYPE_ALPHA_BLEND || o->RenderType == RENDER_TYPE_ALPHA_BLEND_OTHER)
+                batchType = TERRAIN_BATCH_GRASS_ADD;
+            else
+                batchType = TERRAIN_BATCH_BLEND;
             FlushJointQuadBatch(jointBatch, o->TexType, batchType);
 
             if (o->Type == BITMAP_JOINT_HEALING && o->SubType == 8)

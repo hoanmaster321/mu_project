@@ -1994,7 +1994,14 @@ void RenderTerrainBitmapTile(float xf,float yf,float lodf,int lodi,vec3_t c[4],b
 			Vector4(g_CurrentGLColor[0], g_CurrentGLColor[1], g_CurrentGLColor[2], Alpha, colors[i]);
 		}
 	}
-	g_BatchRenderer.AddTerrainCustomQuad(TERRAIN_BATCH_BLEND, CachTexture, 0, TerrainVertex, uvs, colors);
+	int batchType = TERRAIN_BATCH_BLEND;
+	if (AlphaBlendType == 3 || AlphaBlendType == 5 || AlphaBlendType == 7)
+		batchType = TERRAIN_BATCH_GRASS_ADD;
+	else if (AlphaBlendType == 4)
+		batchType = TERRAIN_BATCH_DARK;
+	else if (AlphaBlendType == 2)
+		batchType = TERRAIN_BATCH_ALPHA;
+	g_BatchRenderer.AddTerrainCustomQuad(batchType, CachTexture, 0, TerrainVertex, uvs, colors);
 }
 
 void RenderTerrainBitmap(int Texture,int mxi,int myi,float Rotation)

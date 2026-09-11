@@ -1319,7 +1319,7 @@ void BMD::RenderMesh(int i,int RenderFlag,float Alpha,int BlendMesh,float BlendM
 	const bool isBlendMesh = (BlendMesh <= -2 || m->Texture == BlendMesh);
 	if ((RenderFlag & RENDER_DARK) == RENDER_DARK)
 	{
-		batchType = TERRAIN_BATCH_BLEND;
+		batchType = TERRAIN_BATCH_DARK;
 	}
 	else if ((RenderFlag & RENDER_BRIGHT) == RENDER_BRIGHT || Render == RENDER_BRIGHT || Render == RENDER_CHROME || Render == RENDER_CHROME4 || isBlendMesh)
 	{

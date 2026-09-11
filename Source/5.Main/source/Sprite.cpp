@@ -195,7 +195,7 @@ void CSprite::SetSize(int nWidth, int nHeight, CHANGE_PRAM eChangedPram)
 	}
 }
 
-BOOL CSprite::PtInSprite(long lXPos, long lYPos)
+BOOL CSprite::PtInSprite(long lXPos, long lYPos, long lToleranceX, long lToleranceY)
 {
 	if (!m_bShow)
 		return FALSE;
@@ -203,10 +203,10 @@ BOOL CSprite::PtInSprite(long lXPos, long lYPos)
 	POINT pt = { lXPos, lYPos };
 
 	RECT rc = {
-		long(m_aScrCoord[LT].fX * m_fScaleX),
-		long((m_fScrHeight - m_aScrCoord[LT].fY) * m_fScaleY),
-		long(m_aScrCoord[RB].fX * m_fScaleX),
-		long((m_fScrHeight - m_aScrCoord[RB].fY) * m_fScaleY)
+		long(m_aScrCoord[LT].fX * m_fScaleX) - lToleranceX,
+		long((m_fScrHeight - m_aScrCoord[LT].fY) * m_fScaleY) - lToleranceY,
+		long(m_aScrCoord[RB].fX * m_fScaleX) + lToleranceX,
+		long((m_fScrHeight - m_aScrCoord[RB].fY) * m_fScaleY) + lToleranceY
 	};
 
 	return ::PtInRect(&rc, pt);
@@ -216,7 +216,11 @@ BOOL CSprite::CursorInObject()
 {
 	CInput& rInput = CInput::Instance();
 
+#if defined(__ANDROID__) || defined(MU_IOS)
+	return PtInSprite(rInput.GetCursorX(), rInput.GetCursorY(), 10, 10);
+#else
 	return PtInSprite(rInput.GetCursorX(), rInput.GetCursorY());
+#endif
 }
 
 void CSprite::SetAction(int nStartFrame, int nEndFrame, double dDelayTime,

@@ -66,7 +66,8 @@ void RenderCircle(int Type,vec3_t ObjectPosition,float ScaleBottom,float ScaleTo
 			Vector(UV[i][0], UV[i][1] + TextureV, 0.0f, quadUV[i]);
 			Vector4(Light[i][0], Light[i][1], Light[i][2], 1.0f, quadColor[i]);
 		}
-		g_BatchRenderer.AddTerrainCustomQuad(TERRAIN_BATCH_BLEND, Type, 0, Position, quadUV, quadColor);
+		int batchType = (AlphaBlendType == 3 || AlphaBlendType == 5 || AlphaBlendType == 7) ? TERRAIN_BATCH_GRASS_ADD : ((AlphaBlendType == 4) ? TERRAIN_BATCH_DARK : ((AlphaBlendType == 2) ? TERRAIN_BATCH_ALPHA : TERRAIN_BATCH_BLEND));
+		g_BatchRenderer.AddTerrainCustomQuad(batchType, Type, 0, Position, quadUV, quadColor);
 	}
 }
 
@@ -123,7 +124,8 @@ void RenderCircle2D(int Type,vec3_t ScreenPosition,float ScaleBottom,float Scale
 			Vector(UV[i][0], UV[i][1] + TextureV, 0.0f, quadUV[i]);
 			Vector4(Light[i][0], Light[i][1], Light[i][2], 1.0f, quadColor[i]);
 		}
-		g_BatchRenderer.AddTerrainCustomQuad(TERRAIN_BATCH_BLEND, Type, 0, Position, quadUV, quadColor);
+		int batchType = (AlphaBlendType == 3 || AlphaBlendType == 5 || AlphaBlendType == 7) ? TERRAIN_BATCH_GRASS_ADD : ((AlphaBlendType == 4) ? TERRAIN_BATCH_DARK : ((AlphaBlendType == 2) ? TERRAIN_BATCH_ALPHA : TERRAIN_BATCH_BLEND));
+		g_BatchRenderer.AddTerrainCustomQuad(batchType, Type, 0, Position, quadUV, quadColor);
 	}
 }
 

@@ -74,8 +74,10 @@ void CButton::Show(bool bShow)
 
 BOOL CButton::CursorInObject()
 {
+#if !defined(__ANDROID__) && !defined(MU_IOS)
 	if (!m_bActive)
 		return FALSE;
+#endif
 
 	return CSprite::CursorInObject();
 }
@@ -89,16 +91,32 @@ void CButton::Update()
 
 	m_fTextAddYPos = 0.5f;
 
+#if defined(__ANDROID__) || defined(MU_IOS)
+	extern bool MouseLButtonPush, MouseLButtonPop;
+#endif
+
 	if (m_bEnable/* && m_bActive*/)
 	{
-		if (CursorInObject() && rInput.IsLBtnDn())
+		if (CursorInObject() && (rInput.IsLBtnDn()
+#if defined(__ANDROID__) || defined(MU_IOS)
+			|| MouseLButtonPush
+#endif
+		))
 			m_pBtnHeld = this;
 
 		m_bClick = false;
 
-		if(rInput.IsLBtnUp())
+		if (rInput.IsLBtnUp()
+#if defined(__ANDROID__) || defined(MU_IOS)
+			|| MouseLButtonPop
+#endif
+		)
 		{
-			if(CursorInObject() && this == m_pBtnHeld)
+			if (CursorInObject() && (this == m_pBtnHeld
+#if defined(__ANDROID__) || defined(MU_IOS)
+				|| m_pBtnHeld == NULL
+#endif
+			))
 			{
 				m_bClick = true;
 
@@ -108,7 +126,7 @@ void CButton::Update()
 					m_bCheck = !m_bCheck;
 			}
 
-			if(this == m_pBtnHeld)
+			if (this == m_pBtnHeld)
 				m_pBtnHeld = NULL;
 		}
 

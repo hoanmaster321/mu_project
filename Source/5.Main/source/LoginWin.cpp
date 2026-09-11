@@ -36,6 +36,10 @@
 
 extern float g_fScreenRate_x;
 extern float g_fScreenRate_y;
+extern bool MouseLButtonPop;
+extern bool MouseLButtonPush;
+extern int MouseX;
+extern int MouseY;
 extern int g_iChatInputType;
 extern char m_Username[11];
 extern char m_Password[11];
@@ -205,6 +209,11 @@ void CLoginWin::Show(bool bShow)
 #if defined(__ANDROID__) || defined(MU_IOS)
 	if (bShow)
 	{
+		CInput& rInput = CInput::Instance();
+		int loginY = (rInput.GetScreenHeight() - CWin::GetHeight()) / 4;
+		if (loginY < 20) loginY = 20;
+		SetPosition((rInput.GetScreenWidth() - CWin::GetWidth()) / 2, loginY);
+
 #if(CB_AUTOLOGINWIN)
 		if (gCB_AutoLogin && gCB_AutoLogin->totalSavedAcc > 0)
 		{
@@ -337,11 +346,31 @@ void CLoginWin::UpdateWhileActive(double dDeltaTick)
 #endif
 	CInput& rInput = CInput::Instance();
 
-	if (m_aBtn[LIW_OK].IsClick())
+	bool okClicked = m_aBtn[LIW_OK].IsClick();
+	bool cancelClicked = m_aBtn[LIW_CANCEL].IsClick();
+#if defined(__ANDROID__) || defined(MU_IOS)
+	if (!okClicked && !cancelClicked && (rInput.IsLBtnUp() || rInput.IsLBtnDn() || MouseLButtonPop || MouseLButtonPush))
+	{
+		const long cx = rInput.GetCursorX();
+		const long cy = rInput.GetCursorY();
+		const long mx = (long)(MouseX * g_fScreenRate_x);
+		const long my = (long)(MouseY * g_fScreenRate_y);
+		if (m_aBtn[LIW_OK].PtInSprite(cx, cy) || m_aBtn[LIW_OK].PtInSprite(mx, my))
+		{
+			okClicked = true;
+		}
+		else if (m_aBtn[LIW_CANCEL].PtInSprite(cx, cy) || m_aBtn[LIW_CANCEL].PtInSprite(mx, my))
+		{
+			cancelClicked = true;
+		}
+	}
+#endif
+
+	if (okClicked)
 	{
 		RequestLogin();
 	}
-	else if (m_aBtn[LIW_CANCEL].IsClick())
+	else if (cancelClicked)
 	{
 		CancelLogin();
 	}
@@ -384,7 +413,7 @@ void CLoginWin::UpdateWhileShow(double dDeltaTick)
 	m_pPassInputBox->DoAction();
 
 #if defined(__ANDROID__) || defined(MU_IOS)
-	if (CInput::Instance().IsLBtnDn())
+	if (CInput::Instance().IsLBtnDn() || MouseLButtonPush || MouseLButtonPop)
 	{
 		FocusInputAt(static_cast<float>(MouseX), static_cast<float>(MouseY));
 	}

@@ -444,7 +444,7 @@ void ReceiveServerConnect(BYTE* ReceiveBuffer) //Recebe informação do ConnectS
 	char IP[16];
 	memset(IP, 0, 16);
 	memcpy(IP, (char*)Data->IP, 15);
-	g_ErrorReport.Write("[ReceiveServerConnect]");
+	g_ErrorReport.Write("[ReceiveServerConnect] IP=%s, Port=%d\r\n", IP, Data->Port);
 	SocketClient.Close();
 
 #ifndef NEW_PROTOCOL_SYSTEM
@@ -493,6 +493,8 @@ void ReceiveJoinServer( BYTE *ReceiveBuffer )
         case 0x01:
 			rUIMng.HideWin(&rUIMng.m_ServerSelWin);
 			rUIMng.ShowWin(&rUIMng.m_LoginWin);
+			rUIMng.m_LoginWin.Active(true);
+			rUIMng.m_LoginWin.ActiveBtns(true);
             HeroKey = ((int)(Data2->NumberH)<<8) + Data2->NumberL;
             CurrentProtocolState = RECEIVE_JOIN_SERVER_SUCCESS;
 #if defined(__ANDROID__) && defined(ENABLE_AUTO_LOGIN_TEST) && ENABLE_AUTO_LOGIN_TEST

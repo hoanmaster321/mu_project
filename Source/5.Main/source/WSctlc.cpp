@@ -158,16 +158,20 @@ BOOL CWsctlc::Connect(char* ip_addr, unsigned short port, DWORD /*WinMsgNum*/)
         m_socket = static_cast<SOCKET>(1);
     }
 
-    if (m_bGame)
+    if (m_bGame && port != g_ServerPort && port != 63000 && port != 44405)
     {
         g_bGameServerConnected = TRUE;
     }
+    else
+    {
+        g_bGameServerConnected = FALSE;
+    }
 
-    g_ErrorReport.Write("[CWsctlc::Connect] Connected successfully to %s:%d (socket=%d)\r\n",
-        ip_addr, port, static_cast<int>(m_socket));
+    g_ErrorReport.Write("[CWsctlc::Connect] Connected successfully to %s:%d (socket=%d, isGame=%d)\r\n",
+        ip_addr, port, static_cast<int>(m_socket), (int)g_bGameServerConnected);
 
     // Automatically request ConnectServer server list if connecting to CS port
-    if (!m_bGame && (port == g_ServerPort || port == 63000))
+    if (!g_bGameServerConnected && (port == g_ServerPort || port == 63000 || port == 44405))
     {
         const uint8_t reqServerList[] = { 0xC1, 0x04, 0xF4, 0x06 };
         m_pClient->Send(reqServerList, sizeof(reqServerList));
@@ -208,6 +212,11 @@ BYTE* CWsctlc::GetReadMsg()
         return m_pClient->PopReceivedPacket();
     }
     return NULL;
+}
+
+bool CWsctlc::IsConnected() const
+{
+    return m_pClient && m_pClient->IsConnected();
 }
 
 #if defined(__ANDROID__) || defined(MU_IOS)

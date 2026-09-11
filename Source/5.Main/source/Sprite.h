@@ -86,7 +86,7 @@ public:
 	void Show(bool bShow = true) { m_bShow = bShow; }
 	bool IsShow() { return m_bShow; }
 	int GetSizingDatums() { return m_nSizingDatums; }
-	BOOL PtInSprite(long lXPos, long lYPos);
+	BOOL PtInSprite(long lXPos, long lYPos, long lToleranceX = 0, long lToleranceY = 0);
 	BOOL CursorInObject();
 	void SetAlpha(BYTE byAlpha) { m_byAlpha = byAlpha; }
 	BYTE GetAlpha() { return m_byAlpha; }

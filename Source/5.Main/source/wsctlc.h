@@ -67,6 +67,8 @@ public:
 
     BYTE* GetReadMsg();
 
+    bool IsConnected() const;
+
     AsioNetworkClient* GetAsioClient() const { return m_pClient.get(); }
 
 #if defined(__ANDROID__) || defined(MU_IOS)

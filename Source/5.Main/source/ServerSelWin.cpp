@@ -23,6 +23,10 @@
 
 extern float g_fScreenRate_x;
 extern float g_fScreenRate_y;
+extern bool MouseLButtonPop;
+extern bool MouseLButtonPush;
+extern int MouseX;
+extern int MouseY;
 
 using namespace SEASON3A;
 
@@ -374,6 +378,12 @@ bool CServerSelWin::ConnectServerButtonIndex(int iIndex)
 	}
 
 	CUIMng::Instance().HideWin(this);
+	extern CWsctlc SocketClient;
+	if (!SocketClient.IsConnected())
+	{
+		g_ErrorReport.Write("[ServerSelWin] SocketClient disconnected, reconnecting to %s:%d...\r\n", szServerIpAddress, g_ServerPort);
+		SocketClient.Connect(szServerIpAddress, g_ServerPort);
+	}
 	SendRequestServerAddress(pServerInfo->m_iConnectIndex);
 
 	int iCensorshipIndex = CGameCensorship::STATE_12;
@@ -527,9 +537,13 @@ void CServerSelWin::UpdateWhileActive(double dDeltaTick)
 	{
 		bool clicked = m_aServerGroupBtn[i].IsClick();
 #if defined(__ANDROID__) || defined(MU_IOS)
-		if (!clicked && (rInput.IsLBtnUp() || rInput.IsLBtnDn()))
+		if (!clicked && (rInput.IsLBtnUp() || rInput.IsLBtnDn() || MouseLButtonPop || MouseLButtonPush))
 		{
-			if (m_aServerGroupBtn[i].PtInSprite(rInput.GetCursorX(), rInput.GetCursorY()))
+			const long cx = rInput.GetCursorX();
+			const long cy = rInput.GetCursorY();
+			const long mx = (long)(MouseX * g_fScreenRate_x);
+			const long my = (long)(MouseY * g_fScreenRate_y);
+			if (m_aServerGroupBtn[i].PtInSprite(cx, cy, 20, 25) || m_aServerGroupBtn[i].PtInSprite(mx, my, 20, 25))
 			{
 				clicked = true;
 			}
@@ -557,9 +571,13 @@ void CServerSelWin::UpdateWhileActive(double dDeltaTick)
 	{
 		bool clicked = m_aServerBtn[i].IsClick();
 #if defined(__ANDROID__) || defined(MU_IOS)
-		if (!clicked && (rInput.IsLBtnUp() || rInput.IsLBtnDn()))
+		if (!clicked && (rInput.IsLBtnUp() || rInput.IsLBtnDn() || MouseLButtonPop || MouseLButtonPush))
 		{
-			if (m_aServerBtn[i].PtInSprite(rInput.GetCursorX(), rInput.GetCursorY()))
+			const long cx = rInput.GetCursorX();
+			const long cy = rInput.GetCursorY();
+			const long mx = (long)(MouseX * g_fScreenRate_x);
+			const long my = (long)(MouseY * g_fScreenRate_y);
+			if (m_aServerBtn[i].PtInSprite(cx, cy, 25, 30) || m_aServerBtn[i].PtInSprite(mx, my, 25, 30))
 			{
 				clicked = true;
 			}

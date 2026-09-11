@@ -66,6 +66,7 @@ extern int		mMAX_SKILL_EFFECTS;
 extern int		mMAX_PARTICLES;
 
 extern bool  g_RenderEff;
+extern int   AlphaBlendType;
 
 bool GetRenderEffect();
 
