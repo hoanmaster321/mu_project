@@ -127,7 +127,7 @@ bool VulkanSDL3Context::InitSDL(const char* title, int width, int height)
 #endif
 
     if (!m_window) {
-#if defined(__ANDROID__)
+#if defined(__ANDROID__) || defined(MU_IOS)
         if (width < height && width > 0 && height > 0) {
             std::swap(width, height);
         }
@@ -271,6 +271,8 @@ bool VulkanSDL3Context::CreateInstance(bool enableValidation)
     bool hasWin32Surface = false;
 #elif defined(VK_USE_PLATFORM_ANDROID_KHR)
     bool hasAndroidSurface = false;
+#elif defined(VK_USE_PLATFORM_METAL_EXT)
+    bool hasMetalSurface = false;
 #endif
     for (const char* ext : extensions) {
         if (strcmp(ext, VK_KHR_SURFACE_EXTENSION_NAME) == 0) hasSurface = true;
@@ -278,6 +280,8 @@ bool VulkanSDL3Context::CreateInstance(bool enableValidation)
         if (strcmp(ext, VK_KHR_WIN32_SURFACE_EXTENSION_NAME) == 0) hasWin32Surface = true;
 #elif defined(VK_USE_PLATFORM_ANDROID_KHR)
         if (strcmp(ext, VK_KHR_ANDROID_SURFACE_EXTENSION_NAME) == 0) hasAndroidSurface = true;
+#elif defined(VK_USE_PLATFORM_METAL_EXT)
+        if (strcmp(ext, VK_EXT_METAL_SURFACE_EXTENSION_NAME) == 0) hasMetalSurface = true;
 #endif
     }
     if (!hasSurface) extensions.push_back(VK_KHR_SURFACE_EXTENSION_NAME);
@@ -285,6 +289,8 @@ bool VulkanSDL3Context::CreateInstance(bool enableValidation)
     if (!hasWin32Surface) extensions.push_back(VK_KHR_WIN32_SURFACE_EXTENSION_NAME);
 #elif defined(VK_USE_PLATFORM_ANDROID_KHR)
     if (!hasAndroidSurface) extensions.push_back(VK_KHR_ANDROID_SURFACE_EXTENSION_NAME);
+#elif defined(VK_USE_PLATFORM_METAL_EXT)
+    if (!hasMetalSurface) extensions.push_back(VK_EXT_METAL_SURFACE_EXTENSION_NAME);
 #endif
 
     VkInstanceCreateInfo createInfo{};
