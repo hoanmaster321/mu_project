@@ -15,6 +15,7 @@
 #include "NewUIMainFrameWindow.h"
 #include "NewUIMainFrameMobile.h"
 #include "UIMobile/UIMobileInventory.h"
+#include "UIMobile/UIMobileSystem.h"
 #include "NewUIChatInputBox.h"
 #include "NewUIItemMng.h"
 #include "NewUIMyInventory.h"
@@ -234,6 +235,7 @@ namespace SEASON3B
 		CNewUIMuHelper* m_pNewUIMuHelper;
 		CNewUIMainFrameMobile* m_pNewMainFrameMobile;
 		CUIMobileInventory* m_pNewMobileInventory;
+		UIMobile::CUIMobileSystem* m_pNewMobileSystem;
 	public:
 		CNewUIChatInputBox* GetUI_NewChatInputBox() const;
 		CNewUIChatLogWindow* GetUI_NewChatLogWindow() const;
@@ -243,6 +245,7 @@ namespace SEASON3B
 		CNewUIMainFrameWindow* GetUI_NewMainFrameWindow() const;
 		CNewUIMainFrameMobile* GetUI_NewMainFrameMobile() const;
 		CUIMobileInventory* GetUI_NewMobileInventory() const;
+		UIMobile::CUIMobileSystem* GetUI_NewMobileSystem() const;
 		CNewUISkillList* GetUI_NewSkillList() const;	
 		CNewUIItemMng*	GetUI_NewItemMng() const;
 		CNewUIMyInventory* GetUI_NewMyInventory() const;

@@ -18,6 +18,7 @@
 #include "GIPetManager.h"
 #include "wsclientinline.h"
 #include "UIMobile/UIMobileInventory.h"
+#include "UIMobile/UIMobileSystem.h"
 
 #include <cmath>
 #include <algorithm>
@@ -1321,19 +1322,40 @@ namespace SEASON3B
             return true;
         }
 
-        // 5. Bag (Inventory) Button
-        const float bagX = winW - 36.0f;
-        const float bagY = winH - 228.0f;
-        constexpr float bagR = 20.0f;
-        const float dBagX = touchX - bagX;
-        const float dBagY = touchY - bagY;
-        if ((dBagX * dBagX + dBagY * dBagY) <= (bagR + 8.0f) * (bagR + 8.0f))
+        // 5. Mobile Navigation Dock Buttons (BAG, STAT, SKILL, MAP, PTY)
+        constexpr float dockR = 20.0f;
+        const float dockX = winW - 36.0f;
+        const float dockY[5] = {
+            winH - 228.0f, // 0: BAG
+            winH - 274.0f, // 1: STAT
+            winH - 320.0f, // 2: SKILL
+            winH - 366.0f, // 3: MAP
+            winH - 412.0f  // 4: PTY
+        };
+        const UIMobile::MOBILE_UI_TYPE dockTypes[5] = {
+            UIMobile::UI_INVENTORY,
+            UIMobile::UI_CHARACTER_INFO,
+            UIMobile::UI_SKILL_SELECT,
+            UIMobile::UI_MOVE_COMMAND,
+            UIMobile::UI_PARTY
+        };
+
+        for (int d = 0; d < 5; ++d)
         {
-            if (g_pMobileInventory)
+            const float dx = touchX - dockX;
+            const float dy = touchY - dockY[d];
+            if ((dx * dx + dy * dy) <= (dockR + 8.0f) * (dockR + 8.0f))
             {
-                g_pMobileInventory->Toggle();
+                if (g_pMobileSystem)
+                {
+                    g_pMobileSystem->Toggle(dockTypes[d]);
+                }
+                else if (d == 0 && g_pMobileInventory)
+                {
+                    g_pMobileInventory->Toggle();
+                }
+                return true;
             }
-            return true;
         }
 
         // 6. Joystick on Left Side
@@ -1816,28 +1838,51 @@ namespace SEASON3B
         g_pRenderText->SetBgColor(0, 0, 0, 0);
         g_pRenderText->RenderText(static_cast<int>(atkX - 12.0f), static_cast<int>(atkY - 6.0f), "ATK");
 
-        // Bag (Inventory) Button
-        const float bagX = winW - 36.0f;
-        const float bagY = winH - 228.0f;
-        constexpr float bagR = 20.0f;
-        const bool bagOpen = (g_pMobileInventory && g_pMobileInventory->IsOpen());
+        // Mobile Navigation Dock Buttons (BAG, STAT, SKILL, MAP, PTY)
+        constexpr float dockR = 20.0f;
+        const float dockX = winW - 36.0f;
+        const float dockY[5] = {
+            winH - 228.0f, // 0: BAG
+            winH - 274.0f, // 1: STAT
+            winH - 320.0f, // 2: SKILL
+            winH - 366.0f, // 3: MAP
+            winH - 412.0f  // 4: PTY
+        };
+        const char* dockLabels[5] = { "BAG", "STAT", "SKL", "MAP", "PTY" };
+        const UIMobile::MOBILE_UI_TYPE dockTypes[5] = {
+            UIMobile::UI_INVENTORY,
+            UIMobile::UI_CHARACTER_INFO,
+            UIMobile::UI_SKILL_SELECT,
+            UIMobile::UI_MOVE_COMMAND,
+            UIMobile::UI_PARTY
+        };
 
-        if (bagOpen)
-            glColor4f(0.35f, 0.28f, 0.08f, 0.90f);
-        else
-            glColor4f(0.08f, 0.12f, 0.22f, 0.70f);
-        RenderBitmap(m_texCircle, bagX - bagR, bagY - bagR, bagR * 2.0f, bagR * 2.0f, 0, 0, 1, 1, true, true);
+        for (int d = 0; d < 5; ++d)
+        {
+            const bool isOpen = g_pMobileSystem ? g_pMobileSystem->IsVisible(dockTypes[d]) : (d == 0 && g_pMobileInventory && g_pMobileInventory->IsOpen());
 
-        if (bagOpen)
-            glColor4f(1.0f, 0.85f, 0.20f, 1.0f);
-        else
-            glColor4f(0.35f, 0.65f, 0.95f, 0.85f);
-        RenderBitmap(m_texRing, bagX - bagR, bagY - bagR, bagR * 2.0f, bagR * 2.0f, 0, 0, 1, 1, true, true);
+            if (isOpen)
+                glColor4f(0.35f, 0.28f, 0.08f, 0.90f);
+            else
+                glColor4f(0.08f, 0.12f, 0.22f, 0.70f);
+            RenderBitmap(m_texCircle, dockX - dockR, dockY[d] - dockR, dockR * 2.0f, dockR * 2.0f, 0, 0, 1, 1, true, true);
 
-        g_pRenderText->SetFont(g_hFontBold);
-        g_pRenderText->SetTextColor(255, 230, 120, 255);
-        g_pRenderText->SetBgColor(0, 0, 0, 0);
-        g_pRenderText->RenderText(static_cast<int>(bagX - 11.0f), static_cast<int>(bagY - 5.0f), "BAG");
+            if (isOpen)
+                glColor4f(1.0f, 0.85f, 0.20f, 1.0f);
+            else
+                glColor4f(0.35f, 0.65f, 0.95f, 0.85f);
+            RenderBitmap(m_texRing, dockX - dockR, dockY[d] - dockR, dockR * 2.0f, dockR * 2.0f, 0, 0, 1, 1, true, true);
+
+            g_pRenderText->SetFont(g_hFontBold);
+            if (isOpen)
+                g_pRenderText->SetTextColor(255, 230, 100, 255);
+            else
+                g_pRenderText->SetTextColor(200, 220, 245, 255);
+            g_pRenderText->SetBgColor(0, 0, 0, 0);
+
+            const int textOffX = (std::strlen(dockLabels[d]) == 4) ? 14 : 11;
+            g_pRenderText->RenderText(static_cast<int>(dockX - static_cast<float>(textOffX)), static_cast<int>(dockY[d] - 5.0f), dockLabels[d]);
+        }
 
         // ── 3. Ground Reticle Indicator ("cái chấm ở dưới chân kéo đi đâu là nó đánh ở đó") ──
         const uint32_t nowTime = SDL_GetTicks();
