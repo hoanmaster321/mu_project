@@ -1,7 +1,7 @@
 @echo off
 title Start Synced MuServer - 192.168.1.117
-color 0A
-set "MUSERVER=D:\takumi\MuServer"
+set "MUSERVER=%~dp0"
+if "%MUSERVER:~-1%"=="\" set "MUSERVER=%MUSERVER:~0,-1%"
 
 echo Killing old server processes...
 taskkill /F /IM ConnectServer.exe >nul 2>nul

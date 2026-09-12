@@ -3,7 +3,8 @@ title Start GameServerCS Only - 192.168.1.117
 color 0B
 setlocal
 
-set "MUSERVER=D:\takumi\MuServer"
+set "MUSERVER=%~dp0"
+if "%MUSERVER:~-1%"=="\" set "MUSERVER=%MUSERVER:~0,-1%"
 
 echo ==================================================
 echo Starting GameServerCS only on 192.168.1.117
