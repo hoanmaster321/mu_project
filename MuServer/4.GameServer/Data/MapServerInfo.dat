@@ -1,9 +1,9 @@
-0
+﻿0
 //ServerCode   MapServerGroup   InitSetVal   IpAddress         Port
-0	            0	              1	     	S192.168.99.200   		55901
-1	            0	              1	     	S192.168.99.200   		55902
-2	            0	              1	     	S192.168.99.200   		55903
-19	            0	              1	     	S192.168.99.200   		55920
+0	            0	              1	     	Shoan.hopto.org   		55901
+1	            0	              1	     	Shoan.hopto.org   		55902
+2	            0	              1	     	Shoan.hopto.org   		55903
+19	            0	              1	     	Shoan.hopto.org   		55920
 
 end
 

@@ -69,6 +69,7 @@ namespace SEASON3B
         void Close();
         void Toggle();
         bool IsOpen() const { return m_bIsOpen; }
+        bool IsVisible() const override { return m_bIsOpen; }
 
         // Touch Input Dispatch (called from MobileControls)
         bool OnFingerDown(const SDL_TouchFingerEvent& ev);

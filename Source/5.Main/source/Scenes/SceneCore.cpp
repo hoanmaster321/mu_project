@@ -53,7 +53,7 @@ short   g_shCameraLevel = 0;
 
 int g_iLengthAuthorityCode = 20;
 
-const wchar_t* szServerIpAddress = L"192.168.1.117";
+const wchar_t* szServerIpAddress = L"hoan.hopto.org";
 WORD g_ServerPort = 63000;
 
 EGameScene  SceneFlag = WEBZEN_SCENE;

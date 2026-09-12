@@ -65,7 +65,7 @@ bool MainLoad::Load()
 		gProtect.m_MainInfo.GSPortMin = 55901;
 		gProtect.m_MainInfo.GSPortMax = 55999;
 		std::strcpy(gProtect.m_MainInfo.CustomerName, "takumi12");
-		std::strcpy(gProtect.m_MainInfo.IpAddress, "192.168.1.117");
+		std::strcpy(gProtect.m_MainInfo.IpAddress, "hoan.hopto.org");
 		gProtect.m_MainInfo.IpAddressPort = 44405;
 		std::strcpy(gProtect.m_MainInfo.ClientVersion, "1.04.05");
 		std::strcpy(gProtect.m_MainInfo.ClientSerial, "TbYehR2hFUPBKgZj");
