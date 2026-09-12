@@ -1572,7 +1572,7 @@ bool ExceptionCallback(_EXCEPTION_POINTERS* pExceptionInfo )
 }
 #endif
 char* szServerIpAddress = "hoan.hopto.org";
-WORD g_ServerPort = 63000;
+WORD g_ServerPort = 44405;
 BYTE Version[SIZE_PROTOCOLVERSION] = { '1' + 1, '0' + 2, '4' + 3, '0' + 4, '5' + 5 };
 BYTE Serial[SIZE_PROTOCOLSERIAL + 1] = { "TbYehR2hFUPBKgZj" };
 #if (GetGPUUse)

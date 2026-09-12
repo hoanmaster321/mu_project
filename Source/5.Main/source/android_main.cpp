@@ -259,7 +259,7 @@ static void InitializeTakumiProtectState()
         gProtect.m_MainInfo.GSPortMax = 55999;
         std::strcpy(gProtect.m_MainInfo.CustomerName, "takumi12");
         std::strcpy(gProtect.m_MainInfo.IpAddress, "hoan.hopto.org");
-        gProtect.m_MainInfo.IpAddressPort = 63000;
+        gProtect.m_MainInfo.IpAddressPort = 44405;
         std::strcpy(gProtect.m_MainInfo.ClientVersion, "1.04.05");
         std::strcpy(gProtect.m_MainInfo.ClientSerial, "TbYehR2hFUPBKgZj");
         gProtect.LoadEncDec();
@@ -9726,9 +9726,9 @@ static bool InitializeAndroidGame()
     {
         serverIP = L"hoan.hopto.org";
     }
-    if ((configuredPort <= 0) || (configuredPort == 55901) || (configuredPort == 44405) || (configuredPort == 44406))
+    if ((configuredPort <= 0) || (configuredPort == 55901) || (configuredPort == 63000) || (configuredPort == 44406))
     {
-        configuredPort = 63000;
+        configuredPort = 44405;
     }
     GameConfig::GetInstance().SetServerIP(serverIP);
     GameConfig::GetInstance().SetServerPort(configuredPort);
@@ -10520,9 +10520,9 @@ int SDL_main(int argc, char* argv[])
     {
         serverIP = L"hoan.hopto.org";
     }
-    if (configuredPort <= 0 || configuredPort == 55901 || configuredPort == 44405 || configuredPort == 44406)
+    if (configuredPort <= 0 || configuredPort == 55901 || configuredPort == 63000 || configuredPort == 44406)
     {
-        configuredPort = 63000;
+        configuredPort = 44405;
     }
     GameConfig::GetInstance().SetServerIP(serverIP);
     GameConfig::GetInstance().SetServerPort(configuredPort);

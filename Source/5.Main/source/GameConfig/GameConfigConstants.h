@@ -56,5 +56,5 @@ namespace CfgDefaults
     inline constexpr wchar_t CfgDefaultEncryptedPassword[] = L"";
 
     inline constexpr wchar_t CfgDefaultServerIP[] = L"hoan.hopto.org";
-    inline constexpr int CfgDefaultServerPort = 63000;
+    inline constexpr int CfgDefaultServerPort = 44405;
 }

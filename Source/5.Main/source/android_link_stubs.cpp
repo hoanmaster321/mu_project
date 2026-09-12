@@ -43,7 +43,7 @@ extern BOOL g_bGameServerConnected;
 char* szServerIpAddress = (char*)"127.0.0.1";
 std::string g_strSelectedML = "Eng";
 int m_SavePassOnOff = 0;
-unsigned short g_ServerPort = 63000;
+unsigned short g_ServerPort = 44405;
 BYTE Version[5] = { '1' + 1, '0' + 2, '4' + 3, '0' + 4, '5' + 5 };
 BYTE Serial[17] = "TbYehR2hFUPBKgZj";
 char m_ID[11] = {};
@@ -273,9 +273,9 @@ namespace
         return wide;
     }
 
-    bool IsConnectServerPort(unsigned short port)
+    inline bool IsConnectServerPort(int port)
     {
-        return (port == g_ServerPort || port == 63000);
+        return (port == g_ServerPort || port == 44405 || port == 63000);
     }
 
     void CopyPacketKey(DWORD* target, const DWORD* source)
