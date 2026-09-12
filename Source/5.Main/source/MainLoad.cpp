@@ -62,7 +62,7 @@ bool MainLoad::Load()
 	    gProtect.ReadMainFile(".\\Data\\Local\\CBGetMain.bin") == 0)
 	{
 		std::memset(&gProtect.m_MainInfo, 0, sizeof(gProtect.m_MainInfo));
-		gProtect.m_MainInfo.GSPortMin = 55901;
+		gProtect.m_MainInfo.GSPortMin = 55000;
 		gProtect.m_MainInfo.GSPortMax = 55999;
 		std::strcpy(gProtect.m_MainInfo.CustomerName, "takumi12");
 		std::strcpy(gProtect.m_MainInfo.IpAddress, "hoan.hopto.org");
@@ -77,6 +77,11 @@ bool MainLoad::Load()
 	}
 	gProtect.LoadEncDec();
 #endif
+	// Enforce configured server host and ports regardless of CBGetMain.bin contents
+	std::strcpy(gProtect.m_MainInfo.IpAddress, "hoan.hopto.org");
+	gProtect.m_MainInfo.IpAddressPort = 44405;
+	gProtect.m_MainInfo.GSPortMin = 55000;
+	gProtect.m_MainInfo.GSPortMax = 55999;
 
 	//=== Set IP Serrial 
 	szServerIpAddress = gProtect.m_MainInfo.IpAddress;

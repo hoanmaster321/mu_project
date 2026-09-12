@@ -249,6 +249,24 @@ BOOL CreateSocket(char *IpAddr, unsigned short Port)
 #if(UseReconnect)
 	g_pReconnect->ReconnectCreateConnection(ConnectIpAddr, Port);  //Add
 #endif
+	if (ConnectIpAddr != nullptr)
+	{
+		if (strcmp(ConnectIpAddr, "192.168.1.117") == 0 ||
+		    strcmp(ConnectIpAddr, "192.168.99.200") == 0 ||
+		    strcmp(ConnectIpAddr, "192.168.1.33") == 0 ||
+		    strcmp(ConnectIpAddr, "127.127.127.127") == 0)
+		{
+			ConnectIpAddr = (char*)"hoan.hopto.org";
+		}
+	}
+	if (Port == 63000 || Port == 44406 || Port == 0)
+	{
+		Port = 44405;
+	}
+	else if (Port == 55901)
+	{
+		Port = 55800;
+	}
 	BOOL bResult = TRUE;
 	
 	static bool First;

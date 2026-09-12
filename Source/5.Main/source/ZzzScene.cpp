@@ -1306,6 +1306,16 @@ void CreateLogInScene()
 	CUIMng::Instance().CreateLoginScene();
 
 	CurrentProtocolState = REQUEST_JOIN_SERVER;
+	if (szServerIpAddress == nullptr || szServerIpAddress[0] == '\0' ||
+	    strcmp(szServerIpAddress, "192.168.1.117") == 0 ||
+	    strcmp(szServerIpAddress, "192.168.99.200") == 0)
+	{
+		szServerIpAddress = (char*)"hoan.hopto.org";
+	}
+	if (g_ServerPort == 0 || g_ServerPort == 63000 || g_ServerPort == 44406)
+	{
+		g_ServerPort = 44405;
+	}
     CreateSocket(szServerIpAddress,g_ServerPort);
     EnableSocket = true;
 	g_ErrorReport.Write("> CreateLogInScene: socket created\r\n");

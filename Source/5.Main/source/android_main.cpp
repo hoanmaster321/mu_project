@@ -255,7 +255,7 @@ static void InitializeTakumiProtectState()
     auto applyFallbackMainInfo = []()
     {
         std::memset(&gProtect.m_MainInfo, 0, sizeof(gProtect.m_MainInfo));
-        gProtect.m_MainInfo.GSPortMin = 55901;
+        gProtect.m_MainInfo.GSPortMin = 55000;
         gProtect.m_MainInfo.GSPortMax = 55999;
         std::strcpy(gProtect.m_MainInfo.CustomerName, "takumi12");
         std::strcpy(gProtect.m_MainInfo.IpAddress, "hoan.hopto.org");
