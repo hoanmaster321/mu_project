@@ -770,6 +770,9 @@ void SEASON3B::CNewUISystem::Show(DWORD dwKey)
 			g_pMixInventory->OpeningProcess();
 			m_pNewUIMng->ShowInterface(SEASON3B::INTERFACE_INVENTORY);
 			g_pMainFrame->SetBtnState(MAINFRAME_BTN_MYINVEN, true);
+#if defined(__ANDROID__) || defined(MU_IOS)
+			if (m_pNewMobileSystem) m_pNewMobileSystem->Show(UIMobile::UI_MIX);
+#endif
 		}
 		else if(dwKey == SEASON3B::INTERFACE_NPCSHOP)
 		{
@@ -777,12 +780,18 @@ void SEASON3B::CNewUISystem::Show(DWORD dwKey)
 			g_pNPCShop->OpenningProcess();
 			m_pNewUIMng->ShowInterface(SEASON3B::INTERFACE_INVENTORY);
 			g_pMainFrame->SetBtnState(MAINFRAME_BTN_MYINVEN, true);
+#if defined(__ANDROID__) || defined(MU_IOS)
+			if (m_pNewMobileSystem) m_pNewMobileSystem->Show(UIMobile::UI_NPC_SHOP);
+#endif
 		}
 		else if(dwKey == SEASON3B::INTERFACE_STORAGE)
 		{
 			HideAllGroupA();
 			m_pNewUIMng->ShowInterface(SEASON3B::INTERFACE_INVENTORY);
 			g_pMainFrame->SetBtnState(MAINFRAME_BTN_MYINVEN, true);
+#if defined(__ANDROID__) || defined(MU_IOS)
+			if (m_pNewMobileSystem) m_pNewMobileSystem->Show(UIMobile::UI_STORAGE);
+#endif
 		}
 		else if (dwKey == INTERFACE_ExpandWarehouse)
 		{
@@ -831,6 +840,9 @@ void SEASON3B::CNewUISystem::Show(DWORD dwKey)
 			HideAllGroupA();
 			m_pNewUIMng->ShowInterface(SEASON3B::INTERFACE_INVENTORY);
 			g_pMainFrame->SetBtnState(MAINFRAME_BTN_MYINVEN, true);
+#if defined(__ANDROID__) || defined(MU_IOS)
+			if (m_pNewMobileSystem) m_pNewMobileSystem->Show(UIMobile::UI_TRADE);
+#endif
 		}
 		else if( dwKey == SEASON3B::INTERFACE_BLOODCASTLE )
 		{
@@ -908,6 +920,9 @@ void SEASON3B::CNewUISystem::Show(DWORD dwKey)
 		else if (dwKey == SEASON3B::INTERFACE_MuHelper)
 		{
 			m_pNewUIMuHelper->OpenningProcess();
+#if defined(__ANDROID__) || defined(MU_IOS)
+			if (m_pNewMobileSystem) m_pNewMobileSystem->Show(UIMobile::UI_HELPER);
+#endif
 		}
 		else if(dwKey == SEASON3B::INTERFACE_CHAOSCASTLE_TIME)
 		{
@@ -924,6 +939,9 @@ void SEASON3B::CNewUISystem::Show(DWORD dwKey)
 		else if(dwKey == SEASON3B::INTERFACE_OPTION)
 		{
 			g_pOption->OpenningProcess();
+#if defined(__ANDROID__) || defined(MU_IOS)
+			if (m_pNewMobileSystem) m_pNewMobileSystem->Show(UIMobile::UI_OPTION);
+#endif
 		}
 		else if(dwKey == SEASON3B::INTERFACE_HELP)
 		{
@@ -1044,6 +1062,9 @@ void SEASON3B::CNewUISystem::Show(DWORD dwKey)
 		{
 			HideAllGroupA();
 			g_pNPCDialogue->ProcessOpening();
+#if defined(__ANDROID__) || defined(MU_IOS)
+			if (m_pNewMobileSystem) m_pNewMobileSystem->Show(UIMobile::UI_NPC_DIALOGUE);
+#endif
 		}
 		else if(dwKey == SEASON3B::INTERFACE_QUEST_PROGRESS)
 		{
@@ -1254,12 +1275,18 @@ void SEASON3B::CNewUISystem::Hide(DWORD dwKey)
 			}
 			g_pMainFrame->SetBtnState(MAINFRAME_BTN_MYINVEN, false);
 			m_pNewUIMng->ShowInterface(SEASON3B::INTERFACE_INVENTORY, false);
+#if defined(__ANDROID__) || defined(MU_IOS)
+			if (m_pNewMobileSystem) m_pNewMobileSystem->Hide(UIMobile::UI_MIX);
+#endif
 		}
 		else if(dwKey == SEASON3B::INTERFACE_NPCSHOP)
 		{
 			g_pNPCShop->ClosingProcess();
 			g_pMainFrame->SetBtnState(MAINFRAME_BTN_MYINVEN, false);
 			m_pNewUIMng->ShowInterface(SEASON3B::INTERFACE_INVENTORY, false);
+#if defined(__ANDROID__) || defined(MU_IOS)
+			if (m_pNewMobileSystem) m_pNewMobileSystem->Hide(UIMobile::UI_NPC_SHOP);
+#endif
 		}
 		else if(dwKey == SEASON3B::INTERFACE_MYSHOP_INVENTORY 
 			 || dwKey == SEASON3B::INTERFACE_PURCHASESHOP_INVENTORY )
@@ -1283,6 +1310,9 @@ void SEASON3B::CNewUISystem::Hide(DWORD dwKey)
 			g_pMainFrame->SetBtnState(MAINFRAME_BTN_MYINVEN, false);
 			m_pNewUIMng->ShowInterface(SEASON3B::INTERFACE_INVENTORY, false);
 			m_pNewUIMng->ShowInterface(SEASON3B::INTERFACE_ExpandWarehouse, false);
+#if defined(__ANDROID__) || defined(MU_IOS)
+			if (m_pNewMobileSystem) m_pNewMobileSystem->Hide(UIMobile::UI_STORAGE);
+#endif
 		}
 		else if( dwKey == SEASON3B::INTERFACE_PET )
 		{
@@ -1335,6 +1365,9 @@ void SEASON3B::CNewUISystem::Hide(DWORD dwKey)
  			g_pTrade->ProcessClosing();
 			g_pMainFrame->SetBtnState(MAINFRAME_BTN_MYINVEN, false);
 			m_pNewUIMng->ShowInterface(SEASON3B::INTERFACE_INVENTORY, false);
+#if defined(__ANDROID__) || defined(MU_IOS)
+			if (m_pNewMobileSystem) m_pNewMobileSystem->Hide(UIMobile::UI_TRADE);
+#endif
 		}
 		else if(dwKey == SEASON3B::INTERFACE_CATAPULT)
 		{
@@ -1355,6 +1388,9 @@ void SEASON3B::CNewUISystem::Hide(DWORD dwKey)
 		else if(dwKey == SEASON3B::INTERFACE_OPTION)
 		{
 			g_pOption->ClosingProcess();
+#if defined(__ANDROID__) || defined(MU_IOS)
+			if (m_pNewMobileSystem) m_pNewMobileSystem->Hide(UIMobile::UI_OPTION);
+#endif
 		}
 		else if( dwKey == SEASON3B::INTERFACE_HERO_POSITION_INFO )
 		{
@@ -1367,6 +1403,9 @@ void SEASON3B::CNewUISystem::Hide(DWORD dwKey)
 		else if (dwKey == SEASON3B::INTERFACE_MuHelper)
 		{
 			m_pNewUIMuHelper->ClosingProcess();
+#if defined(__ANDROID__) || defined(MU_IOS)
+			if (m_pNewMobileSystem) m_pNewMobileSystem->Hide(UIMobile::UI_HELPER);
+#endif
 		}
 		else if(dwKey == SEASON3B::INTERFACE_HELP)
 		{
@@ -1478,6 +1517,9 @@ void SEASON3B::CNewUISystem::Hide(DWORD dwKey)
 		else if (dwKey == SEASON3B::INTERFACE_NPC_DIALOGUE)
 		{
 			m_pNewNPCDialogue->ProcessClosing();
+#if defined(__ANDROID__) || defined(MU_IOS)
+			if (m_pNewMobileSystem) m_pNewMobileSystem->Hide(UIMobile::UI_NPC_DIALOGUE);
+#endif
 		}
 		else if (dwKey == SEASON3B::INTERFACE_QUEST_PROGRESS)
 		{

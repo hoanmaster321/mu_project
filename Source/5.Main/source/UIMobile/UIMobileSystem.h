@@ -1,4 +1,4 @@
-// =============================================================================
+﻿// =============================================================================
 // UIMobileSystem.h
 // Central Mobile UI Coordinator and Event Dispatcher.
 // =============================================================================
@@ -19,6 +19,13 @@ namespace SEASON3B
     class CUIMobileMoveCommand;
     class CUIMobileSkillSelect;
     class CUIMobileParty;
+    class CUIMobileNPCShop;
+    class CUIMobileStorage;
+    class CUIMobileMix;
+    class CUIMobileTrade;
+    class CUIMobileOption;
+    class CUIMobileHelper;
+    class CUIMobileNPCDialogue;
 }
 
 namespace UIMobile
@@ -31,6 +38,13 @@ namespace UIMobile
         UI_MOVE_COMMAND,
         UI_SKILL_SELECT,
         UI_PARTY,
+        UI_NPC_SHOP,
+        UI_STORAGE,
+        UI_MIX,
+        UI_TRADE,
+        UI_OPTION,
+        UI_HELPER,
+        UI_NPC_DIALOGUE,
         UI_COUNT
     };
 
@@ -68,6 +82,13 @@ namespace UIMobile
         SEASON3B::CUIMobileMoveCommand*    GetMoveCommand() const;
         SEASON3B::CUIMobileSkillSelect*    GetSkillSelect() const;
         SEASON3B::CUIMobileParty*          GetParty() const;
+        SEASON3B::CUIMobileNPCShop*        GetNPCShop() const;
+        SEASON3B::CUIMobileStorage*        GetStorage() const;
+        SEASON3B::CUIMobileMix*            GetMix() const;
+        SEASON3B::CUIMobileTrade*          GetTrade() const;
+        SEASON3B::CUIMobileOption*         GetOption() const;
+        SEASON3B::CUIMobileHelper*         GetHelper() const;
+        SEASON3B::CUIMobileNPCDialogue*    GetNPCDialogue() const;
 
     private:
         SEASON3B::CNewUIManager*      m_pNewUIMng;
@@ -77,6 +98,13 @@ namespace UIMobile
         SEASON3B::CUIMobileMoveCommand*   m_pMoveCommand;
         SEASON3B::CUIMobileSkillSelect*   m_pSkillSelect;
         SEASON3B::CUIMobileParty*         m_pParty;
+        SEASON3B::CUIMobileNPCShop*       m_pNPCShop;
+        SEASON3B::CUIMobileStorage*       m_pStorage;
+        SEASON3B::CUIMobileMix*           m_pMix;
+        SEASON3B::CUIMobileTrade*         m_pTrade;
+        SEASON3B::CUIMobileOption*        m_pOption;
+        SEASON3B::CUIMobileHelper*        m_pHelper;
+        SEASON3B::CUIMobileNPCDialogue*   m_pNPCDialogue;
     };
 }
 

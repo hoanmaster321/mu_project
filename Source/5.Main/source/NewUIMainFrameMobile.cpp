@@ -1322,25 +1322,29 @@ namespace SEASON3B
             return true;
         }
 
-        // 5. Mobile Navigation Dock Buttons (BAG, STAT, SKILL, MAP, PTY)
-        constexpr float dockR = 20.0f;
-        const float dockX = winW - 36.0f;
-        const float dockY[5] = {
-            winH - 228.0f, // 0: BAG
-            winH - 274.0f, // 1: STAT
-            winH - 320.0f, // 2: SKILL
-            winH - 366.0f, // 3: MAP
-            winH - 412.0f  // 4: PTY
+        // 5. Mobile Navigation Dock Buttons (BAG, STAT, SKL, MAP, PTY, AUTO, OPT)
+        constexpr float dockR = 19.0f;
+        const float dockX = winW - 34.0f;
+        const float dockY[7] = {
+            winH - 224.0f, // 0: BAG
+            winH - 264.0f, // 1: STAT
+            winH - 304.0f, // 2: SKL
+            winH - 344.0f, // 3: MAP
+            winH - 384.0f, // 4: PTY
+            winH - 424.0f, // 5: AUTO
+            winH - 464.0f  // 6: OPT
         };
-        const UIMobile::MOBILE_UI_TYPE dockTypes[5] = {
+        const UIMobile::MOBILE_UI_TYPE dockTypes[7] = {
             UIMobile::UI_INVENTORY,
             UIMobile::UI_CHARACTER_INFO,
             UIMobile::UI_SKILL_SELECT,
             UIMobile::UI_MOVE_COMMAND,
-            UIMobile::UI_PARTY
+            UIMobile::UI_PARTY,
+            UIMobile::UI_HELPER,
+            UIMobile::UI_OPTION
         };
 
-        for (int d = 0; d < 5; ++d)
+        for (int d = 0; d < 7; ++d)
         {
             const float dx = touchX - dockX;
             const float dy = touchY - dockY[d];
@@ -1839,25 +1843,29 @@ namespace SEASON3B
         g_pRenderText->RenderText(static_cast<int>(atkX - 12.0f), static_cast<int>(atkY - 6.0f), "ATK");
 
         // Mobile Navigation Dock Buttons (BAG, STAT, SKILL, MAP, PTY)
-        constexpr float dockR = 20.0f;
-        const float dockX = winW - 36.0f;
-        const float dockY[5] = {
-            winH - 228.0f, // 0: BAG
-            winH - 274.0f, // 1: STAT
-            winH - 320.0f, // 2: SKILL
-            winH - 366.0f, // 3: MAP
-            winH - 412.0f  // 4: PTY
+        constexpr float dockR = 19.0f;
+        const float dockX = winW - 34.0f;
+        const float dockY[7] = {
+            winH - 224.0f, // 0: BAG
+            winH - 264.0f, // 1: STAT
+            winH - 304.0f, // 2: SKL
+            winH - 344.0f, // 3: MAP
+            winH - 384.0f, // 4: PTY
+            winH - 424.0f, // 5: AUTO
+            winH - 464.0f  // 6: OPT
         };
-        const char* dockLabels[5] = { "BAG", "STAT", "SKL", "MAP", "PTY" };
-        const UIMobile::MOBILE_UI_TYPE dockTypes[5] = {
+        const char* dockLabels[7] = { "BAG", "STAT", "SKL", "MAP", "PTY", "AUTO", "OPT" };
+        const UIMobile::MOBILE_UI_TYPE dockTypes[7] = {
             UIMobile::UI_INVENTORY,
             UIMobile::UI_CHARACTER_INFO,
             UIMobile::UI_SKILL_SELECT,
             UIMobile::UI_MOVE_COMMAND,
-            UIMobile::UI_PARTY
+            UIMobile::UI_PARTY,
+            UIMobile::UI_HELPER,
+            UIMobile::UI_OPTION
         };
 
-        for (int d = 0; d < 5; ++d)
+        for (int d = 0; d < 7; ++d)
         {
             const bool isOpen = g_pMobileSystem ? g_pMobileSystem->IsVisible(dockTypes[d]) : (d == 0 && g_pMobileInventory && g_pMobileInventory->IsOpen());
 

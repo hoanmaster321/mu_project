@@ -1,4 +1,4 @@
-// =============================================================================
+﻿// =============================================================================
 // UIMobileCommon.h
 // Common utilities, helpers, and styling for MU Online Mobile UI.
 // =============================================================================
@@ -34,13 +34,33 @@ extern int DisplayHeight;
 extern float g_fScreenRate_x;
 extern float g_fScreenRate_y;
 
+#ifndef RGBA
+#define RGBA(r, g, b, a) (((DWORD)(a) << 24) | ((DWORD)(b) << 16) | ((DWORD)(g) << 8) | ((DWORD)(r)))
+#endif
+
 namespace UIMobile
 {
+    // Screen utilities
+    namespace Screen
+    {
+        inline int GetWidth() { return (DisplayWin > 0) ? DisplayWin : 640; }
+        inline int GetHeight() { return (DisplayHeight > 0) ? DisplayHeight : 480; }
+    }
+
+    struct UIRect
+    {
+        float x, y, w, h;
+        bool Contains(float px, float py) const
+        {
+            return (px >= x && px <= x + w && py >= y && py <= y + h);
+        }
+    };
+
     // Screen coordinate conversion
     inline void TouchToVirtual(float normX, float normY, float& outX, float& outY)
     {
-        const float winW = (DisplayWin > 0) ? static_cast<float>(DisplayWin) : 640.0f;
-        const float winH = (DisplayHeight > 0) ? static_cast<float>(DisplayHeight) : 480.0f;
+        const float winW = static_cast<float>(Screen::GetWidth());
+        const float winH = static_cast<float>(Screen::GetHeight());
         outX = normX * winW;
         outY = normY * winH;
     }
@@ -99,6 +119,26 @@ namespace UIMobile
         RenderColor(x, y, thickness, h);
         RenderColor(x + w - thickness, y, thickness, h);
         EndRenderColor();
+    }
+
+    namespace Render
+    {
+        inline void DrawGlassCard(float x, float y, float w, float h, float alpha = 0.9f)
+        {
+            glColor4f(0.06f, 0.09f, 0.14f, alpha);
+            RenderColor(x, y, w, h);
+            EndRenderColor();
+        }
+
+        inline void DrawPanelBorder(float x, float y, float w, float h, DWORD color = 0)
+        {
+            float r = (float)(color & 0xFF) / 255.0f;
+            float g = (float)((color >> 8) & 0xFF) / 255.0f;
+            float b = (float)((color >> 16) & 0xFF) / 255.0f;
+            float a = (float)((color >> 24) & 0xFF) / 255.0f;
+            if (a <= 0.0f) a = 1.0f;
+            DrawBorder(x, y, w, h, 1.5f, ColorRGBA(r, g, b, a));
+        }
     }
 
     inline void DrawPanel(float x, float y, float w, float h, const char* title = nullptr, bool goldBorder = false)
@@ -170,3 +210,5 @@ namespace UIMobile
         }
     }
 }
+
+using UIMobile::UIRect;

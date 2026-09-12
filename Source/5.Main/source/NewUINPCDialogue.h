@@ -108,6 +108,12 @@ namespace SEASON3B
 #ifdef PBG_ADD_GENSRANKING
 		void ProcessGensRewardReceive(BYTE byResult);
 #endif //PBG_ADD_GENSRANKING
+
+		// Mobile Dialog Support
+		int GetSelTextCount() const { return m_nSelTextCount; }
+		const char* GetSelText(int idx) const { return (idx >= 0 && idx < ND_SEL_TEXT_LINE_MAX) ? m_aszSelTexts[idx] : ""; }
+		const char* GetNPCWord(int idx) const { return (idx >= 0 && idx < ND_NPC_LINE_MAX) ? m_aszNPCWords[idx] : ""; }
+		void SelectAnswer(int idx) { m_nSelSelText = idx + 1; ProcessSelTextResult(); }
 		
 	private:
 		void LoadImages();
