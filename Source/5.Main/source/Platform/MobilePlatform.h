@@ -127,8 +127,37 @@ inline void MU_MobileSetTextInputRect(const SDL_Rect* rect) {
     if (w && rect) SDL_SetTextInputArea(w, rect, 0);
 }
 
-inline std::string MU_MobileGetExternalDataPath() { return "/sdcard/Android/data/com.muonline.client/files"; }
-inline std::string MU_MobileGetInternalDataPath() { return "/data/data/com.muonline.client/files"; }
+inline std::string MU_MobileGetExternalDataPath() {
+#if defined(MU_IOS)
+    const char* basePath = SDL_GetBasePath();
+    if (basePath) return std::string(basePath);
+    char* prefPath = SDL_GetPrefPath("muonline", "client");
+    if (prefPath) {
+        std::string res(prefPath);
+        SDL_free(prefPath);
+        return res;
+    }
+    return "./";
+#else
+    return "/sdcard/Android/data/com.muonline.client/files";
+#endif
+}
+
+inline std::string MU_MobileGetInternalDataPath() {
+#if defined(MU_IOS)
+    char* prefPath = SDL_GetPrefPath("muonline", "client");
+    if (prefPath) {
+        std::string res(prefPath);
+        SDL_free(prefPath);
+        return res;
+    }
+    const char* basePath = SDL_GetBasePath();
+    if (basePath) return std::string(basePath);
+    return "./";
+#else
+    return "/data/data/com.muonline.client/files";
+#endif
+}
 
 inline const void* MU_MobileGetNativeWindow() { return nullptr; }
 inline const void* MU_MobileGetEglDisplay() { return nullptr; }

@@ -68,6 +68,7 @@ Client/*.pdb
 .codegraph/
 screen*.png
 screen*.jpg
+*.apk
 
 # Keep important files
 !.gitignore

@@ -29,8 +29,10 @@
 #include "../Guild/GuildCache.h"
 #include "../UIMapName.h"
 
-#if defined(__ANDROID__) || defined(MU_IOS)
+#if defined(__ANDROID__)
 #include <android/log.h>
+#endif
+#if defined(__ANDROID__) || defined(MU_IOS)
 #if defined(MU_ANDROID_DISABLE_LOG)
 #define MAINSCENE_LOGI(...) ((void)0)
 #else

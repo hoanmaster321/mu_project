@@ -46,6 +46,22 @@ if(ANDROID)
         $<$<CONFIG:Release>:NDEBUG>
         $<$<CONFIG:Release>:_FOREIGN_NDEBUG>
     )
+elseif(IOS OR (APPLE AND NOT CMAKE_SYSTEM_NAME STREQUAL "Darwin"))
+    add_compile_definitions(
+        MU_IOS
+        _LANGUAGE_FOREIGN
+        _LANGUAGE_ENG
+        LDS_PATCH_GLOBAL_100520
+        PROTO_EXTRA
+        MAIN_UPDATE=603
+        FT2_BUILD_LIBRARY
+        VK_USE_PLATFORM_METAL_EXT
+        $<$<CONFIG:Debug>:DEBUG>
+        $<$<CONFIG:Debug>:_FOREIGN_DEBUG>
+        $<$<CONFIG:Debug>:CONSOLE_DEBUG>
+        $<$<CONFIG:Release>:NDEBUG>
+        $<$<CONFIG:Release>:_FOREIGN_NDEBUG>
+    )
 else()
     add_compile_definitions(
         WIN32
@@ -105,8 +121,17 @@ endif()
 # ---------------------------------------------------------------------------
 # Vulkan SDK Setup
 # ---------------------------------------------------------------------------
-find_package(Vulkan REQUIRED)
-message(STATUS "Found Vulkan SDK: ${Vulkan_INCLUDE_DIRS}")
+if(IOS)
+    find_package(Vulkan QUIET)
+    if(Vulkan_FOUND)
+        message(STATUS "Found Vulkan SDK for iOS: ${Vulkan_INCLUDE_DIRS}")
+    else()
+        message(STATUS "Vulkan SDK not found directly; will use MoltenVK / volk dynamic runtime on iOS")
+    endif()
+else()
+    find_package(Vulkan REQUIRED)
+    message(STATUS "Found Vulkan SDK: ${Vulkan_INCLUDE_DIRS}")
+endif()
 
 # Look for shader compiler (glslc or glslangValidator) in Vulkan SDK
 find_program(VULKAN_GLSLC glslc HINTS ${Vulkan_GLSLC_EXECUTABLE} "$ENV{VULKAN_SDK}/Bin")
@@ -133,8 +158,13 @@ FetchContent_Declare(
 )
 set(SDL_TESTS OFF CACHE BOOL "" FORCE)
 set(SDL_EXAMPLES OFF CACHE BOOL "" FORCE)
-set(SDL_SHARED ON CACHE BOOL "" FORCE)
-set(SDL_STATIC OFF CACHE BOOL "" FORCE)
+if(IOS)
+    set(SDL_SHARED OFF CACHE BOOL "" FORCE)
+    set(SDL_STATIC ON CACHE BOOL "" FORCE)
+else()
+    set(SDL_SHARED ON CACHE BOOL "" FORCE)
+    set(SDL_STATIC OFF CACHE BOOL "" FORCE)
+endif()
 FetchContent_MakeAvailable(SDL3)
 message(STATUS "SDL3 integrated successfully")
 
@@ -151,6 +181,9 @@ if(ANDROID)
             LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/../../android/app/src/main/jniLibs/${ANDROID_ABI}"
         )
     endif()
+endif()
+
+if(ANDROID OR IOS)
     FetchContent_Declare(
         freetype
         GIT_REPOSITORY https://github.com/freetype/freetype.git
@@ -207,7 +240,7 @@ list(FILTER SOURCEMAIN_SOURCES EXCLUDE REGEX "Camera/.*\\.cpp$")
 list(FILTER SOURCEMAIN_SOURCES EXCLUDE REGEX "CSResourceManager\\.cpp$")
 list(FILTER SOURCEMAIN_SOURCES EXCLUDE REGEX "VulkanHTMLNotice\\.cpp$")
 
-if(ANDROID)
+if(ANDROID OR IOS)
     list(FILTER SOURCEMAIN_SOURCES EXCLUDE REGEX "ExternalObject/Leaf/.*\\.cpp$")
     list(APPEND SOURCEMAIN_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/source/ExternalObject/Leaf/xstreambuf.cpp")
     list(FILTER SOURCEMAIN_SOURCES EXCLUDE REGEX "GCCertification\\.cpp$")
@@ -220,7 +253,7 @@ endif()
 
 # Resource File
 set(RESOURCE_FILES "")
-if(WIN32 AND NOT ANDROID)
+if(WIN32 AND NOT ANDROID AND NOT IOS)
     if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/source/resource.rc")
         set(RESOURCE_FILES "${CMAKE_CURRENT_SOURCE_DIR}/source/resource.rc")
     endif()
@@ -239,6 +272,24 @@ set(ALL_PROJECT_SOURCES
 if(ANDROID)
     add_library(${PROJECT_NAME} SHARED ${ALL_PROJECT_SOURCES})
     set_target_properties(${PROJECT_NAME} PROPERTIES OUTPUT_NAME "main")
+elseif(IOS)
+    add_executable(${PROJECT_NAME} MACOSX_BUNDLE ${ALL_PROJECT_SOURCES})
+    set_target_properties(${PROJECT_NAME} PROPERTIES
+        OUTPUT_NAME "MUOnline"
+        MACOSX_BUNDLE_GUI_IDENTIFIER "com.muonline.client"
+        MACOSX_BUNDLE_BUNDLE_NAME "MUOnline"
+        MACOSX_BUNDLE_BUNDLE_VERSION "1.0.0"
+        MACOSX_BUNDLE_SHORT_VERSION_STRING "1.0"
+        XCODE_ATTRIBUTE_PRODUCT_BUNDLE_IDENTIFIER "com.muonline.client"
+        XCODE_ATTRIBUTE_TARGETED_DEVICE_FAMILY "1,2"
+        XCODE_ATTRIBUTE_ENABLE_BITCODE "NO"
+        XCODE_ATTRIBUTE_IPHONEOS_DEPLOYMENT_TARGET "14.0"
+    )
+    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/../../ios/Info.plist")
+        set_target_properties(${PROJECT_NAME} PROPERTIES
+            MACOSX_BUNDLE_INFO_PLIST "${CMAKE_CURRENT_SOURCE_DIR}/../../ios/Info.plist"
+        )
+    endif()
 else()
     add_executable(${PROJECT_NAME} WIN32 ${ALL_PROJECT_SOURCES})
 endif()
@@ -246,7 +297,7 @@ endif()
 # ---------------------------------------------------------------------------
 # Precompiled Headers (PCH)
 # ---------------------------------------------------------------------------
-if(WIN32 AND NOT ANDROID)
+if(WIN32 AND NOT ANDROID AND NOT IOS)
     target_precompile_headers(${PROJECT_NAME} PRIVATE
         "${CMAKE_CURRENT_SOURCE_DIR}/source/stdafx.h"
     )
@@ -287,6 +338,28 @@ if(ANDROID)
     set_target_properties(${PROJECT_NAME} PROPERTIES
         LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/../../android/app/src/main/jniLibs/${ANDROID_ABI}"
     )
+elseif(IOS)
+    target_link_libraries(${PROJECT_NAME} PRIVATE
+        SDL3::SDL3-static
+        freetype
+        "-framework UIKit"
+        "-framework Foundation"
+        "-framework QuartzCore"
+        "-framework Metal"
+        "-framework AudioToolbox"
+        "-framework AVFoundation"
+        "-framework CoreGraphics"
+        "-framework CoreHaptics"
+        "-framework GameController"
+        "-framework OpenGLES"
+        "-framework Security"
+        "-framework SystemConfiguration"
+        "-framework CoreMotion"
+        z
+    )
+    if(TARGET Vulkan::Vulkan)
+        target_link_libraries(${PROJECT_NAME} PRIVATE Vulkan::Vulkan)
+    endif()
 else()
     target_link_directories(${PROJECT_NAME} PRIVATE
         "${CMAKE_CURRENT_SOURCE_DIR}/source"
@@ -414,7 +487,7 @@ endif()
 # ---------------------------------------------------------------------------
 # Post-Build Steps: Copy SDL3.dll to Output Directory
 # ---------------------------------------------------------------------------
-if(WIN32)
+if(WIN32 AND NOT ANDROID AND NOT IOS)
     add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
             $<TARGET_FILE:SDL3::SDL3-shared>

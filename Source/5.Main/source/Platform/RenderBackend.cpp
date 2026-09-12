@@ -8,7 +8,9 @@
 #include "Platform/gl_compat.h"
 
 #include <GLES3/gl32.h>
+#if defined(__ANDROID__)
 #include <android/log.h>
+#endif
 
 #include <algorithm>
 #include <cctype>

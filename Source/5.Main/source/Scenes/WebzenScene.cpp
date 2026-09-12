@@ -11,7 +11,7 @@
 #include "../ZzzOpenData.h"
 #include "../UIMng.h"
 #include "../NewUISystem.h"
-#if defined(__ANDROID__) || defined(MU_IOS)
+#if defined(__ANDROID__)
 #include <android/log.h>
 #endif
 
