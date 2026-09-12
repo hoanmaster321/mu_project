@@ -31,6 +31,7 @@ SEASON3B::CNewUISystem::CNewUISystem()
 	m_pNewFriendWindow = NULL;
 	m_pNewMainFrameWindow = NULL;
 	m_pNewMainFrameMobile = NULL;
+	m_pNewMobileInventory = NULL;
 	m_pNewSkillList = NULL;
 	m_pNewChatInputBox = NULL;
 	m_pNewItemMng = NULL;
@@ -190,6 +191,11 @@ bool SEASON3B::CNewUISystem::LoadMainSceneInterface()
 	if(m_pNewMainFrameMobile->Create(m_pNewUIMng, m_pNewUI3DRenderMng) == false)
 		return false;
 	ANDROID_UI_STAGE("mobile main frame ok");
+
+	m_pNewMobileInventory = new CUIMobileInventory;
+	if(m_pNewMobileInventory->Create(m_pNewUIMng, m_pNewUI3DRenderMng) == false)
+		return false;
+	ANDROID_UI_STAGE("mobile inventory ok");
 #endif
 
 	m_pNewSkillList = new CNewUISkillList;
@@ -596,6 +602,7 @@ void SEASON3B::CNewUISystem::UnloadMainSceneInterface()
 	SAFE_DELETE(m_pNewSkillList);
 	SAFE_DELETE(m_pNewMainFrameWindow);
 	SAFE_DELETE(m_pNewMainFrameMobile);
+	SAFE_DELETE(m_pNewMobileInventory);
 	SAFE_DELETE(m_pNewPartyInfoWindow );
 	SAFE_DELETE(m_pNewPartyListWindow );
 	SAFE_DELETE(m_pNewEnterBloodCastle );
@@ -2166,6 +2173,11 @@ CNewUIMainFrameWindow* SEASON3B::CNewUISystem::GetUI_NewMainFrameWindow() const
 CNewUIMainFrameMobile* SEASON3B::CNewUISystem::GetUI_NewMainFrameMobile() const
 {
 	return m_pNewMainFrameMobile;
+}
+
+CUIMobileInventory* SEASON3B::CNewUISystem::GetUI_NewMobileInventory() const
+{
+	return m_pNewMobileInventory;
 }
 
 CNewUISkillList* SEASON3B::CNewUISystem::GetUI_NewSkillList() const

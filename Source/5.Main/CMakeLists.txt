@@ -309,6 +309,7 @@ endif()
 target_include_directories(${PROJECT_NAME} PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/source"
     "${CMAKE_CURRENT_SOURCE_DIR}/source/Platform"
+    "${CMAKE_CURRENT_SOURCE_DIR}/source/UIMobile"
     "${CMAKE_CURRENT_SOURCE_DIR}/boost_1_80_0"
     "${CMAKE_CURRENT_SOURCE_DIR}/dependencies/include"
     "${CMAKE_CURRENT_SOURCE_DIR}/dependencies/include/glm"

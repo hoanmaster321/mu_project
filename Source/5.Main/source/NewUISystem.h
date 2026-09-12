@@ -14,6 +14,7 @@
 #include "NewUIFriendWindow.h"
 #include "NewUIMainFrameWindow.h"
 #include "NewUIMainFrameMobile.h"
+#include "UIMobile/UIMobileInventory.h"
 #include "NewUIChatInputBox.h"
 #include "NewUIItemMng.h"
 #include "NewUIMyInventory.h"
@@ -232,6 +233,7 @@ namespace SEASON3B
 #endif // LEM_ADD_LUCKYITEM
 		CNewUIMuHelper* m_pNewUIMuHelper;
 		CNewUIMainFrameMobile* m_pNewMainFrameMobile;
+		CUIMobileInventory* m_pNewMobileInventory;
 	public:
 		CNewUIChatInputBox* GetUI_NewChatInputBox() const;
 		CNewUIChatLogWindow* GetUI_NewChatLogWindow() const;
@@ -240,6 +242,7 @@ namespace SEASON3B
 		CNewUIFriendWindow* GetUI_NewFriendWindow() const;
 		CNewUIMainFrameWindow* GetUI_NewMainFrameWindow() const;
 		CNewUIMainFrameMobile* GetUI_NewMainFrameMobile() const;
+		CUIMobileInventory* GetUI_NewMobileInventory() const;
 		CNewUISkillList* GetUI_NewSkillList() const;	
 		CNewUIItemMng*	GetUI_NewItemMng() const;
 		CNewUIMyInventory* GetUI_NewMyInventory() const;
