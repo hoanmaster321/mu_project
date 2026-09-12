@@ -144,7 +144,14 @@ bool MainLoad::Load()
 #if defined(__ANDROID__) || defined(MU_IOS)
 	SetTargetFps((gProtect.m_MainInfo.FpsLimit >= 120) ? (float)gProtect.m_MainInfo.FpsLimit : 120.0f);
 #else
-	SetTargetFps(gProtect.m_MainInfo.FpsLimit);
+	if (gProtect.m_MainInfo.FpsLimit <= 60)
+	{
+		SetTargetFps(-1.0f);
+	}
+	else
+	{
+		SetTargetFps((float)gProtect.m_MainInfo.FpsLimit);
+	}
 #endif
 
 	gCustomCommandInfo.Load(gProtect.m_MainInfo.CustomCommandInfo);

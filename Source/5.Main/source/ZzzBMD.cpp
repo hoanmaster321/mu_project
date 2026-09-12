@@ -160,7 +160,15 @@ void BMD::Animation(float (*BoneMatrix)[3][4],float AnimationFrame,float PriorFr
 			QuaternionCopy(bm1->Quaternion[PriorAnimationFrame  ],q1);
 			QuaternionCopy(bm2->Quaternion[CurrentAnimationFrame],q2);
 		}
-		if (!QuaternionCompare( q1, q2 ))
+		if (s1 < 0.0001f)
+		{
+			QuaternionCopy( q1, BoneQuaternion[i] );
+		}
+		else if (s1 > 0.9999f)
+		{
+			QuaternionCopy( q2, BoneQuaternion[i] );
+		}
+		else if (!QuaternionCompare( q1, q2 ))
 		{
 			QuaternionSlerp(q1 , q2, s1, BoneQuaternion[i] );
 		}
@@ -267,66 +275,128 @@ void BMD::Transform(float (*BoneMatrix)[3][4],vec3_t BoundingBoxMin,vec3_t Bound
 		Vector( 999999.f, 999999.f, 999999.f,BoundingMin);
 		Vector(-999999.f,-999999.f,-999999.f,BoundingMax);
 	}
+#ifdef PBG_ADD_NEWCHAR_MONK_ITEM
+	const bool bFastVertexPath = (BoneScale == 1.f && _Scale == 0.0f && Translate && EditFlag != 2);
+#else
+	const bool bFastVertexPath = (BoneScale == 1.f && Translate && EditFlag != 2);
+#endif
+
 	for(int i=0;i<NumMeshs;i++)
 	{
        	Mesh_t *m = &Meshs[i];
-		for(int j=0;j<m->NumVertices;j++)
-		{
-			Vertex_t *v = &m->Vertices[j];
-			float *vp = VertexTransform[i][j];
+		const int numVertices = m->NumVertices;
 
-			if(BoneScale == 1.f)
+		if (bFastVertexPath)
+		{
+			const float bScale = BodyScale;
+			const float oX = BodyOrigin[0];
+			const float oY = BodyOrigin[1];
+			const float oZ = BodyOrigin[2];
+
+			for(int j=0; j<numVertices; j++)
 			{
+				const Vertex_t *v = &m->Vertices[j];
+				float *vp = VertexTransform[i][j];
+				const float (*mat)[4] = BoneMatrix[v->Node];
+				const float vx = v->Position[0];
+				const float vy = v->Position[1];
+				const float vz = v->Position[2];
+
+				vp[0] = (vx * mat[0][0] + vy * mat[0][1] + vz * mat[0][2] + mat[0][3]) * bScale + oX;
+				vp[1] = (vx * mat[1][0] + vy * mat[1][1] + vz * mat[1][2] + mat[1][3]) * bScale + oY;
+				vp[2] = (vx * mat[2][0] + vy * mat[2][1] + vz * mat[2][2] + mat[2][3]) * bScale + oZ;
+			}
+		}
+		else
+		{
+			for(int j=0;j<numVertices;j++)
+			{
+				Vertex_t *v = &m->Vertices[j];
+				float *vp = VertexTransform[i][j];
+
+				if(BoneScale == 1.f)
+				{
 #ifdef PBG_ADD_NEWCHAR_MONK_ITEM
- 				if(_Scale)
- 				{
-					vec3_t Position;
-					VectorCopy(v->Position, Position);
-					VectorScale(Position, _Scale, Position);
-					VectorTransform(Position,BoneMatrix[v->Node],vp);
- 				}
- 				else
+ 					if(_Scale)
+ 					{
+						vec3_t Position;
+						VectorCopy(v->Position, Position);
+						VectorScale(Position, _Scale, Position);
+						VectorTransform(Position,BoneMatrix[v->Node],vp);
+ 					}
+ 					else
 #endif //PBG_ADD_NEWCHAR_MONK_ITEM
-				VectorTransform(v->Position,BoneMatrix[v->Node],vp);
-				if(Translate)
-					VectorScale(vp,BodyScale,vp);
-			}
-			else
-			{
-				VectorRotate(v->Position,BoneMatrix[v->Node],vp);
-				vp[0] = vp[0] * BoneScale + BoneMatrix[v->Node][0][3];
-				vp[1] = vp[1] * BoneScale + BoneMatrix[v->Node][1][3];
-				vp[2] = vp[2] * BoneScale + BoneMatrix[v->Node][2][3];
-				if(Translate)
-					VectorScale(vp,BodyScale,vp);
-			}
+					VectorTransform(v->Position,BoneMatrix[v->Node],vp);
+					if(Translate)
+						VectorScale(vp,BodyScale,vp);
+				}
+				else
+				{
+					VectorRotate(v->Position,BoneMatrix[v->Node],vp);
+					vp[0] = vp[0] * BoneScale + BoneMatrix[v->Node][0][3];
+					vp[1] = vp[1] * BoneScale + BoneMatrix[v->Node][1][3];
+					vp[2] = vp[2] * BoneScale + BoneMatrix[v->Node][2][3];
+					if(Translate)
+						VectorScale(vp,BodyScale,vp);
+				}
 #ifdef _DEBUG
 #else
-			if(EditFlag==2)
+				if(EditFlag==2)
 #endif
-			{
-				for(int k=0;k<3;k++)
 				{
-					if(vp[k] < BoundingMin[k]) BoundingMin[k] = vp[k];
-					if(vp[k] > BoundingMax[k]) BoundingMax[k] = vp[k];
+					for(int k=0;k<3;k++)
+					{
+						if(vp[k] < BoundingMin[k]) BoundingMin[k] = vp[k];
+						if(vp[k] > BoundingMax[k]) BoundingMax[k] = vp[k];
+					}
 				}
+				if(Translate)
+					VectorAdd(vp,BodyOrigin,vp);
 			}
-			if(Translate)
-				VectorAdd(vp,BodyOrigin,vp);
 		}
 
-		for(int j=0;j<m->NumNormals;j++)
+		const int numNormals = m->NumNormals;
+		if(LightEnable)
 		{
-			Normal_t *sn = &m->Normals[j];
-			float    *tn = NormalTransform[i][j];
-			VectorRotate(sn->Normal,BoneMatrix[sn->Node],tn);
-			if(LightEnable)
-			{
-				float Luminosity;
-					Luminosity = DotProduct(tn,LightPosition)*0.8f+0.4f;
+			const float lp0 = LightPosition[0];
+			const float lp1 = LightPosition[1];
+			const float lp2 = LightPosition[2];
 
+			for(int j=0;j<numNormals;j++)
+			{
+				const Normal_t *sn = &m->Normals[j];
+				float    *tn = NormalTransform[i][j];
+				const float (*mat)[4] = BoneMatrix[sn->Node];
+				const float nx = sn->Normal[0];
+				const float ny = sn->Normal[1];
+				const float nz = sn->Normal[2];
+
+				const float tnx = nx * mat[0][0] + ny * mat[0][1] + nz * mat[0][2];
+				const float tny = nx * mat[1][0] + ny * mat[1][1] + nz * mat[1][2];
+				const float tnz = nx * mat[2][0] + ny * mat[2][1] + nz * mat[2][2];
+				tn[0] = tnx;
+				tn[1] = tny;
+				tn[2] = tnz;
+
+				float Luminosity = (tnx * lp0 + tny * lp1 + tnz * lp2) * 0.8f + 0.4f;
 				if(Luminosity < 0.2f) Luminosity = 0.2f;
 				IntensityTransform[i][j] = Luminosity;
+			}
+		}
+		else
+		{
+			for(int j=0;j<numNormals;j++)
+			{
+				const Normal_t *sn = &m->Normals[j];
+				float    *tn = NormalTransform[i][j];
+				const float (*mat)[4] = BoneMatrix[sn->Node];
+				const float nx = sn->Normal[0];
+				const float ny = sn->Normal[1];
+				const float nz = sn->Normal[2];
+
+				tn[0] = nx * mat[0][0] + ny * mat[0][1] + nz * mat[0][2];
+				tn[1] = nx * mat[1][0] + ny * mat[1][1] + nz * mat[1][2];
+				tn[2] = nx * mat[2][0] + ny * mat[2][1] + nz * mat[2][2];
 			}
 		}
 	}
@@ -429,13 +499,17 @@ void BMD::TransformPosition(float (*Matrix)[4],vec3_t Position,vec3_t WorldPosit
 {
 	if(Translate)
 	{
-		vec3_t p;
-		VectorTransform(Position,Matrix,p);
-		VectorScale(p,BodyScale,p);
-		VectorAdd(p,BodyOrigin,WorldPosition);
+		const float p0 = Position[0];
+		const float p1 = Position[1];
+		const float p2 = Position[2];
+		WorldPosition[0] = (p0 * Matrix[0][0] + p1 * Matrix[0][1] + p2 * Matrix[0][2] + Matrix[0][3]) * BodyScale + BodyOrigin[0];
+		WorldPosition[1] = (p0 * Matrix[1][0] + p1 * Matrix[1][1] + p2 * Matrix[1][2] + Matrix[1][3]) * BodyScale + BodyOrigin[1];
+		WorldPosition[2] = (p0 * Matrix[2][0] + p1 * Matrix[2][1] + p2 * Matrix[2][2] + Matrix[2][3]) * BodyScale + BodyOrigin[2];
 	}
 	else
-    	VectorTransform(Position,Matrix,WorldPosition);
+	{
+		VectorTransform(Position,Matrix,WorldPosition);
+	}
 }
 
 void BMD::RotationPosition(float (*Matrix)[4],vec3_t Position,vec3_t WorldPosition)
@@ -1030,9 +1104,16 @@ void BMD::RenderMesh(int i,int RenderFlag,float Alpha,int BlendMesh,float BlendM
 	}
 	else if(EnableLight)
 	{
-		for(int j=0;j<m->NumNormals;j++)
+		const float bl0 = BodyLight[0];
+		const float bl1 = BodyLight[1];
+		const float bl2 = BodyLight[2];
+		const int numNormals = m->NumNormals;
+		for(int j=0;j<numNormals;j++)
 		{
-			VectorScale(BodyLight,IntensityTransform[i][j],LightTransform[i][j]);
+			const float intensity = IntensityTransform[i][j];
+			LightTransform[i][j][0] = bl0 * intensity;
+			LightTransform[i][j][1] = bl1 * intensity;
+			LightTransform[i][j][2] = bl2 * intensity;
 		}
 	}
 
@@ -1094,7 +1175,7 @@ void BMD::RenderMesh(int i,int RenderFlag,float Alpha,int BlendMesh,float BlendM
 
         float Wave2 = (int)WorldTime%5000 * 0.00024f - 0.4f;
 
-        vec3_t L = { (float)(cos(WorldTime*0.001f)), (float)(sin(WorldTime*0.002f)), 1.f };
+        vec3_t L = { cosf(WorldTime*0.001f), sinf(WorldTime*0.002f), 1.f };
 		for(int j=0;j<m->NumNormals;j++)
 		{
             if ( j>MAX_VERTICES ) break;
@@ -1341,14 +1422,10 @@ void BMD::RenderMesh(int i,int RenderFlag,float Alpha,int BlendMesh,float BlendM
 	}
 	const float vertexAlpha = (Alpha >= 0.99f) ? 1.0f : Alpha;
 
-	// Build vertex buffer for this mesh
-	static std::vector<TerrainVertex_t> s_meshVertBuffer;
+	// Build vertex buffer directly in the batch buffer
 	const int maxVerts = m->NumTriangles * 6;
-	if (s_meshVertBuffer.size() < static_cast<size_t>(maxVerts))
-	{
-		s_meshVertBuffer.resize(maxVerts);
-	}
-	TerrainVertex_t* pDst = s_meshVertBuffer.data();
+	TerrainVertex_t* pDst = g_BatchRenderer.BeginAddMeshTriangles(batchType, passTexture, passFlags, maxVerts);
+	if (!pDst) return;
 	uint32_t vertCount = 0;
 
 	static const int s_cornerTri[3] = { 0, 1, 2 };
@@ -1361,25 +1438,24 @@ void BMD::RenderMesh(int i,int RenderFlag,float Alpha,int BlendMesh,float BlendM
 	const float waveU = EnableWave ? BlendMeshTexCoordU : 0.0f;
 	const float waveV = EnableWave ? BlendMeshTexCoordV : 0.0f;
 
-	for (int j = 0; j < m->NumTriangles; j++)
+	if (isShadow)
 	{
-		Triangle_t *tp = &m->Triangles[j];
-		const int poly = (tp->Polygon == 4) ? 4 : 3;
-		const int* cornerIndices = (poly == 4) ? s_cornerQuad : s_cornerTri;
-		const int cornerCount = (poly == 4) ? 6 : 3;
-
-		for (int c = 0; c < cornerCount; ++c)
+		for (int j = 0; j < m->NumTriangles; j++)
 		{
-			int k = cornerIndices[c];
-			int vi = tp->VertexIndex[k];
-			if (vi < 0 || vi >= m->NumVertices) continue;
+			Triangle_t *tp = &m->Triangles[j];
+			const int poly = (tp->Polygon == 4) ? 4 : 3;
+			const int* cornerIndices = (poly == 4) ? s_cornerQuad : s_cornerTri;
+			const int cornerCount = (poly == 4) ? 6 : 3;
 
-			TerrainVertex_t& tv = pDst[vertCount++];
-			float* pos = VertexTransform[i][vi];
-
-			// Shadow projection if requested
-			if (isShadow)
+			for (int c = 0; c < cornerCount; ++c)
 			{
+				int k = cornerIndices[c];
+				int vi = tp->VertexIndex[k];
+				if (vi < 0 || vi >= m->NumVertices) continue;
+
+				TerrainVertex_t& tv = pDst[vertCount++];
+				float* pos = VertexTransform[i][vi];
+
 				vec3_t p;
 				VectorSubtract(pos, BodyOrigin, p);
 				p[0] += p[2] * (p[0] + 2000.f) / (p[2] - 4000.f);
@@ -1392,46 +1468,127 @@ void BMD::RenderMesh(int i,int RenderFlag,float Alpha,int BlendMesh,float BlendM
 				tv.uv[0] = 0.0f;
 				tv.uv[1] = 0.0f;
 				tv.color = PackRGBA8(0.0f, 0.0f, 0.0f, 0.5f);
-				continue;
 			}
+		}
+	}
+	else if (Render == RENDER_CHROME || Render == RENDER_CHROME4)
+	{
+		const float chromeAddU = (Render == RENDER_CHROME4) ? BlendMeshTexCoordU : 0.0f;
+		const float chromeAddV = (Render == RENDER_CHROME4) ? BlendMeshTexCoordV : 0.0f;
 
-			tv.pos[0] = pos[0];
-			tv.pos[1] = pos[1];
-			tv.pos[2] = pos[2];
+		for (int j = 0; j < m->NumTriangles; j++)
+		{
+			Triangle_t *tp = &m->Triangles[j];
+			const int poly = (tp->Polygon == 4) ? 4 : 3;
+			const int* cornerIndices = (poly == 4) ? s_cornerQuad : s_cornerTri;
+			const int cornerCount = (poly == 4) ? 6 : 3;
 
-			// UV coordinates
-			float u = 0.0f, v = 0.0f;
-			switch (Render)
+			for (int c = 0; c < cornerCount; ++c)
 			{
-			case RENDER_TEXTURE:
+				int k = cornerIndices[c];
+				int vi = tp->VertexIndex[k];
+				if (vi < 0 || vi >= m->NumVertices) continue;
+
+				TerrainVertex_t& tv = pDst[vertCount++];
+				float* pos = VertexTransform[i][vi];
+				tv.pos[0] = pos[0];
+				tv.pos[1] = pos[1];
+				tv.pos[2] = pos[2];
+
+				int ni = tp->NormalIndex[k];
+				if (ni >= 0 && ni < m->NumNormals)
+				{
+					tv.uv[0] = g_chrome[ni][0] + chromeAddU;
+					tv.uv[1] = g_chrome[ni][1] + chromeAddV;
+				}
+				else
+				{
+					tv.uv[0] = 0.0f;
+					tv.uv[1] = 0.0f;
+				}
+				tv.color = constColor;
+			}
+		}
+	}
+	else if (Render == RENDER_TEXTURE)
+	{
+		for (int j = 0; j < m->NumTriangles; j++)
+		{
+			Triangle_t *tp = &m->Triangles[j];
+			const int poly = (tp->Polygon == 4) ? 4 : 3;
+			const int* cornerIndices = (poly == 4) ? s_cornerQuad : s_cornerTri;
+			const int cornerCount = (poly == 4) ? 6 : 3;
+
+			for (int c = 0; c < cornerCount; ++c)
+			{
+				int k = cornerIndices[c];
+				int vi = tp->VertexIndex[k];
+				if (vi < 0 || vi >= m->NumVertices) continue;
+
+				TerrainVertex_t& tv = pDst[vertCount++];
+				float* pos = VertexTransform[i][vi];
+				tv.pos[0] = pos[0];
+				tv.pos[1] = pos[1];
+				tv.pos[2] = pos[2];
+
 				if (m->TexCoords && tp->TexCoordIndex[k] < m->NumTexCoords)
 				{
 					TexCoord_t *texp = &m->TexCoords[tp->TexCoordIndex[k]];
-					u = texp->TexCoordU + waveU;
-					v = texp->TexCoordV + waveV;
+					tv.uv[0] = texp->TexCoordU + waveU;
+					tv.uv[1] = texp->TexCoordV + waveV;
 				}
-				break;
-			case RENDER_CHROME:
+				else
+				{
+					tv.uv[0] = 0.0f;
+					tv.uv[1] = 0.0f;
+				}
+
+				if (useNormalsLight)
 				{
 					int ni = tp->NormalIndex[k];
 					if (ni >= 0 && ni < m->NumNormals)
 					{
-						u = g_chrome[ni][0];
-						v = g_chrome[ni][1];
+						float* lt = LightTransform[i][ni];
+						uint8_t ur = (uint8_t)(std::min)(255.0f, (std::max)(0.0f, lt[0] * 255.0f));
+						uint8_t ug = (uint8_t)(std::min)(255.0f, (std::max)(0.0f, lt[1] * 255.0f));
+						uint8_t ub = (uint8_t)(std::min)(255.0f, (std::max)(0.0f, lt[2] * 255.0f));
+						tv.color = (uint32_t)ur | ((uint32_t)ug << 8) | ((uint32_t)ub << 16) | ua24;
 					}
-				}
-				break;
-			case RENDER_CHROME4:
-				{
-					int ni = tp->NormalIndex[k];
-					if (ni >= 0 && ni < m->NumNormals)
+					else
 					{
-						u = g_chrome[ni][0] + BlendMeshTexCoordU;
-						v = g_chrome[ni][1] + BlendMeshTexCoordV;
+						tv.color = 0xFFFFFFFF;
 					}
 				}
-				break;
-			case RENDER_OIL:
+				else
+				{
+					tv.color = constColor;
+				}
+			}
+		}
+	}
+	else
+	{
+		for (int j = 0; j < m->NumTriangles; j++)
+		{
+			Triangle_t *tp = &m->Triangles[j];
+			const int poly = (tp->Polygon == 4) ? 4 : 3;
+			const int* cornerIndices = (poly == 4) ? s_cornerQuad : s_cornerTri;
+			const int cornerCount = (poly == 4) ? 6 : 3;
+
+			for (int c = 0; c < cornerCount; ++c)
+			{
+				int k = cornerIndices[c];
+				int vi = tp->VertexIndex[k];
+				if (vi < 0 || vi >= m->NumVertices) continue;
+
+				TerrainVertex_t& tv = pDst[vertCount++];
+				float* pos = VertexTransform[i][vi];
+				tv.pos[0] = pos[0];
+				tv.pos[1] = pos[1];
+				tv.pos[2] = pos[2];
+
+				float u = 0.0f, v = 0.0f;
+				if (Render == RENDER_OIL)
 				{
 					int ni = tp->VertexIndex[k];
 					if (m->TexCoords && tp->TexCoordIndex[k] < m->NumTexCoords && ni >= 0 && ni < m->NumNormals)
@@ -1441,43 +1598,14 @@ void BMD::RenderMesh(int i,int RenderFlag,float Alpha,int BlendMesh,float BlendM
 						v = g_chrome[ni][1] * texp->TexCoordV + BlendMeshTexCoordV;
 					}
 				}
-				break;
-			default:
-				u = 0.0f;
-				v = 0.0f;
-				break;
-			}
-			tv.uv[0] = u;
-			tv.uv[1] = v;
-
-			// Lighting & Color
-			if (useNormalsLight)
-			{
-				int ni = tp->NormalIndex[k];
-				if (ni >= 0 && ni < m->NumNormals)
-				{
-					float* lt = LightTransform[i][ni];
-					uint8_t ur = (uint8_t)(std::min)(255.0f, (std::max)(0.0f, lt[0] * 255.0f));
-					uint8_t ug = (uint8_t)(std::min)(255.0f, (std::max)(0.0f, lt[1] * 255.0f));
-					uint8_t ub = (uint8_t)(std::min)(255.0f, (std::max)(0.0f, lt[2] * 255.0f));
-					tv.color = (uint32_t)ur | ((uint32_t)ug << 8) | ((uint32_t)ub << 16) | ua24;
-				}
-				else
-				{
-					tv.color = 0xFFFFFFFF;
-				}
-			}
-			else
-			{
+				tv.uv[0] = u;
+				tv.uv[1] = v;
 				tv.color = constColor;
 			}
 		}
 	}
 
-	if (vertCount > 0)
-	{
-		g_BatchRenderer.AddMeshTriangles(batchType, passTexture, passFlags, pDst, vertCount);
-	}
+	g_BatchRenderer.EndAddMeshTriangles(vertCount);
 }
 
 void BMD::RenderBody(int Flag,float Alpha,int BlendMesh,float BlendMeshLight,float BlendMeshTexCoordU,float BlendMeshTexCoordV,int HiddenMesh,int Texture)

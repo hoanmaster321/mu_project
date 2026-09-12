@@ -4213,25 +4213,39 @@ void HeroAttributeCalc ( CHARACTER* c )
 
 void OnlyNpcChatProcess ( CHARACTER* c, OBJECT* o )
 {
-	if (o->Kind == KIND_NPC && rand_fps_check(2))
+	if (o->Kind == KIND_NPC)
     {
         switch ( o->Type )
         {
         case MODEL_MERCHANT_GIRL :  
             if ( gMapManager.InBattleCastle()==false )
             {
-				CreateChat ( c->ID, GlobalText[1974], c ); 
+				if ( rand_fps_check(50) )
+				{
+					CreateChat ( c->ID, GlobalText[1974], c ); 
+				}
             }
             break;
         case MODEL_ELF_WIZARD :
-			CreateChat ( c->ID, GlobalText[1975], c ); 
+			if ( rand_fps_check(50) )
+			{
+				CreateChat ( c->ID, GlobalText[1975], c ); 
+			}
 			break;
         case MODEL_MASTER :         
-			CreateChat ( c->ID, GlobalText[1976], c ); 
+			if ( rand_fps_check(50) )
+			{
+				CreateChat ( c->ID, GlobalText[1976], c ); 
+			}
 			break;
 		case MODEL_PLAYER:
 			if (c->MonsterIndex == 257)
-				CreateChat ( c->ID, GlobalText[1827], c );
+			{
+				if (rand_fps_check(50))
+				{
+					CreateChat ( c->ID, GlobalText[1827], c );
+				}
+			}
 			break;
         }
 
@@ -8114,28 +8128,26 @@ void RenderLinkObject(float x,float y,float z,CHARACTER *c,PART_t *f,int Type,in
 	//	}
 	//	break;
 
-	for (std::map<int, DYNAMIC_WING_EFFECT_INFO>::iterator it = gDynamicWingEffect.m_DynamicWingEffectInfo.begin(); it != gDynamicWingEffect.m_DynamicWingEffectInfo.end(); it++)
+	const int wingItemIndex = Type - MODEL_ITEM;
+	auto itDynamic = gDynamicWingEffect.m_DynamicWingByItemIndex.find(wingItemIndex);
+	if (itDynamic != gDynamicWingEffect.m_DynamicWingByItemIndex.end())
 	{
-		if (it->second.ItemIndex == (Type - MODEL_ITEM))
+		for (const auto& effect : itDynamic->second)
 		{
-			Vector(it->second.ColorR, it->second.ColorG, it->second.ColorB, Light);
-			b->TransformByObjectBone(Position, Object, it->second.EffectValue,0);		// Gold01
-			//CreateSprite(it->second.EffectIndex, Position, it->second.Effect1, Light, o, it->second.Effect2, it->second.Effect);
-			CreateParticle(it->second.EffectIndex, Position, o->Angle, Light, it->second.Effect1,it->second.Effect);
-			//CreateJoint(it->second.EffectIndex, Position, Position, o->Angle);
-			//CreateParticle(BITMAP_SPARK + 1, Position, o->Angle, Light, 11, 2.0f);
+			Vector(effect.ColorR, effect.ColorG, effect.ColorB, Light);
+			b->TransformByObjectBone(Position, Object, effect.EffectValue, 0);		// Gold01
+			CreateParticle(effect.EffectIndex, Position, o->Angle, Light, effect.Effect1, effect.Effect);
 		}
-
 	}
-	for (std::map<int, CUSTOM_WING_EFFECT_INFO>::iterator it2 = gCustomWingEffect.m_CustomWingEffectInfo.begin(); it2 != gCustomWingEffect.m_CustomWingEffectInfo.end(); it2++)
+
+	auto itCustom = gCustomWingEffect.m_CustomWingByItemIndex.find(wingItemIndex);
+	if (itCustom != gCustomWingEffect.m_CustomWingByItemIndex.end())
 	{
-		if (it2->second.ItemIndex == (Type - MODEL_ITEM))
+		for (const auto& effect : itCustom->second)
 		{
-			Vector(it2->second.ColorR, it2->second.ColorG, it2->second.ColorB, Light);
-			b->TransformByObjectBone(Position, Object, it2->second.EffectValue, 0);		// Gold01
-			CreateSprite(it2->second.EffectIndex, Position, it2->second.ColorSize, Light, o, it2->second.ColorMain, it2->second.ColorSide);
-			//CreateParticle(it2->second.EffectIndex, Position, o->Angle, Light, it->second.Effect1, it2->second.ColorMain, (DWORD)it2->second.ColorSide);
-			//CreateParticle(BITMAP_SPARK + 1, Position, o->Angle, Light, 11, 2.0f);
+			Vector(effect.ColorR, effect.ColorG, effect.ColorB, Light);
+			b->TransformByObjectBone(Position, Object, effect.EffectValue, 0);		// Gold01
+			CreateSprite(effect.EffectIndex, Position, effect.ColorSize, Light, o, effect.ColorMain, effect.ColorSide);
 		}
 	}
 	switch(Type)

@@ -68,12 +68,7 @@ static bool g_bShowDebugInfo =
     false;
 #endif
 
-static bool g_bShowFpsCounter =
-#if defined(__ANDROID__) || defined(MU_IOS)
-    true;
-#else
-    false;
-#endif
+static bool g_bShowFpsCounter = true;
 
 void SetShowDebugInfo(bool enabled)
 {

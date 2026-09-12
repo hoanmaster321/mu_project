@@ -63,6 +63,8 @@ void ClearInput(BOOL bClearWhisperTarget = TRUE);
 void CutText(const char* Text,char *Text1,char *Text2,int Length);
 void CreateChat(char *ID,const char* Text,CHARACTER *c,int Flag=0, int SetColor = -1);
 int  CreateChat(char *ID,const char* Text,OBJECT* Owner,int Flag=0, int SetColor=-1);
+bool HasActiveChat(CHARACTER *Owner);
+bool HasActiveChat(OBJECT *Owner);
 void AssignChat(char *ID,const char* Text,int Flag=0);
 void MoveChat();
 void ClearNotice ( void );

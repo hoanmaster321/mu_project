@@ -8,6 +8,7 @@
 #include "ZzzBMD.h"
 #include "New_RenderBMD.h"
 #include "New_ModelBMD.h"
+#include "UIControls.h"
 #include "Utilities/Log/muConsoleDebug.h"
 
 // Global single instance
@@ -678,9 +679,9 @@ void CBatchRenderer::AddImage(const ImageInstance_t& s)
 		return;
 	}
 
-	// Lookback merge: scan up to 4 previous batches
+	// Lookback merge: scan up to 16 previous batches
 	if (s.rotation == 0.0f) {
-		constexpr int kMaxLookback = 4;
+		constexpr int kMaxLookback = 16;
 		const int n = (int)m_ImageBatch.size();
 		const int start = (n > kMaxLookback) ? (n - kMaxLookback) : 0;
 		for (int i = n - 2; i >= start; --i) {
@@ -892,6 +893,46 @@ void CBatchRenderer::AddMeshTriangles(int batchType, int textureIndex, int rende
 	m_MeshBatchDirty = true;
 }
 
+TerrainVertex_t* CBatchRenderer::BeginAddMeshTriangles(int batchType, int textureIndex, int renderFlags, uint32_t maxVertCount)
+{
+	if (batchType < 0 || batchType >= TERRAIN_BATCH_COUNT || maxVertCount == 0)
+		return nullptr;
+
+	TerrainBatchKey key = { (uint32_t)renderFlags, textureIndex };
+	MeshBatchData* pBatch = nullptr;
+
+	if (m_MeshMRU.batchType == batchType && m_MeshMRU.key == key && m_MeshMRU.batch)
+	{
+		pBatch = m_MeshMRU.batch;
+	}
+	else
+	{
+		pBatch = &m_MeshBatchesMap[batchType][key];
+		m_MeshMRU.batchType = batchType;
+		m_MeshMRU.key = key;
+		m_MeshMRU.batch = pBatch;
+	}
+
+	size_t oldSize = pBatch->vertices.size();
+	pBatch->vertices.resize(oldSize + maxVertCount);
+	m_pCurrentActiveMeshBatch = pBatch;
+	m_CurrentMeshBatchOldSize = oldSize;
+	return pBatch->vertices.data() + oldSize;
+}
+
+void CBatchRenderer::EndAddMeshTriangles(uint32_t actualVertCount)
+{
+	if (m_pCurrentActiveMeshBatch)
+	{
+		m_pCurrentActiveMeshBatch->vertices.resize(m_CurrentMeshBatchOldSize + actualVertCount);
+		if (actualVertCount > 0)
+		{
+			m_MeshBatchDirty = true;
+		}
+		m_pCurrentActiveMeshBatch = nullptr;
+	}
+}
+
 void CBatchRenderer::FlushMeshBatches()
 {
 	if (!m_MeshBatchDirty)
@@ -924,10 +965,8 @@ void CBatchRenderer::FlushMeshBatches()
 		if (totalVerts > 0)
 		{
 			uint32_t vertOffset = 0;
-			uint32_t idxOffset = 0;
 			TerrainVertex_t* dstVerts = GPUContext::Instance().AllocateTerrainVertexBuffer(totalVerts, vertOffset);
-			uint32_t* dstIndices = GPUContext::Instance().AllocateTerrainIndexBuffer(totalVerts, idxOffset);
-			if (dstVerts && dstIndices)
+			if (dstVerts)
 			{
 				uint32_t curVertCount = 0;
 
@@ -940,10 +979,6 @@ void CBatchRenderer::FlushMeshBatches()
 
 						uint32_t baseIndex = curVertCount;
 						memcpy(dstVerts + curVertCount, batch.vertices.data(), count * sizeof(TerrainVertex_t));
-						for (uint32_t k = 0; k < count; ++k)
-						{
-							dstIndices[curVertCount + k] = curVertCount + k;
-						}
 						curVertCount += count;
 
 						MeshDrawCmd cmd;
@@ -1019,8 +1054,130 @@ void CBatchRenderer::FlushMeshBatches()
 
 				GPUContext::Instance().DrawTerrainMergedPreallocated(
 					vertOffset, totalVerts * sizeof(TerrainVertex_t),
-					idxOffset, totalVerts * sizeof(uint32_t),
+					0, 0,
 					std::move(vkBatches), vkUbo);
+			}
+			else
+			{
+				char szDbg[256];
+				sprintf_s(szDbg, "[BatchRenderer] WARNING: Monolithic allocation of %u vertices failed! Entering chunked fallback.\n", totalVerts);
+				OutputDebugStringA(szDbg);
+
+				GPUContext::TerrainVertUBO vkUbo;
+				GetActiveViewMatrix(&vkUbo.viewMatrix[0][0]);
+				GetActiveProjectionMatrix(&vkUbo.projMatrix[0][0]);
+
+				vkUbo.projMatrix[0][1] = -vkUbo.projMatrix[0][1];
+				vkUbo.projMatrix[1][1] = -vkUbo.projMatrix[1][1];
+				vkUbo.projMatrix[2][1] = -vkUbo.projMatrix[2][1];
+				vkUbo.projMatrix[3][1] = -vkUbo.projMatrix[3][1];
+
+				vkUbo.projMatrix[0][2] = (vkUbo.projMatrix[0][2] + vkUbo.projMatrix[0][3]) * 0.5f;
+				vkUbo.projMatrix[1][2] = (vkUbo.projMatrix[1][2] + vkUbo.projMatrix[1][3]) * 0.5f;
+				vkUbo.projMatrix[2][2] = (vkUbo.projMatrix[2][2] + vkUbo.projMatrix[2][3]) * 0.5f;
+				vkUbo.projMatrix[3][2] = (vkUbo.projMatrix[3][2] + vkUbo.projMatrix[3][3]) * 0.5f;
+
+				const auto& dynLights = GPUContext::Instance().GetDynamicLights();
+				uint32_t numLights = (std::min)(static_cast<uint32_t>(dynLights.size()), 32u);
+				for (uint32_t li = 0; li < numLights; ++li) {
+					vkUbo.lights[li] = dynLights[li];
+				}
+				vkUbo.numLights = numLights;
+				for (uint32_t li = numLights; li < 32; ++li) {
+					vkUbo.lights[li].posRadius = glm::vec4(0.0f);
+					vkUbo.lights[li].colorIntensity = glm::vec4(0.0f);
+				}
+
+				const uint32_t TARGET_CHUNK_VERTS = 131072;
+				struct PendingBatch {
+					int bType;
+					TerrainBatchKey key;
+					const TerrainVertex_t* pData;
+					uint32_t count;
+				};
+				std::vector<PendingBatch> pendingList;
+				for (int bType = 0; bType < TERRAIN_BATCH_COUNT; ++bType)
+				{
+					for (const auto& [key, batch] : m_MeshBatchesMap[bType])
+					{
+						if (!batch.vertices.empty())
+						{
+							pendingList.push_back({ bType, key, batch.vertices.data(), static_cast<uint32_t>(batch.vertices.size()) });
+						}
+					}
+				}
+
+				size_t curItem = 0;
+				while (curItem < pendingList.size())
+				{
+					uint32_t chunkVerts = 0;
+					size_t startItem = curItem;
+					while (curItem < pendingList.size())
+					{
+						uint32_t needed = pendingList[curItem].count;
+						if (chunkVerts > 0 && (chunkVerts + needed > TARGET_CHUNK_VERTS))
+							break;
+						chunkVerts += needed;
+						curItem++;
+					}
+
+					if (chunkVerts == 0) break;
+
+					uint32_t cVertOffset = 0;
+					TerrainVertex_t* cDstVerts = GPUContext::Instance().AllocateTerrainVertexBuffer(chunkVerts, cVertOffset);
+					if (!cDstVerts)
+					{
+						OutputDebugStringA("[BatchRenderer] ERROR: Dynamic buffer fully exhausted even in chunked mode!\n");
+						break;
+					}
+
+					uint32_t curOffsetInChunk = 0;
+					std::vector<GPUContext::TerrainMergedBatch> cVkBatches;
+
+					for (size_t i = startItem; i < curItem; ++i)
+					{
+						const auto& item = pendingList[i];
+						uint32_t count = item.count;
+						uint32_t baseIdx = curOffsetInChunk;
+
+						memcpy(cDstVerts + curOffsetInChunk, item.pData, count * sizeof(TerrainVertex_t));
+						curOffsetInChunk += count;
+
+						BITMAP_t* pBitmap = (item.key.textureIndex >= 0) ? Bitmaps.FindTexture(static_cast<GLuint>(item.key.textureIndex)) : nullptr;
+						int realTex = (pBitmap && pBitmap->TextureNumber > 0) ? static_cast<int>(pBitmap->TextureNumber)
+							: (item.key.textureIndex < 0 ? -item.key.textureIndex : (item.key.textureIndex > 0 ? item.key.textureIndex : 0));
+
+						if (!cVkBatches.empty() &&
+							cVkBatches.back().batchType == item.bType &&
+							cVkBatches.back().renderFlags == item.key.renderFlags &&
+							cVkBatches.back().textureIndex == realTex &&
+							!cVkBatches.back().cmds.empty())
+						{
+							auto& lastCmd = cVkBatches.back().cmds.back();
+							if (lastCmd.firstIndex + lastCmd.indexCount == baseIdx)
+							{
+								lastCmd.indexCount += count;
+								continue;
+							}
+						}
+
+						GPUContext::TerrainMergedBatch b;
+						b.batchType = item.bType;
+						b.textureIndex = realTex;
+						b.renderFlags = item.key.renderFlags;
+						GPUContext::TerrainDrawCmd tCmd;
+						tCmd.firstIndex = baseIdx;
+						tCmd.indexCount = count;
+						tCmd.vertexOffset = 0;
+						b.cmds.push_back(tCmd);
+						cVkBatches.push_back(std::move(b));
+					}
+
+					GPUContext::Instance().DrawTerrainMergedPreallocated(
+						cVertOffset, chunkVerts * sizeof(TerrainVertex_t),
+						0, 0,
+						std::move(cVkBatches), vkUbo);
+				}
 			}
 		}
 	}
@@ -1087,6 +1244,7 @@ void CBatchRenderer::ClearMeshProxies()
 void CBatchRenderer::ClearAllBatchMaps()
 {
 	ClearMeshProxies();
+	CUIRenderText::GetInstance()->ClearCache();
 	m_SpriteBatch.clear();
 	m_ImageBatch.clear();
 	m_ImageBatchBbox.clear();

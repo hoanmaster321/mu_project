@@ -47,6 +47,7 @@ public:
         float u0, v0, uWidth, vHeight;
     };
     FontSlotUV UploadFontSlot(const void* srcBuffer, uint32_t srcPitchWidth, uint32_t copyWidth, uint32_t copyHeight);
+    FontSlotUV UploadFontSlotSpecific(uint32_t slot, const void* srcBuffer, uint32_t srcPitchWidth, uint32_t copyWidth, uint32_t copyHeight);
     void ResetFontAtlas();
     bool IsFontAtlasDirty() const { return m_fontAtlasDirty; }
     void FlushFontAtlas(VkCommandBuffer cmd);
@@ -99,14 +100,20 @@ private:
     VkDeviceMemory m_fontAtlasStagingMemory = VK_NULL_HANDLE;
     void* m_fontAtlasStagingMapped = nullptr;
     uint32_t m_fontSlotCount = 0;
+    uint32_t m_dynamicSlotCount = 0;
+    uint32_t m_fontAtlasMaxDirtyRow = 0;
     bool m_fontAtlasDirty = false;
 };
 
 #define BITMAP_FONT_DYNAMIC_ATLAS 60000
 #define FONT_ATLAS_WIDTH  2048
-#define FONT_ATLAS_HEIGHT 2048
+#define FONT_ATLAS_HEIGHT 4096
 #define FONT_SLOT_WIDTH   256
 #define FONT_SLOT_HEIGHT  32
 #define FONT_ATLAS_COLS   (FONT_ATLAS_WIDTH / FONT_SLOT_WIDTH)   // 8
-#define FONT_ATLAS_ROWS   (FONT_ATLAS_HEIGHT / FONT_SLOT_HEIGHT) // 64
-#define MAX_FONT_SLOTS    (FONT_ATLAS_COLS * FONT_ATLAS_ROWS)     // 512
+#define FONT_ATLAS_ROWS   (FONT_ATLAS_HEIGHT / FONT_SLOT_HEIGHT) // 128
+#define MAX_FONT_SLOTS    (FONT_ATLAS_COLS * FONT_ATLAS_ROWS)     // 1024
+#define CACHE_FONT_SLOTS  896
+#define DYNAMIC_SLOT_START 896
+#define DYNAMIC_FONT_SLOTS (MAX_FONT_SLOTS - DYNAMIC_SLOT_START)  // 128
+

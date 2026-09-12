@@ -5,6 +5,10 @@
 #include "zzzinfomation.h"
 #include "MultiLanguage.h"
 #include "QuestMng.h"
+#include "VulkanTextureManager.h"
+#include <string>
+#include <vector>
+#include <unordered_map>
 
 #ifdef KJH_ADD_INGAMESHOP_UI_SYSTEM
 #define UIMAX_TEXT_LINE			150
@@ -709,11 +713,58 @@ struct RENDER_TEXT_DATA
 	BOOL m_bUseTextEX;	
 };
 
+struct TextCacheSection
+{
+	VulkanTextureManager::FontSlotUV slotUV;
+	int width;
+	int height;
+	uint32_t slotIndex;
+};
+
+struct TextCacheItem
+{
+	SIZE realTextSize;
+	uint32_t lastFrame;
+	std::vector<TextCacheSection> sections;
+};
+
+struct TextCacheKey
+{
+	std::string text;
+	HFONT hFont;
+	int clipMove;
+
+	bool operator==(const TextCacheKey& o) const
+	{
+		return hFont == o.hFont && clipMove == o.clipMove && text == o.text;
+	}
+};
+
+struct TextCacheKeyHash
+{
+	size_t operator()(const TextCacheKey& k) const
+	{
+		size_t h1 = std::hash<std::string>()(k.text);
+		size_t h2 = (size_t)k.hFont;
+		size_t h3 = (size_t)k.clipMove;
+		return h1 ^ (h2 << 6) ^ (h3 << 12);
+	}
+};
+
+struct SlotTracker
+{
+	uint32_t lastFrame = 0;
+	TextCacheKey key{};
+	bool allocated = false;
+};
+
 class IUIRenderText
 {
 public:
 	virtual bool Create(HDC hDC) = 0;
 	virtual void Release() = 0;
+	virtual void ClearCache() {}
+	virtual void OnBeginFrame() {}
 
 	virtual HDC GetFontDC() const = 0;
 	virtual BYTE* GetFontBuffer() const = 0;
@@ -741,12 +792,30 @@ class CUIRenderTextOriginal : public IUIRenderText
 	BYTE* m_pFontBuffer;
 	int m_TypeShadow;
 	DWORD m_dwTextColor, m_dwBackColor;
+	HFONT m_hCurrentFont;
+	float m_fCachedScreenRateX;
+	float m_fCachedScreenRateY;
+	uint32_t m_currentFrame;
+
+	std::unordered_map<TextCacheKey, TextCacheItem, TextCacheKeyHash> m_textCache;
+	SlotTracker m_slots[CACHE_FONT_SLOTS];
+
+	int m_iAllocatedWidth;
+	int m_iAllocatedHeight;
+	int m_iPitch;
+	DWORD m_dwBufferSize;
+	HDC m_hOriginalDC;
+
+	bool RecreateBitmap(int width, int height);
+
 public:
 	CUIRenderTextOriginal();
 	virtual ~CUIRenderTextOriginal();
 
 	bool Create(HDC hDC);
 	void Release();
+	void ClearCache();
+	void OnBeginFrame();
 
 	HDC GetFontDC() const;
 	BYTE* GetFontBuffer() const;
@@ -761,12 +830,16 @@ public:
 	void SetShadowText(int Type);
 
 	void SetFont(HFONT hFont);
+	HFONT GetFont() const { return m_hCurrentFont; }
 
 	void RenderText(int iPos_x, int iPos_y, const unicode::t_char* pszText, int iBoxWidth = 0, int iBoxHeight = 0, 
 		int iSort = RT3_SORT_LEFT, OUT SIZE* lpTextSize = NULL);
 
 protected:
 	void WriteText(int iOffset, int iWidth, int iHeight);
+	void WriteTextWhite(int iOffset, int iWidth, int iHeight);
+	uint32_t AllocateSlot(const TextCacheKey& key);
+	void EvictSlot(uint32_t slot);
 	void UploadText(int sx,int sy,int Width,int Height);
 };
 
@@ -784,6 +857,8 @@ public:
 
 	bool Create(int iRenderTextType, HDC hDC);
 	void Release();
+	void ClearCache();
+	void OnBeginFrame();
 	
 	int GetRenderTextType() const;
 

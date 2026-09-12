@@ -14,6 +14,7 @@ CDynamicWingEffect gDynamicWingEffect;
 CDynamicWingEffect::CDynamicWingEffect() // OK
 {
 	this->m_DynamicWingEffectInfo.clear();
+	this->m_DynamicWingByItemIndex.clear();
 }
 
 CDynamicWingEffect::~CDynamicWingEffect() // OK
@@ -24,6 +25,8 @@ CDynamicWingEffect::~CDynamicWingEffect() // OK
 
 void CDynamicWingEffect::Load(DYNAMIC_WING_EFFECT_INFO* info) // OK
 {
+	this->m_DynamicWingEffectInfo.clear();
+	this->m_DynamicWingByItemIndex.clear();
 	for(int n=0;n < MAX_DYNAMIC_WING_EFFECT;n++)
 	{
 		if(info[n].Index < 0 || info[n].Index >= MAX_DYNAMIC_WING_EFFECT)
@@ -31,5 +34,6 @@ void CDynamicWingEffect::Load(DYNAMIC_WING_EFFECT_INFO* info) // OK
 			return;
 		}
 		this->m_DynamicWingEffectInfo.insert(std::pair<int,DYNAMIC_WING_EFFECT_INFO>(info[n].Index,info[n]));
+		this->m_DynamicWingByItemIndex[info[n].ItemIndex].push_back(info[n]);
 	}
 }

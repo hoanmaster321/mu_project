@@ -595,26 +595,17 @@ LONG FAR PASCAL WndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
     case WM_ACTIVATE:
 		if(LOWORD(wParam) == WA_INACTIVE)
 		{
-#ifdef ACTIVE_FOCUS_OUT
-			if (g_bUseWindowMode == FALSE)
-#endif	// ACTIVE_FOCUS_OUT
-				g_bWndActive = false;
-#if defined USER_WINDOW_MODE || (defined WINDOWMODE)
-			if (g_bUseWindowMode == TRUE)
-			{
-				MouseLButton = false;
-				MouseLButtonPop = false;
-				//MouseLButtonPush = false;
-				MouseRButton = false;
-				MouseRButtonPop = false;
-				MouseRButtonPush = false;
-				MouseLButtonDBClick = false;
-				MouseMButton = false;
-				MouseMButtonPop = false;
-				MouseMButtonPush = false;
-				MouseWheel = 0;
-			}
-#endif
+			g_bWndActive = false;
+			MouseLButton = false;
+			MouseLButtonPop = false;
+			MouseRButton = false;
+			MouseRButtonPop = false;
+			MouseRButtonPush = false;
+			MouseLButtonDBClick = false;
+			MouseMButton = false;
+			MouseMButtonPop = false;
+			MouseMButtonPush = false;
+			MouseWheel = 0;
 		}
 		else
 		{
@@ -1277,7 +1268,7 @@ BOOL OpenInitFile()
 		dwSize = sizeof ( int);
 		if ( RegQueryValueEx (hKey, "WindowMode", 0, NULL, (LPBYTE) & g_bUseWindowMode, &dwSize) != ERROR_SUCCESS)
 		{
-			g_bUseWindowMode = FALSE;
+			g_bUseWindowMode = TRUE;
 		}
 #endif // USER_WINDOW_MODE
 
@@ -1819,51 +1810,27 @@ MSG MainLoop()
 		MouseRButtonPop = false;
 #endif
 #else
-		if (PeekMessage(&msg, NULL, 0, 0, PM_NOREMOVE))
+		while (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE))
 		{
-			if (!GetMessage(&msg, NULL, 0, 0))
+			if (msg.message == WM_QUIT)
 			{
+				Destroy = true;
 				break;
 			}
 
 			TranslateMessage(&msg);
 			DispatchMessage(&msg);
 		}
+
+		if (Destroy) break;
+
+		if (IsIconic(g_hWnd))
+		{
+			Sleep(16);
+		}
 		else
 		{
-
-			//Scene
-#if (defined WINDOWMODE)
-			if (g_bUseWindowMode || g_bWndActive)
-			{
-				Scene(g_hDC);
-			}
-#ifndef FOR_WORK
-			else if (g_bUseWindowMode == FALSE)
-			{
-				SetForegroundWindow(g_hWnd);
-				SetFocus(g_hWnd);
-
-				if (g_iInactiveWarning > 1)
-				{
-					SetTimer(g_hWnd, WINDOWMINIMIZED_TIMER, 1 * 1000, NULL);
-					PostMessage(g_hWnd, WM_CLOSE, 0, 0);
-				}
-				else
-				{
-					g_iInactiveWarning++;
-					g_bMinimizedEnabled = TRUE;
-					ShowWindow(g_hWnd, SW_MINIMIZE);
-					g_bMinimizedEnabled = FALSE;
-					ShowWindow(g_hWnd, SW_MAXIMIZE);
-				}
-			}
-#endif//FOR_WORK
-#else//WINDOWMODE
-			if (g_bWndActive)
-				Scene(g_hDC);
-
-#endif	//WINDOWMODE(#else)
+			Scene(g_hDC);
 		}
 #endif
 #ifdef NEW_PROTOCOL_SYSTEM

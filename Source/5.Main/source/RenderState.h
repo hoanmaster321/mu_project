@@ -183,6 +183,9 @@ inline void glColor4ub(uint8_t r, uint8_t g, uint8_t b, uint8_t a) {
     g_CurrentGLColor[0] = r / 255.0f; g_CurrentGLColor[1] = g / 255.0f; g_CurrentGLColor[2] = b / 255.0f; g_CurrentGLColor[3] = a / 255.0f;
 }
 
+// Alias for modern Vulkan rendering
+inline float (&g_CurrentVulkanColor)[4] = g_CurrentGLColor;
+
 namespace RenderState
 {
     inline void SetColor(float r, float g, float b, float a = 1.0f) {
@@ -196,6 +199,16 @@ namespace RenderState
     }
     inline void SetColorUB(uint8_t r, uint8_t g, uint8_t b, uint8_t a = 255) {
         glColor4ub(r, g, b, a);
+    }
+    inline const float* GetColor() {
+        return g_CurrentGLColor;
+    }
+    inline void GetColor(float* outColor) {
+        if (outColor) memcpy(outColor, g_CurrentGLColor, 4 * sizeof(float));
+    }
+    inline void ResetColor() {
+        g_CurrentGLColor[0] = 1.0f; g_CurrentGLColor[1] = 1.0f;
+        g_CurrentGLColor[2] = 1.0f; g_CurrentGLColor[3] = 1.0f;
     }
 }
 
@@ -369,10 +382,10 @@ inline void glViewport(GLint x, GLint y, GLsizei width, GLsizei height) {
 inline void glScissor(GLint x, GLint y, GLsizei width, GLsizei height) {
     g_ScissorRect[0] = x;
     g_ScissorRect[1] = y;
-    g_ScissorRect[2] = width;
-    g_ScissorRect[3] = height;
+    g_ScissorRect[2] = (std::max)(0, static_cast<int>(width));
+    g_ScissorRect[3] = (std::max)(0, static_cast<int>(height));
     if (g_ScissorTestEnabled) {
-        VulkanSetScissor(x, y, static_cast<uint32_t>(width), static_cast<uint32_t>(height));
+        VulkanSetScissor(x, y, static_cast<uint32_t>(g_ScissorRect[2]), static_cast<uint32_t>(g_ScissorRect[3]));
     }
 }
 

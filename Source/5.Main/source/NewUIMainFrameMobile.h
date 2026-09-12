@@ -5,7 +5,7 @@
 #include "NewUIManager.h"
 #include "NewUI3DRenderMng.h"
 
-#if defined(__ANDROID__) || defined(MU_IOS)
+#if defined(__ANDROID__) || defined(MU_IOS) || (defined(__has_include) && __has_include(<SDL3/SDL.h>))
 #include <SDL3/SDL.h>
 #else
 typedef int64_t SDL_FingerID;

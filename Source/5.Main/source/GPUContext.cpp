@@ -3,6 +3,7 @@
 #include "VulkanSDL3Context.h"
 #include "VulkanTextureManager.h"
 #include "BatchRenderer.h"
+#include "UIControls.h"
 #include "ZzzBMD.h"
 #include "New_RenderBMD.h"
 #include "EmbeddedShaders.h"
@@ -469,15 +470,22 @@ bool GPUContext::CreateSwapchain(int width, int height)
     }
 
     VkPresentModeKHR bestPresentMode = VK_PRESENT_MODE_FIFO_KHR; // Fallback
+    bool hasImmediate = false;
+    bool hasMailbox = false;
     for (const auto& mode : presentModes) {
-        if (mode == VK_PRESENT_MODE_MAILBOX_KHR) {
-            bestPresentMode = mode;
-            break;
-        }
         if (mode == VK_PRESENT_MODE_IMMEDIATE_KHR) {
-            bestPresentMode = mode;
+            hasImmediate = true;
+        }
+        if (mode == VK_PRESENT_MODE_MAILBOX_KHR) {
+            hasMailbox = true;
         }
     }
+    if (hasImmediate) {
+        bestPresentMode = VK_PRESENT_MODE_IMMEDIATE_KHR; // Uncapped FPS, bypass vertical blanking
+    } else if (hasMailbox) {
+        bestPresentMode = VK_PRESENT_MODE_MAILBOX_KHR;
+    }
+    m_presentMode = bestPresentMode;
 
     VkSwapchainCreateInfoKHR createInfo{};
     createInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
@@ -581,6 +589,11 @@ void GPUContext::CleanupSwapchain()
 
 bool GPUContext::RecreateSwapchain()
 {
+    if (WindowWidth > 0 && WindowHeight > 0) {
+        m_width = static_cast<int>(WindowWidth);
+        m_height = static_cast<int>(WindowHeight);
+    }
+
     if (m_width == 0 || m_height == 0) {
         return false;
     }
@@ -591,9 +604,16 @@ bool GPUContext::RecreateSwapchain()
             std::this_thread::sleep_for(std::chrono::milliseconds(50));
             return false;
         }
+        if (capabilities.currentExtent.width != 0xFFFFFFFF && capabilities.currentExtent.width > 0 && capabilities.currentExtent.height > 0) {
+            m_width = static_cast<int>(capabilities.currentExtent.width);
+            m_height = static_cast<int>(capabilities.currentExtent.height);
+        }
     }
 
     vkDeviceWaitIdle(m_device);
+
+    m_frameActive = false;
+    m_renderPassActive = false;
 
     CleanupSwapchain();
     DestroyDepthResources();
@@ -601,6 +621,17 @@ bool GPUContext::RecreateSwapchain()
     if (!CreateSwapchain(m_width, m_height)) return false;
     if (!CreateDepthResources()) return false;
     if (!CreateFramebuffers()) return false;
+
+    for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+        if (m_inFlightFences[i] != VK_NULL_HANDLE) {
+            vkDestroyFence(m_device, m_inFlightFences[i], nullptr);
+            m_inFlightFences[i] = VK_NULL_HANDLE;
+        }
+        VkFenceCreateInfo fenceInfo{};
+        fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+        fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
+        vkCreateFence(m_device, &fenceInfo, nullptr, &m_inFlightFences[i]);
+    }
 
     return true;
 }
@@ -1030,11 +1061,19 @@ bool GPUContext::CreateDynamicBuffers()
     for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
         FrameResource& res = m_frameResources[i];
 
-        // 1. Dynamic Vertex Buffer (16 MB)
-        if (!CreateBufferHelper(m_device, m_physicalDevice, res.vertexCapacity, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, hostProps, res.vertexBuffer, res.vertexMemory, &res.vertexMapped)) return false;
+        // 1. Dynamic Vertex Buffer (128 MB with fallback to 64 MB)
+        if (!CreateBufferHelper(m_device, m_physicalDevice, res.vertexCapacity, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, hostProps, res.vertexBuffer, res.vertexMemory, &res.vertexMapped)) {
+            res.vertexCapacity = 64 * 1024 * 1024;
+            if (!CreateBufferHelper(m_device, m_physicalDevice, res.vertexCapacity, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, hostProps, res.vertexBuffer, res.vertexMemory, &res.vertexMapped)) return false;
+            for (int k = 0; k < MAX_FRAMES_IN_FLIGHT; k++) m_frameResources[k].vertexCapacity = res.vertexCapacity;
+        }
 
-        // 2. Dynamic Index Buffer (4 MB)
-        if (!CreateBufferHelper(m_device, m_physicalDevice, res.indexCapacity, VK_BUFFER_USAGE_INDEX_BUFFER_BIT, hostProps, res.indexBuffer, res.indexMemory, &res.indexMapped)) return false;
+        // 2. Dynamic Index Buffer (32 MB with fallback to 16 MB)
+        if (!CreateBufferHelper(m_device, m_physicalDevice, res.indexCapacity, VK_BUFFER_USAGE_INDEX_BUFFER_BIT, hostProps, res.indexBuffer, res.indexMemory, &res.indexMapped)) {
+            res.indexCapacity = 16 * 1024 * 1024;
+            if (!CreateBufferHelper(m_device, m_physicalDevice, res.indexCapacity, VK_BUFFER_USAGE_INDEX_BUFFER_BIT, hostProps, res.indexBuffer, res.indexMemory, &res.indexMapped)) return false;
+            for (int k = 0; k < MAX_FRAMES_IN_FLIGHT; k++) m_frameResources[k].indexCapacity = res.indexCapacity;
+        }
 
         // 3. Dynamic Instance SSBO (8 MB)
         if (!CreateBufferHelper(m_device, m_physicalDevice, res.instanceSSBOCapacity, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, hostProps, res.instanceSSBO, res.instanceSSBOMemory, &res.instanceSSBOMapped)) return false;
@@ -1641,10 +1680,14 @@ bool GPUContext::BeginFrame()
         return true;
     }
 
-    vkWaitForFences(m_device, 1, &m_inFlightFences[m_currentFrame], VK_TRUE, UINT64_MAX);
+    VkResult fenceRes = vkWaitForFences(m_device, 1, &m_inFlightFences[m_currentFrame], VK_TRUE, 1000000000ULL);
+    if (fenceRes == VK_TIMEOUT) {
+        g_ErrorReport.Write("[GPUContext] vkWaitForFences timed out on frame %u! Resetting device idle.\r\n", m_currentFrame);
+        vkDeviceWaitIdle(m_device);
+    }
 
-    VkResult result = vkAcquireNextImageKHR(m_device, m_swapchain, UINT64_MAX, m_imageAvailableSemaphores[m_currentFrame], VK_NULL_HANDLE, &m_imageIndex);
-    if (result == VK_ERROR_OUT_OF_DATE_KHR) {
+    VkResult result = vkAcquireNextImageKHR(m_device, m_swapchain, 1000000000ULL, m_imageAvailableSemaphores[m_currentFrame], VK_NULL_HANDLE, &m_imageIndex);
+    if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_TIMEOUT) {
         RecreateSwapchain();
         std::this_thread::sleep_for(std::chrono::milliseconds(16));
         return false;
@@ -1680,6 +1723,7 @@ bool GPUContext::BeginFrame()
     m_renderPassActive = false;
     m_drawCallsThisFrame = 0;
     VulkanTextureManager::Instance().ResetFontAtlas();
+    CUIRenderText::GetInstance()->OnBeginFrame();
     m_deferredCommands.clear();
     m_deferredTerrainDraws.clear();
     m_deferredMeshDraws.clear();
@@ -1994,7 +2038,7 @@ uint32_t* GPUContext::AllocateTerrainIndexBuffer(uint32_t indexCount, uint32_t& 
 
 void GPUContext::DrawTerrainMergedPreallocated(uint32_t vertOffset, uint32_t vertByteSize, uint32_t idxOffset, uint32_t idxByteSize, std::vector<TerrainMergedBatch> batches, const TerrainVertUBO& ubo)
 {
-    if (!m_frameActive || vertByteSize == 0 || idxByteSize == 0 || batches.empty()) return;
+    if (!m_frameActive || vertByteSize == 0 || batches.empty()) return;
 
     DeferredTerrainDraw draw = {};
     draw.vertOffset = vertOffset;
@@ -2041,7 +2085,9 @@ void GPUContext::ReplaySingleTerrainDraw(const DeferredTerrainDraw& draw)
     // Bind Buffers
     VkDeviceSize vOffset = draw.vertOffset;
     vkCmdBindVertexBuffers(cmd, 0, 1, &res.vertexBuffer, &vOffset);
-    vkCmdBindIndexBuffer(cmd, res.indexBuffer, draw.idxOffset, VK_INDEX_TYPE_UINT32);
+    if (draw.idxByteSize > 0) {
+        vkCmdBindIndexBuffer(cmd, res.indexBuffer, draw.idxOffset, VK_INDEX_TYPE_UINT32);
+    }
 
     // Bind Set 0 (SSBO) and Set 1 (VertUniforms UBO)
     vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_terrainPipelineLayout, 0, 1, &res.storageDescriptorSet, 0, nullptr);
@@ -2076,82 +2122,106 @@ void GPUContext::ReplaySingleTerrainDraw(const DeferredTerrainDraw& draw)
 
         // Issue draw commands (Indirect when supported, fallback to direct merged)
         if (!batch.cmds.empty()) {
+            if (draw.idxByteSize > 0) {
 #if CBMu_ENABLE_VK_INDIRECT_DRAW
-            bool useIndirect = VulkanSDL3Context::Instance().SupportsMultiDrawIndirect() && (res.indirectMapped != nullptr);
-            if (useIndirect) {
-                static thread_local std::vector<VkDrawIndexedIndirectCommand> s_indirectTerrainCmds;
-                s_indirectTerrainCmds.clear();
-                s_indirectTerrainCmds.reserve(batch.cmds.size());
+                bool useIndirect = VulkanSDL3Context::Instance().SupportsMultiDrawIndirect() && (res.indirectMapped != nullptr);
+                if (useIndirect) {
+                    static thread_local std::vector<VkDrawIndexedIndirectCommand> s_indirectTerrainCmds;
+                    s_indirectTerrainCmds.clear();
+                    s_indirectTerrainCmds.reserve(batch.cmds.size());
 
-                uint32_t curFirstIndex = batch.cmds[0].firstIndex;
-                uint32_t curIndexCount = batch.cmds[0].indexCount;
-                int32_t curVertexOffset = batch.cmds[0].vertexOffset;
+                    uint32_t curFirstIndex = batch.cmds[0].firstIndex;
+                    uint32_t curIndexCount = batch.cmds[0].indexCount;
+                    int32_t curVertexOffset = batch.cmds[0].vertexOffset;
 
-                for (size_t i = 1; i < batch.cmds.size(); ++i) {
-                    const auto& nextCmd = batch.cmds[i];
-                    if (nextCmd.vertexOffset == curVertexOffset && (curFirstIndex + curIndexCount == nextCmd.firstIndex)) {
-                        curIndexCount += nextCmd.indexCount;
-                    } else {
-                        if (curIndexCount > 0) {
-                            VkDrawIndexedIndirectCommand icmd{};
-                            icmd.indexCount = curIndexCount;
-                            icmd.instanceCount = 1;
-                            icmd.firstIndex = curFirstIndex;
-                            icmd.vertexOffset = curVertexOffset;
-                            icmd.firstInstance = 0;
-                            s_indirectTerrainCmds.push_back(icmd);
+                    for (size_t i = 1; i < batch.cmds.size(); ++i) {
+                        const auto& nextCmd = batch.cmds[i];
+                        if (nextCmd.vertexOffset == curVertexOffset && (curFirstIndex + curIndexCount == nextCmd.firstIndex)) {
+                            curIndexCount += nextCmd.indexCount;
+                        } else {
+                            if (curIndexCount > 0) {
+                                VkDrawIndexedIndirectCommand icmd{};
+                                icmd.indexCount = curIndexCount;
+                                icmd.instanceCount = 1;
+                                icmd.firstIndex = curFirstIndex;
+                                icmd.vertexOffset = curVertexOffset;
+                                icmd.firstInstance = 0;
+                                s_indirectTerrainCmds.push_back(icmd);
+                            }
+                            curFirstIndex = nextCmd.firstIndex;
+                            curIndexCount = nextCmd.indexCount;
+                            curVertexOffset = nextCmd.vertexOffset;
                         }
-                        curFirstIndex = nextCmd.firstIndex;
-                        curIndexCount = nextCmd.indexCount;
-                        curVertexOffset = nextCmd.vertexOffset;
                     }
-                }
-                if (curIndexCount > 0) {
-                    VkDrawIndexedIndirectCommand icmd{};
-                    icmd.indexCount = curIndexCount;
-                    icmd.instanceCount = 1;
-                    icmd.firstIndex = curFirstIndex;
-                    icmd.vertexOffset = curVertexOffset;
-                    icmd.firstInstance = 0;
-                    s_indirectTerrainCmds.push_back(icmd);
-                }
+                    if (curIndexCount > 0) {
+                        VkDrawIndexedIndirectCommand icmd{};
+                        icmd.indexCount = curIndexCount;
+                        icmd.instanceCount = 1;
+                        icmd.firstIndex = curFirstIndex;
+                        icmd.vertexOffset = curVertexOffset;
+                        icmd.firstInstance = 0;
+                        s_indirectTerrainCmds.push_back(icmd);
+                    }
 
-                if (!s_indirectTerrainCmds.empty()) {
-                    uint32_t byteSize = static_cast<uint32_t>(s_indirectTerrainCmds.size() * sizeof(VkDrawIndexedIndirectCommand));
-                    uint32_t cmdOffset = AllocateIndirectData(res, s_indirectTerrainCmds.data(), byteSize);
-                    if (cmdOffset != UINT32_MAX) {
-                        vkCmdDrawIndexedIndirect(cmd, res.indirectBuffer, cmdOffset, static_cast<uint32_t>(s_indirectTerrainCmds.size()), sizeof(VkDrawIndexedIndirectCommand));
-                        m_drawCallsThisFrame++;
-                    } else {
-                        for (const auto& icmd : s_indirectTerrainCmds) {
-                            vkCmdDrawIndexed(cmd, icmd.indexCount, icmd.instanceCount, icmd.firstIndex, icmd.vertexOffset, icmd.firstInstance);
+                    if (!s_indirectTerrainCmds.empty()) {
+                        uint32_t byteSize = static_cast<uint32_t>(s_indirectTerrainCmds.size() * sizeof(VkDrawIndexedIndirectCommand));
+                        uint32_t cmdOffset = AllocateIndirectData(res, s_indirectTerrainCmds.data(), byteSize);
+                        if (cmdOffset != UINT32_MAX) {
+                            vkCmdDrawIndexedIndirect(cmd, res.indirectBuffer, cmdOffset, static_cast<uint32_t>(s_indirectTerrainCmds.size()), sizeof(VkDrawIndexedIndirectCommand));
                             m_drawCallsThisFrame++;
+                        } else {
+                            for (const auto& icmd : s_indirectTerrainCmds) {
+                                vkCmdDrawIndexed(cmd, icmd.indexCount, icmd.instanceCount, icmd.firstIndex, icmd.vertexOffset, icmd.firstInstance);
+                                m_drawCallsThisFrame++;
+                            }
                         }
                     }
-                }
-            } else
+                } else
 #endif
-            {
-                uint32_t curFirstIndex = batch.cmds[0].firstIndex;
-                uint32_t curIndexCount = batch.cmds[0].indexCount;
-                int32_t curVertexOffset = batch.cmds[0].vertexOffset;
+                {
+                    uint32_t curFirstIndex = batch.cmds[0].firstIndex;
+                    uint32_t curIndexCount = batch.cmds[0].indexCount;
+                    int32_t curVertexOffset = batch.cmds[0].vertexOffset;
+
+                    for (size_t i = 1; i < batch.cmds.size(); ++i) {
+                        const auto& nextCmd = batch.cmds[i];
+                        if (nextCmd.vertexOffset == curVertexOffset && (curFirstIndex + curIndexCount == nextCmd.firstIndex)) {
+                            curIndexCount += nextCmd.indexCount;
+                        } else {
+                            if (curIndexCount > 0) {
+                                vkCmdDrawIndexed(cmd, curIndexCount, 1, curFirstIndex, curVertexOffset, 0);
+                                m_drawCallsThisFrame++;
+                            }
+                            curFirstIndex = nextCmd.firstIndex;
+                            curIndexCount = nextCmd.indexCount;
+                            curVertexOffset = nextCmd.vertexOffset;
+                        }
+                    }
+                    if (curIndexCount > 0) {
+                        vkCmdDrawIndexed(cmd, curIndexCount, 1, curFirstIndex, curVertexOffset, 0);
+                        m_drawCallsThisFrame++;
+                    }
+                }
+            } else {
+                // Non-indexed draw (character meshes, direct sequential vertices)
+                uint32_t curFirstVertex = batch.cmds[0].firstIndex;
+                uint32_t curVertexCount = batch.cmds[0].indexCount;
 
                 for (size_t i = 1; i < batch.cmds.size(); ++i) {
                     const auto& nextCmd = batch.cmds[i];
-                    if (nextCmd.vertexOffset == curVertexOffset && (curFirstIndex + curIndexCount == nextCmd.firstIndex)) {
-                        curIndexCount += nextCmd.indexCount;
+                    if (curFirstVertex + curVertexCount == nextCmd.firstIndex) {
+                        curVertexCount += nextCmd.indexCount;
                     } else {
-                        if (curIndexCount > 0) {
-                            vkCmdDrawIndexed(cmd, curIndexCount, 1, curFirstIndex, curVertexOffset, 0);
+                        if (curVertexCount > 0) {
+                            vkCmdDraw(cmd, curVertexCount, 1, curFirstVertex, 0);
                             m_drawCallsThisFrame++;
                         }
-                        curFirstIndex = nextCmd.firstIndex;
-                        curIndexCount = nextCmd.indexCount;
-                        curVertexOffset = nextCmd.vertexOffset;
+                        curFirstVertex = nextCmd.firstIndex;
+                        curVertexCount = nextCmd.indexCount;
                     }
                 }
-                if (curIndexCount > 0) {
-                    vkCmdDrawIndexed(cmd, curIndexCount, 1, curFirstIndex, curVertexOffset, 0);
+                if (curVertexCount > 0) {
+                    vkCmdDraw(cmd, curVertexCount, 1, curFirstVertex, 0);
                     m_drawCallsThisFrame++;
                 }
             }
@@ -2386,6 +2456,30 @@ void GPUContext::DrawImages(const std::vector<std::pair<ImageBatchKey, std::vect
     DrawImagesPreallocated(baseInstance, instanceSSBOOffset, batchRuns);
 }
 
+static inline VkRect2D ClampScissor(int32_t x, int32_t y, uint32_t width, uint32_t height, VkExtent2D maxExtent)
+{
+    if (maxExtent.width == 0 || maxExtent.height == 0) {
+        return { { 0, 0 }, { 0, 0 } };
+    }
+    int32_t x1 = (std::max)(0, x);
+    int32_t y1 = (std::max)(0, y);
+    int32_t x2 = (std::min)(static_cast<int32_t>(maxExtent.width), (std::max)(0, x + static_cast<int32_t>(width)));
+    int32_t y2 = (std::min)(static_cast<int32_t>(maxExtent.height), (std::max)(0, y + static_cast<int32_t>(height)));
+    if (x2 <= x1 || y2 <= y1) {
+        return { { x1, y1 }, { 0, 0 } };
+    }
+    return { { x1, y1 }, { static_cast<uint32_t>(x2 - x1), static_cast<uint32_t>(y2 - y1) } };
+}
+
+static inline VkViewport ClampViewport(float x, float y, float width, float height, VkExtent2D maxExtent)
+{
+    float w = width;
+    float h = height;
+    if (w <= 0.0f) w = static_cast<float>(maxExtent.width);
+    if (h <= 0.0f) h = static_cast<float>(maxExtent.height);
+    return VkViewport{ (std::max)(0.0f, x), (std::max)(0.0f, y), (std::max)(1.0f, w), (std::max)(1.0f, h), 0.0f, 1.0f };
+}
+
 void GPUContext::ReplaySingleImageDraw(const DeferredImageDraw& draw)
 {
     FrameResource& res = m_frameResources[m_currentFrame];
@@ -2429,7 +2523,7 @@ void GPUContext::ReplaySingleImageDraw(const DeferredImageDraw& draw)
 
         VkRect2D sc;
         if (b.key.scissorEnabled && b.key.scissorW > 0 && b.key.scissorH > 0) {
-            sc = { {b.key.scissorX, b.key.scissorY}, {static_cast<uint32_t>(b.key.scissorW), static_cast<uint32_t>(b.key.scissorH)} };
+            sc = ClampScissor(b.key.scissorX, b.key.scissorY, static_cast<uint32_t>(b.key.scissorW), static_cast<uint32_t>(b.key.scissorH), m_swapchainExtent);
         } else {
             sc = { {0, 0}, m_swapchainExtent };
         }
@@ -2971,19 +3065,26 @@ void GPUContext::ReplayDeferredCommands()
             case DeferredCmdType::SetViewport:
                 if (dcmd.index < m_deferredViewports.size()) {
                     const auto& v = m_deferredViewports[dcmd.index];
-                    VkViewport vp{ v.x, v.y, v.width, v.height, 0.0f, 1.0f };
+                    VkViewport vp = ClampViewport(v.x, v.y, v.width, v.height, m_swapchainExtent);
                     vkCmdSetViewport(cmd, 0, 1, &vp);
                 }
                 break;
             case DeferredCmdType::SetScissor:
                 if (dcmd.index < m_deferredScissors.size()) {
                     const auto& s = m_deferredScissors[dcmd.index];
-                    VkRect2D sc{ { s.x, s.y }, { s.width, s.height } };
+                    VkRect2D sc = ClampScissor(s.x, s.y, s.width, s.height, m_swapchainExtent);
                     vkCmdSetScissor(cmd, 0, 1, &sc);
                 }
                 break;
         }
     }
+
+    m_statLastTerrainDraws = static_cast<uint32_t>(m_deferredTerrainDraws.size());
+    m_statLastMeshDraws = static_cast<uint32_t>(m_deferredMeshDraws.size());
+    m_statLastSpriteDraws = static_cast<uint32_t>(m_deferredSpriteDraws.size());
+    m_statLastImageDraws = static_cast<uint32_t>(m_deferredImageDraws.size());
+    m_statLastTotalCommands = static_cast<uint32_t>(m_deferredCommands.size());
+    m_statLastDrawCalls = m_drawCallsThisFrame;
 
     m_deferredCommands.clear();
     m_deferredTerrainDraws.clear();

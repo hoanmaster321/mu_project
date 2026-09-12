@@ -379,6 +379,8 @@ public:
 
 	// 3D Model / Mesh & Shadow Batching
 	void AddMeshTriangles(int batchType, int textureIndex, int renderFlags, const TerrainVertex_t* verts, uint32_t vertCount);
+	TerrainVertex_t* BeginAddMeshTriangles(int batchType, int textureIndex, int renderFlags, uint32_t maxVertCount);
+	void EndAddMeshTriangles(uint32_t actualVertCount);
 	void FlushMeshBatches();
 	void AddMeshToBatch(const MeshBatchKey& key, Mesh_t* mesh,
 		const MeshInstanceData_t& instanceTemplate,
@@ -454,6 +456,9 @@ private:
 			batch = nullptr;
 		}
 	} m_MeshMRU;
+
+	MeshBatchData* m_pCurrentActiveMeshBatch = nullptr;
+	size_t m_CurrentMeshBatchOldSize = 0;
 
 	// Sprite Buffers
 	uint32_t m_SpriteVAO;

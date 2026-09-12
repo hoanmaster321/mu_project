@@ -251,7 +251,7 @@ bool SEASON3B::CNewKeyInput::IsNone(int iVirtKey)
 {
 #ifdef ASG_FIX_ACTIVATE_APP_INPUT
 	if (!g_bWndActive)
-		return false;
+		return true;
 #endif	// ASG_FIX_ACTIVATE_APP_INPUT
 	return (m_pInputInfo[iVirtKey].byKeyState == KEY_NONE) ? true : false;
 }

@@ -2,6 +2,7 @@
 ///////////////////////////////////////////////////////////////////////////////
 
 #include "stdafx.h"
+#include <algorithm>
 #include "NewUIMainFrameMobile.h"
 #include "GPUContext.h"
 #include "UIManager.h"
@@ -2757,10 +2758,11 @@ int TimePrior = GetTickCount();
 
 #if defined(__ANDROID__) || defined(MU_IOS)
 float target_fps = 60.0f;  // Mobile: default 60fps (was 120, caused thermal throttle)
-#else
-float target_fps = 60.0f;
-#endif
 float ms_per_frame = 1000.f / target_fps;
+#else
+float target_fps = -1.0f; // Windows: uncapped by default for max FPS
+float ms_per_frame = -1.0f;
+#endif
 
 void SetTargetFps(float targetFps)
 {
@@ -2964,57 +2966,114 @@ void MainScene(HDC hDC)
 		}
 		GrabEnable = false;
 
-#if(DEBUG_NOTICE==1) || defined(LDS_FOR_DEVELOPMENT_TESTMODE) || defined(LDS_UNFIXED_FIXEDFRAME_FORDEBUG)
-		BeginBitmap();
-
-		const GLubyte* version = glGetString(GL_VERSION);        // Lấy phiên bản OpenGL
-		const GLubyte* renderer = glGetString(GL_RENDERER);      // Thông tin về GPU đang dùng
-		const GLubyte* vendor = glGetString(GL_VENDOR);          // Thông tin về nhà cung cấp driver
-		const GLubyte* glslVersion = glGetString(GL_SHADING_LANGUAGE_VERSION); // Lấy phiên bản GLSL
-
-
-		unicode::t_char szDebugText[128];
-		unicode::_sprintf(szDebugText, "FPS : %.1f Connected: %d || %s %s %s %s", FPS_AVG, g_bGameServerConnected, version, renderer, vendor, glslVersion);
-		unicode::t_char szMousePos[128];
-		unicode::_sprintf(szMousePos, "MousePos : %d %d %d - Join %d / Point %d / Effect %d / EffectSkill %d", MouseX, MouseY, MouseLButtonPush, mMAX_JOIN, mMAX_POINTS, mMAX_EFFECTS, mMAX_SKILL_EFFECTS);
-		unicode::t_char szCamera3D[128];
-		unicode::_sprintf(szCamera3D, "Camera3D : %.1f %.1f:%.1f:%.1f", CameraFOV, CameraAngle[0], CameraAngle[1], CameraAngle[2]);
-
-		g_pRenderText->SetFont(g_hFontBold);
-		g_pRenderText->SetBgColor(0, 0, 0, 100);
-		g_pRenderText->SetTextColor(255, 255, 255, 200);
-		g_pRenderText->RenderText(10, DisplayHeight - 26, szDebugText);
-		g_pRenderText->RenderText(10, DisplayHeight - 36, szMousePos);
-		g_pRenderText->RenderText(10, DisplayHeight - 46, szCamera3D);
-		g_pRenderText->SetFont(g_hFont);
-		EndBitmap();
-#endif // defined(_DEBUG) || defined(LDS_FOR_DEVELOPMENT_TESTMODE) || defined(LDS_UNFIXED_FIXEDFRAME_FORDEBUG)
-
-#if defined(__ANDROID__) || defined(MU_IOS)
 		if (g_pRenderText != nullptr)
 		{
 			BeginBitmap();
 
-			unicode::t_char szFpsText[32];
-			unicode::_sprintf(szFpsText, "FPS %.1f", FPS_AVG);
+			// 1. Collect character & animation perf snapshot for this frame
+			const CharacterPerfSnapshot charSnap = ConsumeCharacterPerfSnapshot();
+
+			// 2. Track rolling frame times for 1% Low, Min, Max FPS
+			static float s_recentFrameTimes[60] = {};
+			static int s_recentIdx = 0;
+			static float s_onePercentLowFps = 0.0f;
+			static float s_minFps = 0.0f;
+			static float s_maxFps = 0.0f;
+			static DWORD s_lastStatCalcTime = 0;
+
+			const float currentFrameMs = (FPS > 0.1f) ? (1000.0f / (float)FPS) : 16.67f;
+			s_recentFrameTimes[s_recentIdx] = currentFrameMs;
+			s_recentIdx = (s_recentIdx + 1) % 60;
+
+			const DWORD dwNow = GetTickCount();
+			if (dwNow - s_lastStatCalcTime > 500)
+			{
+				s_lastStatCalcTime = dwNow;
+				float sorted[60];
+				memcpy(sorted, s_recentFrameTimes, sizeof(sorted));
+				std::sort(sorted, sorted + 60);
+				// 99th percentile slowest frame time (index 58 out of 60)
+				const float p99Ms = sorted[58];
+				s_onePercentLowFps = (p99Ms > 0.1f) ? (1000.0f / p99Ms) : 0.0f;
+				s_minFps = (sorted[59] > 0.1f) ? (1000.0f / sorted[59]) : 0.0f;
+				s_maxFps = (sorted[0] > 0.1f) ? (1000.0f / sorted[0]) : 0.0f;
+			}
 
 			g_pRenderText->SetFont(g_hFontBold ? g_hFontBold : g_hFont);
-			g_pRenderText->SetBgColor(0, 0, 0, 140);
-			g_pRenderText->SetTextColor(255, 255, 255, 255);
+			g_pRenderText->SetBgColor(0, 0, 0, 170);
 
+			unicode::t_char szLine[256];
+			int hudY = 70; // Placed below player HP/MP HUD
+			const int hudX = 10;
+			const int lineH = 13;
+
+			static float s_smoothFps = 60.0f;
+			if (FPS > 1.0f)
+			{
+				s_smoothFps = s_smoothFps * 0.92f + (float)FPS * 0.08f;
+			}
+			const float displayFps = (FPS_AVG > 5.0) ? (float)FPS_AVG : s_smoothFps;
+
+			// Line 1: Main FPS & Frame Time
+			g_pRenderText->SetTextColor(0, 255, 128, 255); // Green-cyan
+			unicode::_sprintf(szLine, "[BENCHMARK] FPS: %.1f (Inst: %.1f) | Frame: %.2fms | 1%% Low: %.1f | Min: %.1f | Max: %.1f",
+				displayFps, (float)FPS, currentFrameMs, s_onePercentLowFps, s_minFps, s_maxFps);
+			g_pRenderText->RenderText(hudX, hudY, szLine);
+			hudY += lineH;
+
+			// Line 2: GPU Vulkan Info & Draw Calls
+			g_pRenderText->SetTextColor(100, 220, 255, 255); // Cyan
+			const char* presentStr = GPUContext::Instance().IsInitialized() ? GPUContext::Instance().GetPresentModeString() : "OpenGL/Default";
+			const uint32_t drawCalls = GPUContext::Instance().IsInitialized() ? GPUContext::Instance().GetLastDrawCalls() : 0;
+			const uint32_t meshDraws = GPUContext::Instance().IsInitialized() ? GPUContext::Instance().GetLastMeshDraws() : 0;
+			const uint32_t spriteDraws = GPUContext::Instance().IsInitialized() ? GPUContext::Instance().GetLastSpriteDraws() : 0;
+			const uint32_t imgDraws = GPUContext::Instance().IsInitialized() ? GPUContext::Instance().GetLastImageDraws() : 0;
+			const uint32_t terrainDraws = GPUContext::Instance().IsInitialized() ? GPUContext::Instance().GetLastTerrainDraws() : 0;
+			unicode::_sprintf(szLine, "[GPU Vulkan] Mode: %s | Draws: %u (Mesh: %u, Sprite: %u, UI: %u, Ter: %u)",
+				presentStr, drawCalls, meshDraws, spriteDraws, imgDraws, terrainDraws);
+			g_pRenderText->RenderText(hudX, hudY, szLine);
+			hudY += lineH;
+
+			// Line 3: Characters & Culling
+			g_pRenderText->SetTextColor(255, 215, 0, 255); // Gold
+			unicode::_sprintf(szLine, "[Characters] Render: %d (Player: %d, Monster: %d) | Candidates: %d | Culled: %d | Deferred: %d",
+				charSnap.renderRendered, charSnap.renderPlayers, charSnap.renderMonsters,
+				charSnap.renderCandidates, charSnap.renderDistanceCulled, charSnap.renderDeferred);
+			g_pRenderText->RenderText(hudX, hudY, szLine);
+			hudY += lineH;
+
+			// Line 4: CPU Ticks Breakdown
+			g_pRenderText->SetTextColor(255, 180, 180, 255); // Light pink
+			unicode::_sprintf(szLine, "[CPU Ticks] Move: %llu | Render: %llu | Attach: %llu | Shadow: %llu | MonsterObj: %llu",
+				charSnap.moveTicks, charSnap.renderTicks, charSnap.renderAttachmentTicks, charSnap.renderShadowTicks, charSnap.renderMonsterObjectTicks);
+			g_pRenderText->RenderText(hudX, hudY, szLine);
+			hudY += lineH;
+
+			// Line 5: World & Effects
+			g_pRenderText->SetTextColor(230, 230, 230, 255); // Off-white
+			unicode::_sprintf(szLine, "[World %d] Particles: %d | Points: %d | Joints: %d | Effects: %d | FOV: %.1f",
+				gMapManager.WorldActive, mMAX_EFFECTS, mMAX_POINTS, mMAX_JOIN, mMAX_SKILL_EFFECTS, CameraFOV);
+			g_pRenderText->RenderText(hudX, hudY, szLine);
+
+			// Bottom-right Quick FPS badge
+			unicode::t_char szFpsText[32];
+			unicode::_sprintf(szFpsText, "FPS %.1f", FPS_AVG);
+			g_pRenderText->SetTextColor(255, 255, 255, 255);
 			SIZE size = {};
 			g_pMultiLanguage->_GetTextExtentPoint32(
 				g_pRenderText->GetFontDC(),
 				szFpsText,
 				lstrlen(szFpsText),
 				&size);
-
 			const int hudWidth = (DisplayWinReal > 0) ? DisplayWinReal : DisplayWin;
 			const int fpsX = (((hudWidth - size.cx) - 12) > 10) ? ((hudWidth - size.cx) - 12) : 10;
 			g_pRenderText->RenderText(fpsX, DisplayHeight - 26, szFpsText);
+
+			g_pRenderText->SetFont(g_hFont);
 			EndBitmap();
 		}
 
+#if defined(__ANDROID__) || defined(MU_IOS)
 		if (g_pMainFrameMobile != nullptr)
 		{
 			g_pMainFrameMobile->Render();
@@ -3048,36 +3107,22 @@ void MainScene(HDC hDC)
 			}
 		}
 #else
-		const float current_frame_time_ms = current_tick_count - last_render_tick_count;
-		if (ms_per_frame > 0 && current_frame_time_ms > 0 && current_frame_time_ms < ms_per_frame)
+		if (ms_per_frame > 0)
 		{
-			constexpr float min_spin_ms = 1;
-			constexpr float sleep_threshold_ms = 8;
-			const auto rest_ms = ms_per_frame - current_frame_time_ms;
-			auto sleep_ms = rest_ms - min_spin_ms;
-
-			const auto start_sleep = g_pTimer->GetTimeElapsed();
-			if (sleep_ms > sleep_threshold_ms)
+			const uint64_t now_ticks = GetTickCount64();
+			const float elapsed_this_frame_ms = static_cast<float>(now_ticks - current_tick_count);
+			if (elapsed_this_frame_ms < ms_per_frame)
 			{
-				// In my tests, it sleeps either for nearly 0 ms, or for about 10 ms ...
-				std::this_thread::sleep_for(std::chrono::milliseconds(static_cast<long>(sleep_ms)));
-			}
-
-			const auto actual_sleep_ms = g_pTimer->GetTimeElapsed() - start_sleep;
-			const auto start_spin = g_pTimer->GetTimeElapsed();
-			const auto spin_ms = rest_ms - actual_sleep_ms;
-
-			while (true)
-			{
-				const auto current = g_pTimer->GetTimeElapsed();
-				const auto spinned_ms = current - start_spin;
-				if (spinned_ms >= spin_ms)
+				const float rest_ms = ms_per_frame - elapsed_this_frame_ms;
+				if (rest_ms > 2.0f)
 				{
-					break;
+					std::this_thread::sleep_for(std::chrono::milliseconds(static_cast<long>(rest_ms - 1.5f)));
+				}
+				while (static_cast<float>(GetTickCount64() - current_tick_count) < ms_per_frame)
+				{
+					// Accurate spin for remainder
 				}
 			}
-
-			current_tick_count += static_cast<int>(rest_ms);
 		}
 #endif
 

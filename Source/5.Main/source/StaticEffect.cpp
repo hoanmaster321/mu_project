@@ -18,6 +18,7 @@ CCustomWingEffect gCustomWingEffect;
 CCustomWingEffect::CCustomWingEffect() // OK
 {
 	this->m_CustomWingEffectInfo.clear();
+	this->m_CustomWingByItemIndex.clear();
 }
 
 CCustomWingEffect::~CCustomWingEffect() // OK
@@ -27,6 +28,8 @@ CCustomWingEffect::~CCustomWingEffect() // OK
 
 void CCustomWingEffect::Load(CUSTOM_WING_EFFECT_INFO* info) // OK
 {
+	this->m_CustomWingEffectInfo.clear();
+	this->m_CustomWingByItemIndex.clear();
 	for(int n=0;n < MAX_DYNAMIC_WING_EFFECT;n++)
 	{
 		if(info[n].Index < 0 || info[n].Index >= MAX_DYNAMIC_WING_EFFECT)
@@ -35,6 +38,7 @@ void CCustomWingEffect::Load(CUSTOM_WING_EFFECT_INFO* info) // OK
 		}
 
 		this->m_CustomWingEffectInfo.insert(std::pair<int,CUSTOM_WING_EFFECT_INFO>(info[n].Index,info[n]));
+		this->m_CustomWingByItemIndex[info[n].ItemIndex].push_back(info[n]);
 	}
 }
 

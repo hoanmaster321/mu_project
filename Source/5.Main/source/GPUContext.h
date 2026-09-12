@@ -294,7 +294,23 @@ public:
     bool IsInitialized() const { return m_initialized; }
     bool IsFrameActive() const { return m_frameActive; }
     uint32_t GetDrawCallsThisFrame() const { return m_drawCallsThisFrame; }
+    uint32_t GetLastDrawCalls() const { return m_statLastDrawCalls; }
     const VkExtent2D& GetSwapchainExtent() const { return m_swapchainExtent; }
+    VkPresentModeKHR GetPresentMode() const { return m_presentMode; }
+    const char* GetPresentModeString() const {
+        switch (m_presentMode) {
+            case VK_PRESENT_MODE_IMMEDIATE_KHR: return "IMMEDIATE (Unlocked)";
+            case VK_PRESENT_MODE_MAILBOX_KHR: return "MAILBOX (Fast VSync)";
+            case VK_PRESENT_MODE_FIFO_KHR: return "FIFO (VSync)";
+            case VK_PRESENT_MODE_FIFO_RELAXED_KHR: return "FIFO_RELAXED";
+            default: return "UNKNOWN";
+        }
+    }
+    uint32_t GetLastTerrainDraws() const { return m_statLastTerrainDraws; }
+    uint32_t GetLastMeshDraws() const { return m_statLastMeshDraws; }
+    uint32_t GetLastSpriteDraws() const { return m_statLastSpriteDraws; }
+    uint32_t GetLastImageDraws() const { return m_statLastImageDraws; }
+    uint32_t GetLastTotalCommands() const { return m_statLastTotalCommands; }
 
 private:
     GPUContext();
@@ -337,14 +353,14 @@ private:
         VkDeviceMemory vertexMemory = VK_NULL_HANDLE;
         void* vertexMapped = nullptr;
         uint32_t vertexOffset = 0;
-        uint32_t vertexCapacity = 16 * 1024 * 1024; // 16 MB
+        uint32_t vertexCapacity = 128 * 1024 * 1024; // 128 MB (supports up to ~5.59M vertices)
 
         // Dynamic Index Buffer
         VkBuffer indexBuffer = VK_NULL_HANDLE;
         VkDeviceMemory indexMemory = VK_NULL_HANDLE;
         void* indexMapped = nullptr;
         uint32_t indexOffset = 0;
-        uint32_t indexCapacity = 4 * 1024 * 1024; // 4 MB
+        uint32_t indexCapacity = 32 * 1024 * 1024; // 32 MB (supports up to ~8.38M indices)
 
         // Dynamic Instance SSBO (Set 0 Binding 0)
         VkBuffer instanceSSBO = VK_NULL_HANDLE;
@@ -496,6 +512,13 @@ private:
     bool m_frameActive = false;
     bool m_renderPassActive = false;
     uint32_t m_drawCallsThisFrame = 0;
+    VkPresentModeKHR m_presentMode = VK_PRESENT_MODE_FIFO_KHR;
+    uint32_t m_statLastTerrainDraws = 0;
+    uint32_t m_statLastMeshDraws = 0;
+    uint32_t m_statLastSpriteDraws = 0;
+    uint32_t m_statLastImageDraws = 0;
+    uint32_t m_statLastTotalCommands = 0;
+    uint32_t m_statLastDrawCalls = 0;
 
     // Screenshot
     bool m_screenshotRequested = false;

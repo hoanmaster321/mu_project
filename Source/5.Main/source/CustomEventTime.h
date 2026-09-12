@@ -3,12 +3,8 @@
 #include "Protocol.h"
 #include "CBInterface.h"
 
-#if defined(__ANDROID__) || defined(MU_IOS)
-extern DWORD gAndroidSetCursorFocus;
-#define pSetCursorFocus			gAndroidSetCursorFocus
-#else
-#define pSetCursorFocus			*(DWORD*)0xE8CB3C
-#endif
+extern DWORD g_pSetCursorFocus;
+#define pSetCursorFocus			g_pSetCursorFocus
 
 #define MAX_EVENTTIME 42
 

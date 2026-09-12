@@ -2685,6 +2685,18 @@ void CUIRenderText::SetFont(HFONT hFont)
 		m_pRenderText->SetFont(hFont);
 }
 
+void CUIRenderText::ClearCache()
+{
+	if(m_pRenderText)
+		m_pRenderText->ClearCache();
+}
+
+void CUIRenderText::OnBeginFrame()
+{
+	if(m_pRenderText)
+		m_pRenderText->OnBeginFrame();
+}
+
 void CUIRenderText::RenderText(int iPos_x, int iPos_y, const char* pszText, int iBoxWidth /* = 0 */, int iBoxHeight /* = 0 */, int iSort /* = RT3_SORT_LEFT */, OUT SIZE* lpTextSize /* = NULL */)
 {
 
@@ -2699,40 +2711,100 @@ CUIRenderTextOriginal::CUIRenderTextOriginal()
 	m_hBitmap = NULL;
 	m_pFontBuffer = NULL;
 	m_dwTextColor = m_dwBackColor = 0;
+	m_hCurrentFont = NULL;
+	m_fCachedScreenRateX = 0.0f;
+	m_fCachedScreenRateY = 0.0f;
+	m_currentFrame = 1;
+	m_iAllocatedWidth = 0;
+	m_iAllocatedHeight = 0;
+	m_iPitch = 0;
+	m_dwBufferSize = 0;
+	m_hOriginalDC = NULL;
+	ClearCache();
 }
 CUIRenderTextOriginal::~CUIRenderTextOriginal() { Release(); }
 
+bool CUIRenderTextOriginal::RecreateBitmap(int width, int height)
+{
+	if (width <= 0 || height <= 0) return false;
+	if (m_hBitmap != NULL && m_iAllocatedWidth >= width && m_iAllocatedHeight >= height)
+	{
+		return true;
+	}
+
+	int newWidth = (std::max)(width, m_iAllocatedWidth);
+	int newHeight = (std::max)(height, m_iAllocatedHeight);
+	if (newWidth < 1920) newWidth = 1920;
+	if (newHeight < 1080) newHeight = 1080;
+
+	BITMAPINFO dibInfo{};
+	dibInfo.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+	dibInfo.bmiHeader.biWidth = newWidth;
+	dibInfo.bmiHeader.biHeight = -newHeight;
+	dibInfo.bmiHeader.biPlanes = 1;
+	dibInfo.bmiHeader.biBitCount = 24;
+	dibInfo.bmiHeader.biCompression = BI_RGB;
+
+	BYTE* newBuffer = NULL;
+	HDC refDC = m_hFontDC ? m_hFontDC : m_hOriginalDC;
+	HBITMAP newBitmap = CreateDIBSection(refDC, &dibInfo, DIB_RGB_COLORS, (void**)&newBuffer, NULL, NULL);
+	if (!newBitmap || !newBuffer)
+	{
+		return false;
+	}
+
+	if (m_hFontDC)
+	{
+		SelectObject(m_hFontDC, newBitmap);
+	}
+	if (m_hBitmap)
+	{
+		DeleteObject(m_hBitmap);
+	}
+
+	m_hBitmap = newBitmap;
+	m_pFontBuffer = newBuffer;
+	m_iAllocatedWidth = newWidth;
+	m_iAllocatedHeight = newHeight;
+	m_iPitch = ((newWidth * 24 + 31) & ~31) >> 3;
+	m_dwBufferSize = static_cast<DWORD>(m_iPitch * newHeight);
+
+	ClearCache();
+	return true;
+}
+
 bool CUIRenderTextOriginal::Create(HDC hDC)
 {
-	BITMAPINFO* DIB_INFO;
-    DIB_INFO = (BITMAPINFO*)new BYTE[ sizeof(BITMAPINFOHEADER) + sizeof(PALETTEENTRY) * 256 ];
-    memset( DIB_INFO, 0x00, sizeof(BITMAPINFOHEADER) );
-    DIB_INFO->bmiHeader.biSize        = sizeof(BITMAPINFOHEADER);
-    DIB_INFO->bmiHeader.biWidth       = 640*g_fScreenRate_x;		//. 640
-	DIB_INFO->bmiHeader.biHeight      = -(480*g_fScreenRate_y);		//. 480
-    DIB_INFO->bmiHeader.biPlanes      = 1;
-    DIB_INFO->bmiHeader.biBitCount    = 24;
-    DIB_INFO->bmiHeader.biCompression = BI_RGB;
-	
-	m_hBitmap = CreateDIBSection(hDC, DIB_INFO, DIB_RGB_COLORS, (void**)&m_pFontBuffer, NULL, NULL);
+	m_hOriginalDC = hDC;
 	m_hFontDC = CreateCompatibleDC(hDC);
-	SelectObject(m_hFontDC, m_hBitmap);
-	SelectObject(m_hFontDC, g_hFont);
-	m_dwBackColor = 0;				//. Default Background Color;
-	m_dwTextColor = 0xFFFFFFFF;		//. Default Text Color
-	m_TypeShadow = 0;
-	
-	delete [] DIB_INFO;
-	
-	if(NULL == m_hFontDC || NULL == m_hBitmap) 
+	if (!m_hFontDC)
 	{
 		Release();
 		return false;
 	}
+
+	int targetW = static_cast<int>(640 * g_fScreenRate_x);
+	int targetH = static_cast<int>(480 * g_fScreenRate_y);
+	if (!RecreateBitmap(targetW, targetH))
+	{
+		Release();
+		return false;
+	}
+
+	SelectObject(m_hFontDC, g_hFont);
+	m_hCurrentFont = g_hFont;
+	m_fCachedScreenRateX = g_fScreenRate_x;
+	m_fCachedScreenRateY = g_fScreenRate_y;
+	ClearCache();
+	m_dwBackColor = 0;				// Default Background Color
+	m_dwTextColor = 0xFFFFFFFF;		// Default Text Color
+	m_TypeShadow = 0;
+
 	return true;
 }
 void CUIRenderTextOriginal::Release()
 {
+	ClearCache();
 	if (m_hFontDC != NULL)
 	{
 		DeleteDC(m_hFontDC);
@@ -2744,6 +2816,94 @@ void CUIRenderTextOriginal::Release()
 		DeleteObject(m_hBitmap);
 		m_hBitmap = NULL;
 	}
+	m_iAllocatedWidth = 0;
+	m_iAllocatedHeight = 0;
+	m_iPitch = 0;
+	m_dwBufferSize = 0;
+}
+
+void CUIRenderTextOriginal::ClearCache()
+{
+	m_textCache.clear();
+	for (uint32_t i = 0; i < CACHE_FONT_SLOTS; ++i)
+	{
+		m_slots[i].allocated = false;
+		m_slots[i].lastFrame = 0;
+		m_slots[i].key = TextCacheKey{};
+	}
+}
+
+void CUIRenderTextOriginal::OnBeginFrame()
+{
+	m_currentFrame++;
+	int targetW = static_cast<int>(640 * g_fScreenRate_x);
+	int targetH = static_cast<int>(480 * g_fScreenRate_y);
+	if (m_fCachedScreenRateX != g_fScreenRate_x || m_fCachedScreenRateY != g_fScreenRate_y ||
+	    targetW > m_iAllocatedWidth || targetH > m_iAllocatedHeight)
+	{
+		RecreateBitmap(targetW, targetH);
+		m_fCachedScreenRateX = g_fScreenRate_x;
+		m_fCachedScreenRateY = g_fScreenRate_y;
+	}
+}
+
+uint32_t CUIRenderTextOriginal::AllocateSlot(const TextCacheKey& key)
+{
+	for (uint32_t i = 0; i < CACHE_FONT_SLOTS; ++i)
+	{
+		if (!m_slots[i].allocated)
+		{
+			m_slots[i].allocated = true;
+			m_slots[i].lastFrame = m_currentFrame;
+			m_slots[i].key = key;
+			return i;
+		}
+	}
+
+	uint32_t oldestSlot = 0;
+	uint32_t oldestFrame = 0xFFFFFFFF;
+	bool found = false;
+
+	for (uint32_t i = 0; i < CACHE_FONT_SLOTS; ++i)
+	{
+		if (m_slots[i].lastFrame < m_currentFrame && m_slots[i].lastFrame < oldestFrame)
+		{
+			oldestFrame = m_slots[i].lastFrame;
+			oldestSlot = i;
+			found = true;
+		}
+	}
+
+	if (!found)
+	{
+		oldestSlot = 0;
+	}
+
+	EvictSlot(oldestSlot);
+	m_slots[oldestSlot].allocated = true;
+	m_slots[oldestSlot].lastFrame = m_currentFrame;
+	m_slots[oldestSlot].key = key;
+	return oldestSlot;
+}
+
+void CUIRenderTextOriginal::EvictSlot(uint32_t slot)
+{
+	if (slot >= CACHE_FONT_SLOTS || !m_slots[slot].allocated) return;
+	auto it = m_textCache.find(m_slots[slot].key);
+	if (it != m_textCache.end())
+	{
+		for (const auto& sec : it->second.sections)
+		{
+			if (sec.slotIndex < CACHE_FONT_SLOTS && sec.slotIndex != slot)
+			{
+				m_slots[sec.slotIndex].allocated = false;
+				m_slots[sec.slotIndex].key = TextCacheKey{};
+			}
+		}
+		m_textCache.erase(it);
+	}
+	m_slots[slot].allocated = false;
+	m_slots[slot].key = TextCacheKey{};
 }
 
 HDC CUIRenderTextOriginal::GetFontDC() const { return m_hFontDC; }
@@ -2764,14 +2924,28 @@ void CUIRenderTextOriginal::SetBgColor(BYTE byRed, BYTE byGreen, BYTE byBlue, BY
 void CUIRenderTextOriginal::SetShadowText(int Type) { m_TypeShadow = Type; }
 void CUIRenderTextOriginal::SetBgColor(DWORD dwColor) { m_dwBackColor = dwColor; }
 
-void CUIRenderTextOriginal::SetFont(HFONT hFont) { SelectObject(m_hFontDC, hFont); }
+void CUIRenderTextOriginal::SetFont(HFONT hFont)
+{
+	if (m_hCurrentFont != hFont)
+	{
+		m_hCurrentFont = hFont;
+		SelectObject(m_hFontDC, hFont);
+	}
+}
 
 void CUIRenderTextOriginal::WriteText(int iOffset, int iWidth, int iHeight)
 {
+	WriteTextWhite(iOffset, iWidth, iHeight);
+}
+
+void CUIRenderTextOriginal::WriteTextWhite(int iOffset, int iWidth, int iHeight)
+{
 	const int LIMIT_WIDTH = 256, LIMIT_HEIGHT = 32;
-	
-	SIZE FontDCSize = { (LONG)(640*g_fScreenRate_x), (LONG)(480*g_fScreenRate_y) };
-	int iPitch = ((FontDCSize.cx*24+31)&~31)>>3;
+
+	if (!m_pFontBuffer || m_dwBufferSize == 0)
+	{
+		return;
+	}
 
 	BITMAP_t * pBitmapFont = &Bitmaps[BITMAP_FONT];
 	if (!pBitmapFont->Buffer)
@@ -2781,44 +2955,48 @@ void CUIRenderTextOriginal::WriteText(int iOffset, int iWidth, int iHeight)
 		pBitmapFont->Height = LIMIT_HEIGHT;
 		pBitmapFont->Components = 4;
 	}
-	if (!m_pFontBuffer)
+
+	memset(pBitmapFont->Buffer, 0, LIMIT_WIDTH * LIMIT_HEIGHT * 4);
+
+	int iPitch = m_iPitch;
+	if (iPitch <= 0)
 	{
-		return;
+		SIZE FontDCSize = { (LONG)(640 * g_fScreenRate_x), (LONG)(480 * g_fScreenRate_y) };
+		iPitch = ((FontDCSize.cx * 24 + 31) & ~31) >> 3;
 	}
 
-	const int maxSrcIndex = iPitch * FontDCSize.cy;
+	const int maxSrcIndex = static_cast<int>(m_dwBufferSize);
 	const int maxDstIndex = LIMIT_WIDTH * 4 * LIMIT_HEIGHT;
 
-	for(int y = 0; y < iHeight; ++y)
+	int actualH = (iHeight > LIMIT_HEIGHT) ? LIMIT_HEIGHT : iHeight;
+	int actualW = (iWidth > LIMIT_WIDTH) ? LIMIT_WIDTH : iWidth;
+
+	for(int y = 0; y < actualH; ++y)
 	{
-		int SrcIndex = y*iPitch+iOffset;
-		int DstIndex = y * LIMIT_WIDTH*4;
-		for(int x = 0; x < iWidth; ++x)
+		int SrcIndex = y * iPitch + iOffset;
+		int DstIndex = y * LIMIT_WIDTH * 4;
+		for(int x = 0; x < actualW; ++x)
 		{
 			if((SrcIndex + 3 > maxSrcIndex) || (DstIndex + 4 > maxDstIndex))
 			{
-#ifdef _DEBUG
-				__asm { int 3 };
-#endif // _DEBUG
 				return;
 			}
 
-			if(*(m_pFontBuffer+SrcIndex) == 255)	// glyph
+			BYTE r = *(m_pFontBuffer + SrcIndex);
+			BYTE g = *(m_pFontBuffer + SrcIndex + 1);
+			BYTE b = *(m_pFontBuffer + SrcIndex + 2);
+
+			if (r == 255 && g == 255 && b == 255)
 			{
-				*((unsigned int *)(pBitmapFont->Buffer + DstIndex)) = m_dwTextColor;
+				*((unsigned int *)(pBitmapFont->Buffer + DstIndex)) = 0xFFFFFFFF;
 			}
-			else if(*(m_pFontBuffer+SrcIndex) != 0)
+			else if (r != 0 || g != 0 || b != 0)
 			{
-				DWORD alpha = *(m_pFontBuffer+SrcIndex);
-				alpha += *(m_pFontBuffer+SrcIndex+1);
-				alpha += *(m_pFontBuffer+SrcIndex+2);
-				alpha /= 3;
-				alpha <<= 24;
-				*((unsigned int *)(pBitmapFont->Buffer + DstIndex)) = (m_dwTextColor & 0x00FFFFFF) | (m_dwTextColor & alpha);
+				DWORD alpha = (DWORD)(r + g + b) / 3;
+				*((unsigned int *)(pBitmapFont->Buffer + DstIndex)) = 0x00FFFFFF | (alpha << 24);
 			}
 			else
 			{
-				//*((unsigned int *)(pBitmapFont->Buffer + DstIndex)) = m_dwBackColor;
 				*((unsigned int *)(pBitmapFont->Buffer + DstIndex)) = 0;
 			}
 			SrcIndex += 3;
@@ -2826,8 +3004,12 @@ void CUIRenderTextOriginal::WriteText(int iOffset, int iWidth, int iHeight)
 		}
 	}
 }
+
 void CUIRenderTextOriginal::UploadText(int sx,int sy,int Width,int Height)
 {
+	float initialColor[4];
+	memcpy(initialColor, g_CurrentGLColor, sizeof(initialColor));
+
 	BITMAP_t *b = &Bitmaps[BITMAP_FONT];
 	if (!b->Buffer || b->Width <= 0 || b->Height <= 0)
 	{
@@ -2867,29 +3049,27 @@ void CUIRenderTextOriginal::UploadText(int sx,int sy,int Width,int Height)
 		float atlasUWidth = ((Width + 0.01f) / b->Width) * atlasScaleU;
 		float atlasVHeight = ((Height + 0.01f) / b->Height) * atlasScaleV;
 
-		//== Font GL
+		BYTE textAlpha = GetAlpha(m_dwTextColor);
+		if (textAlpha == 0) textAlpha = 255;
+
+		float textR = ((float)GetRed(m_dwTextColor) / 255.0f) * initialColor[0];
+		float textG = ((float)GetGreen(m_dwTextColor) / 255.0f) * initialColor[1];
+		float textB = ((float)GetBlue(m_dwTextColor) / 255.0f) * initialColor[2];
+		float textA = ((float)textAlpha / 255.0f) * initialColor[3];
+
 		if (m_TypeShadow)
 		{
-			GLfloat ColorFont[4];
-			glGetFloatv(GL_CURRENT_COLOR, ColorFont);
-			glColor4f(0.0, 0.0, 0.0, 0.75);
-			if (m_TypeShadow == 1)
-			{
-				RenderBitmap(BITMAP_FONT_DYNAMIC_ATLAS, (float)sx - 0.5, (float)sy - 0.5, (float)Width, (float)Height, atlasU, atlasV, atlasUWidth, atlasVHeight, false, false);
-				RenderBitmap(BITMAP_FONT_DYNAMIC_ATLAS, (float)sx - 0.5, (float)sy + 0.5, (float)Width, (float)Height, atlasU, atlasV, atlasUWidth, atlasVHeight, false, false);
-				RenderBitmap(BITMAP_FONT_DYNAMIC_ATLAS, (float)sx + 0.5, (float)sy - 0.5, (float)Width, (float)Height, atlasU, atlasV, atlasUWidth, atlasVHeight, false, false);
-				RenderBitmap(BITMAP_FONT_DYNAMIC_ATLAS, (float)sx + 0.5, (float)sy + 0.5, (float)Width, (float)Height, atlasU, atlasV, atlasUWidth, atlasVHeight, false, false);
-			}
-			else 
-			{
-				RenderBitmap(BITMAP_FONT_DYNAMIC_ATLAS, (float)sx - 1.45, (float)sy - 1.45, (float)Width, (float)Height, atlasU, atlasV, atlasUWidth, atlasVHeight, false, false);
-				RenderBitmap(BITMAP_FONT_DYNAMIC_ATLAS, (float)sx - 1.45, (float)sy + 1.45, (float)Width, (float)Height, atlasU, atlasV, atlasUWidth, atlasVHeight, false, false);
-				RenderBitmap(BITMAP_FONT_DYNAMIC_ATLAS, (float)sx + 1.45, (float)sy - 1.45, (float)Width, (float)Height, atlasU, atlasV, atlasUWidth, atlasVHeight, false, false);
-				RenderBitmap(BITMAP_FONT_DYNAMIC_ATLAS, (float)sx + 1.45, (float)sy + 1.45, (float)Width, (float)Height, atlasU, atlasV, atlasUWidth, atlasVHeight, false, false);
-			}
-			glColor4fv(ColorFont);
+			float shadowAlpha = 0.75f * textA;
+			glColor4f(0.0f, 0.0f, 0.0f, shadowAlpha);
+			float off = (m_TypeShadow == 1) ? 0.5f : 1.45f;
+			RenderBitmap(BITMAP_FONT_DYNAMIC_ATLAS, (float)sx - off, (float)sy - off, (float)Width, (float)Height, atlasU, atlasV, atlasUWidth, atlasVHeight, false, false);
+			RenderBitmap(BITMAP_FONT_DYNAMIC_ATLAS, (float)sx - off, (float)sy + off, (float)Width, (float)Height, atlasU, atlasV, atlasUWidth, atlasVHeight, false, false);
+			RenderBitmap(BITMAP_FONT_DYNAMIC_ATLAS, (float)sx + off, (float)sy - off, (float)Width, (float)Height, atlasU, atlasV, atlasUWidth, atlasVHeight, false, false);
+			RenderBitmap(BITMAP_FONT_DYNAMIC_ATLAS, (float)sx + off, (float)sy + off, (float)Width, (float)Height, atlasU, atlasV, atlasUWidth, atlasVHeight, false, false);
 		}
+		glColor4f(textR, textG, textB, textA);
 		RenderBitmap(BITMAP_FONT_DYNAMIC_ATLAS, (float)sx, (float)sy, (float)Width, (float)Height, atlasU, atlasV, atlasUWidth, atlasVHeight, false, false);
+		glColor4fv(initialColor);
 	}
 }
 
@@ -2904,14 +3084,29 @@ void CUIRenderTextOriginal::RenderText(int iPos_x, int iPos_y, const unicode::t_
 		if (lpTextSize) { lpTextSize->cx = 0; lpTextSize->cy = 0; }
 		return;
 	}
-	
+
+	float initialColor[4];
+	memcpy(initialColor, g_CurrentGLColor, sizeof(initialColor));
+
+	const int LIMIT_WIDTH = 256;
+
+	// Check if already in cache (with clipMove = 0 initially to query text dimensions)
+	TextCacheKey key{ pszText, m_hCurrentFont, 0 };
+	auto it = m_textCache.find(key);
 	SIZE RealTextSize;
 
-	if (pszText[0] == '\0') 
-		g_pMultiLanguage->_GetTextExtentPoint32(m_hFontDC, "0", 1, &RealTextSize);
-	else 
-		g_pMultiLanguage->_GetTextExtentPoint32(m_hFontDC,pszText,lstrlen(pszText),&RealTextSize);
-	
+	if (it != m_textCache.end())
+	{
+		RealTextSize = it->second.realTextSize;
+	}
+	else
+	{
+		if (pszText[0] == '\0') 
+			g_pMultiLanguage->_GetTextExtentPoint32(m_hFontDC, "0", 1, &RealTextSize);
+		else 
+			g_pMultiLanguage->_GetTextExtentPoint32(m_hFontDC, pszText, lstrlen(pszText), &RealTextSize);
+	}
+
 	MU_POINTF RealBoxPos = { (float)iPos_x*g_fScreenRate_x, (float)iPos_y*g_fScreenRate_y };
 	SIZEF RealBoxSize = { (float)iBoxWidth*g_fScreenRate_x, (float)iBoxHeight*g_fScreenRate_y };
 	SIZEF RealRenderingSize = { (long)RealTextSize.cx, (long)RealTextSize.cy };	
@@ -2988,8 +3183,6 @@ void CUIRenderTextOriginal::RenderText(int iPos_x, int iPos_y, const unicode::t_
 		RealBoxPos.x -= (RealBoxSize.cx/2);
 	}
 
-	const int LIMIT_WIDTH = 256;
-
 	if(m_dwBackColor != 0)
 	{
 		EnableAlphaTest();
@@ -3000,22 +3193,119 @@ void CUIRenderTextOriginal::RenderText(int iPos_x, int iPos_y, const unicode::t_
 		EndRenderColor();
 	}
 
-	if(pszText[0] != 0x0a)
+	// Now check cache with exact iClipMove
+	key.clipMove = iClipMove;
+	it = m_textCache.find(key);
+	if (it == m_textCache.end())
 	{
-		::SetBkColor(m_hFontDC, RGB(0, 0, 0));
-		::SetTextColor(m_hFontDC, RGB(255,255,255));
-		g_pMultiLanguage->_TextOut(m_hFontDC, 0, 0, pszText, lstrlen(pszText));
+		if (pszText[0] != 0x0a)
+		{
+			::SetBkColor(m_hFontDC, RGB(0, 0, 0));
+			::SetTextColor(m_hFontDC, RGB(255, 255, 255));
+			g_pMultiLanguage->_TextOut(m_hFontDC, 0, 0, pszText, lstrlen(pszText));
+		}
+
+		TextCacheItem newItem{};
+		newItem.realTextSize = RealTextSize;
+		newItem.lastFrame = m_currentFrame;
+
+		int iRealRenderWidth = RealRenderingSize.cx;
+		int iNumberOfSections = ComputeSectionCount(iRealRenderWidth, LIMIT_WIDTH);
+		for (int i = 0; i < iNumberOfSections; ++i)
+		{
+			int secWidth = ComputeSectionSpan(iRealRenderWidth, LIMIT_WIDTH, i, iNumberOfSections);
+			int secHeight = RealRenderingSize.cy;
+
+			WriteTextWhite(LIMIT_WIDTH * i * 3 + iClipMove * 3, secWidth, secHeight);
+
+			BITMAP_t* b = &Bitmaps[BITMAP_FONT];
+			uint32_t slot = AllocateSlot(key);
+			auto uv = VulkanTextureManager::Instance().UploadFontSlotSpecific(slot, b->Buffer, b->Width, secWidth, secHeight);
+
+			TextCacheSection sec{};
+			sec.slotUV = uv;
+			sec.width = secWidth;
+			sec.height = secHeight;
+			sec.slotIndex = slot;
+			newItem.sections.push_back(sec);
+		}
+
+		it = m_textCache.emplace(key, std::move(newItem)).first;
 	}
-	
-	int iRealRenderWidth = RealRenderingSize.cx;
-	int iNumberOfSections = ComputeSectionCount(iRealRenderWidth, LIMIT_WIDTH);
-		for(int i=0; i<iNumberOfSections; i++)
+	else
 	{
-		SIZE RealSectionLine = { (long)ComputeSectionSpan(iRealRenderWidth, LIMIT_WIDTH, i, iNumberOfSections), (long)RealRenderingSize.cy };
-		
-		WriteText(LIMIT_WIDTH*i*3 + iClipMove*3, RealSectionLine.cx, RealSectionLine.cy);
-		UploadText(RealBoxPos.x+LIMIT_WIDTH*i+iTab, RealBoxPos.y, RealSectionLine.cx, RealSectionLine.cy);
+		it->second.lastFrame = m_currentFrame;
+		for (const auto& sec : it->second.sections)
+		{
+			if (sec.slotIndex < CACHE_FONT_SLOTS)
+				m_slots[sec.slotIndex].lastFrame = m_currentFrame;
+		}
 	}
+
+	BYTE textAlpha = GetAlpha(m_dwTextColor);
+	if (textAlpha == 0) textAlpha = 255;
+
+	float textR = ((float)GetRed(m_dwTextColor) / 255.0f) * initialColor[0];
+	float textG = ((float)GetGreen(m_dwTextColor) / 255.0f) * initialColor[1];
+	float textB = ((float)GetBlue(m_dwTextColor) / 255.0f) * initialColor[2];
+	float textA = ((float)textAlpha / 255.0f) * initialColor[3];
+
+	for (size_t i = 0; i < it->second.sections.size(); ++i)
+	{
+		const auto& sec = it->second.sections[i];
+		int sx = (int)(RealBoxPos.x + LIMIT_WIDTH * (int)i + iTab);
+		int sy = (int)RealBoxPos.y;
+		int width = sec.width;
+		int height = sec.height;
+
+		float TextureU = 0.f, TextureV = 0.f;
+		if (sx < 0)
+		{
+			TextureU = (-sx + 0.01f) / 256.0f;
+			width += sx;
+			sx = 0;
+		}
+		else if (sx + width > (int)WindowWidth)
+		{
+			width = (int)WindowWidth - sx;
+		}
+		if (sy < 0)
+		{
+			TextureV = (-sy + 0.01f) / 32.0f;
+			height += sy;
+			sy = 0;
+		}
+		else if (sy + height > (int)WindowHeight)
+		{
+			height = (int)WindowHeight - sy;
+		}
+
+		if (width > 0 && height > 0 && sx + width > 0 && sy + height > 0)
+		{
+			float atlasScaleU = 256.0f / (float)FONT_ATLAS_WIDTH;
+			float atlasScaleV = 32.0f / (float)FONT_ATLAS_HEIGHT;
+			float atlasU = sec.slotUV.u0 + TextureU * atlasScaleU;
+			float atlasV = sec.slotUV.v0 + TextureV * atlasScaleV;
+			float atlasUWidth = ((width + 0.01f) / 256.0f) * atlasScaleU;
+			float atlasVHeight = ((height + 0.01f) / 32.0f) * atlasScaleV;
+
+			if (m_TypeShadow)
+			{
+				float shadowAlpha = 0.75f * textA;
+				glColor4f(0.0f, 0.0f, 0.0f, shadowAlpha);
+				float off = (m_TypeShadow == 1) ? 0.5f : 1.45f;
+				RenderBitmap(BITMAP_FONT_DYNAMIC_ATLAS, (float)sx - off, (float)sy - off, (float)width, (float)height, atlasU, atlasV, atlasUWidth, atlasVHeight, false, false);
+				RenderBitmap(BITMAP_FONT_DYNAMIC_ATLAS, (float)sx - off, (float)sy + off, (float)width, (float)height, atlasU, atlasV, atlasUWidth, atlasVHeight, false, false);
+				RenderBitmap(BITMAP_FONT_DYNAMIC_ATLAS, (float)sx + off, (float)sy - off, (float)width, (float)height, atlasU, atlasV, atlasUWidth, atlasVHeight, false, false);
+				RenderBitmap(BITMAP_FONT_DYNAMIC_ATLAS, (float)sx + off, (float)sy + off, (float)width, (float)height, atlasU, atlasV, atlasUWidth, atlasVHeight, false, false);
+			}
+
+			glColor4f(textR, textG, textB, textA);
+			RenderBitmap(BITMAP_FONT_DYNAMIC_ATLAS, (float)sx, (float)sy, (float)width, (float)height, atlasU, atlasV, atlasUWidth, atlasVHeight, false, false);
+		}
+	}
+
+	glColor4fv(initialColor);
 
 	if(lpTextSize)
 	{
@@ -3612,6 +3902,7 @@ void CUITextInputBox::UploadText(int sx,int sy,int Width,int Height)
 		float atlasUWidth = ((Width + 0.01f) / b->Width) * atlasScaleU;
 		float atlasVHeight = ((Height + 0.01f) / b->Height) * atlasScaleV;
 
+		glColor4f(1.0f, 1.0f, 1.0f, 1.0f);
 		RenderBitmap(BITMAP_FONT_DYNAMIC_ATLAS, (float)sx, (float)sy, (float)Width, (float)Height,
 			atlasU, atlasV, atlasUWidth, atlasVHeight, false, false);
 	}

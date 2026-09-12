@@ -4,6 +4,10 @@
 
 #pragma once
 
+#include <map>
+#include <unordered_map>
+#include <vector>
+
 struct DYNAMIC_WING_EFFECT_INFO
 {
 	int Index;
@@ -27,6 +31,7 @@ public:
 	void Load(DYNAMIC_WING_EFFECT_INFO* info);
 public:
 	std::map<int,DYNAMIC_WING_EFFECT_INFO> m_DynamicWingEffectInfo;
+	std::unordered_map<int, std::vector<DYNAMIC_WING_EFFECT_INFO>> m_DynamicWingByItemIndex;
 };
 
 extern CDynamicWingEffect gDynamicWingEffect;

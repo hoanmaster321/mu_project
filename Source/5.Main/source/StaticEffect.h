@@ -4,6 +4,10 @@
 
 #pragma once
 
+#include <map>
+#include <unordered_map>
+#include <vector>
+
 struct CUSTOM_WING_EFFECT_INFO
 {
 	int Index;
@@ -31,6 +35,7 @@ public:
 
 public:
 	std::map<int,CUSTOM_WING_EFFECT_INFO> m_CustomWingEffectInfo;
+	std::unordered_map<int, std::vector<CUSTOM_WING_EFFECT_INFO>> m_CustomWingByItemIndex;
 };
 
 extern CCustomWingEffect gCustomWingEffect;

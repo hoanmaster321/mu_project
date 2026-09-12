@@ -257,6 +257,15 @@ int RenderTextList(int sx,int sy,int TextNum,int Tab, int iSort = RT3_SORT_CENTE
         case TEXT_COLOR_PURPLE:
             glColor3f(1.f,0.1f,1.f);
             break;
+		case TEXT_COLOR_REDPURPLE:
+			glColor3f(0.8f,0.5f,0.8f);
+			break;
+		case TEXT_COLOR_VIOLET:
+			glColor3f(0.7f,0.4f,1.0f);
+			break;
+		case TEXT_COLOR_ORANGE:
+			glColor3f(0.9f, 0.42f, 0.04f );
+			break;
 		}
 		if ( TEXT_COLOR_DARKRED == TextListColor[i])
 		{
@@ -292,6 +301,7 @@ int RenderTextList(int sx,int sy,int TextNum,int Tab, int iSort = RT3_SORT_CENTE
 		g_pRenderText->RenderText(sx, fsy, TextList[i], TextWidth+Tab, 0, iSort, &TextSize);
 		fsy += TextSize.cy;
 	}
+	glColor4f(1.0f, 1.0f, 1.0f, 1.0f);
 	return TextWidth+Tab;
 }
 bool SetStatus = 0;

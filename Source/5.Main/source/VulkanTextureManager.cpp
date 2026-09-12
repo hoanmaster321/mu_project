@@ -851,15 +851,25 @@ VkDescriptorSet VulkanTextureManager::GetDefaultDescriptorSet()
 
 VulkanTextureManager::FontSlotUV VulkanTextureManager::UploadFontSlot(const void* srcBuffer, uint32_t srcPitchWidth, uint32_t copyWidth, uint32_t copyHeight)
 {
+    uint32_t slot = DYNAMIC_SLOT_START + (m_dynamicSlotCount % DYNAMIC_FONT_SLOTS);
+    m_dynamicSlotCount++;
+    return UploadFontSlotSpecific(slot, srcBuffer, srcPitchWidth, copyWidth, copyHeight);
+}
+
+VulkanTextureManager::FontSlotUV VulkanTextureManager::UploadFontSlotSpecific(uint32_t slot, const void* srcBuffer, uint32_t srcPitchWidth, uint32_t copyWidth, uint32_t copyHeight)
+{
     FontSlotUV uv{ 0.0f, 0.0f, 0.0f, 0.0f };
     if (!m_fontAtlasStagingMapped || !srcBuffer || copyWidth == 0 || copyHeight == 0) return uv;
 
-    uint32_t slot = m_fontSlotCount % MAX_FONT_SLOTS;
-    m_fontSlotCount++;
+    slot = slot % MAX_FONT_SLOTS;
     m_fontAtlasDirty = true;
 
     uint32_t col = slot % FONT_ATLAS_COLS;
     uint32_t row = slot / FONT_ATLAS_COLS;
+
+    if (row + 1 > m_fontAtlasMaxDirtyRow) {
+        m_fontAtlasMaxDirtyRow = row + 1;
+    }
 
     uint32_t dstX = col * FONT_SLOT_WIDTH;
     uint32_t dstY = row * FONT_SLOT_HEIGHT;
@@ -870,10 +880,17 @@ VulkanTextureManager::FontSlotUV VulkanTextureManager::UploadFontSlot(const void
     uint32_t actualW = (copyWidth > FONT_SLOT_WIDTH) ? FONT_SLOT_WIDTH : copyWidth;
     uint32_t actualH = (copyHeight > FONT_SLOT_HEIGHT) ? FONT_SLOT_HEIGHT : copyHeight;
 
-    for (uint32_t y = 0; y < actualH; ++y) {
+    for (uint32_t y = 0; y < FONT_SLOT_HEIGHT; ++y) {
         uint32_t dstOffset = ((dstY + y) * FONT_ATLAS_WIDTH + dstX) * 4;
-        uint32_t srcOffset = (y * srcPitchWidth) * 4;
-        memcpy(dstBase + dstOffset, srcBase + srcOffset, actualW * 4);
+        if (y < actualH) {
+            uint32_t srcOffset = (y * srcPitchWidth) * 4;
+            memcpy(dstBase + dstOffset, srcBase + srcOffset, actualW * 4);
+            if (actualW < FONT_SLOT_WIDTH) {
+                memset(dstBase + dstOffset + actualW * 4, 0, (FONT_SLOT_WIDTH - actualW) * 4);
+            }
+        } else {
+            memset(dstBase + dstOffset, 0, FONT_SLOT_WIDTH * 4);
+        }
     }
 
     uv.u0 = static_cast<float>(dstX) / static_cast<float>(FONT_ATLAS_WIDTH);
@@ -886,8 +903,9 @@ VulkanTextureManager::FontSlotUV VulkanTextureManager::UploadFontSlot(const void
 
 void VulkanTextureManager::ResetFontAtlas()
 {
-    m_fontSlotCount = 0;
+    m_dynamicSlotCount = 0;
     m_fontAtlasDirty = false;
+    m_fontAtlasMaxDirtyRow = 0;
 }
 
 void VulkanTextureManager::FlushFontAtlas(VkCommandBuffer cmd)
@@ -896,8 +914,8 @@ void VulkanTextureManager::FlushFontAtlas(VkCommandBuffer cmd)
         return;
     }
 
-    uint32_t activeRows = (m_fontSlotCount + FONT_ATLAS_COLS - 1) / FONT_ATLAS_COLS;
-    if (activeRows == 0) activeRows = 1;
+    uint32_t activeRows = m_fontAtlasMaxDirtyRow;
+    if (activeRows == 0) activeRows = FONT_ATLAS_ROWS;
     if (activeRows > FONT_ATLAS_ROWS) activeRows = FONT_ATLAS_ROWS;
     uint32_t copyHeight = activeRows * FONT_SLOT_HEIGHT;
 
@@ -954,5 +972,6 @@ void VulkanTextureManager::FlushFontAtlas(VkCommandBuffer cmd)
         1, &barrier);
 
     m_fontAtlasDirty = false;
+    m_fontAtlasMaxDirtyRow = 0;
 }
 

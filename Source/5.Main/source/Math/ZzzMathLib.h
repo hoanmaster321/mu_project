@@ -19,8 +19,20 @@ extern "C" {
 #define RAD_TO_ANGLE	57.29577951308232089f
 
 #define swaps( a, b)		( ( a) ^= ( b) ^= ( a) ^= ( b))
-int VectorCompare (vec3_t v1, vec3_t v2);
-int QuaternionCompare (vec4_t v1, vec4_t v2);
+inline int VectorCompare (const vec3_t v1, const vec3_t v2)
+{
+	return (fabsf(v1[0]-v2[0]) <= EQUAL_EPSILON) &&
+	       (fabsf(v1[1]-v2[1]) <= EQUAL_EPSILON) &&
+	       (fabsf(v1[2]-v2[2]) <= EQUAL_EPSILON);
+}
+
+inline int QuaternionCompare (const vec4_t v1, const vec4_t v2)
+{
+	return (fabsf(v1[0]-v2[0]) <= EQUAL_EPSILON) &&
+	       (fabsf(v1[1]-v2[1]) <= EQUAL_EPSILON) &&
+	       (fabsf(v1[2]-v2[2]) <= EQUAL_EPSILON) &&
+	       (fabsf(v1[3]-v2[3]) <= EQUAL_EPSILON);
+}
 
 #define Vector(a,b,c,d) {(d)[0]=a;(d)[1]=b;(d)[2]=c;}
 #define Vector4(a,b,c,d,target) {(target)[0]=a;(target)[1]=b;(target)[2]=c;(target)[3]=d;}
@@ -89,18 +101,127 @@ void VectorInverse (vec3_t v);
 void ClearBounds (vec3_t mins, vec3_t maxs);
 void AddPointToBounds (vec3_t v, vec3_t mins, vec3_t maxs);
 
-void AngleMatrix (const vec3_t angles, float matrix[3][4] );
-void AngleIMatrix (const vec3_t angles, float matrix[3][4] );
-void R_ConcatTransforms (const float in1[3][4], const float in2[3][4], float out[3][4]);
+inline void AngleMatrix (const vec3_t angles, float (*matrix)[4] )
+{
+	float angle;
+	float sr, sp, sy, cr, cp, cy;
+	
+	angle = angles[2] * (Q_PI*2.0f / 360.0f);
+	sy = sinf(angle);
+	cy = cosf(angle);
+	angle = angles[1] * (Q_PI*2.0f / 360.0f);
+	sp = sinf(angle);
+	cp = cosf(angle);
+	angle = angles[0] * (Q_PI*2.0f / 360.0f);
+	sr = sinf(angle);
+	cr = cosf(angle);
 
-void VectorIRotate (const vec3_t in1, const float in2[3][4], vec3_t out);
-void VectorRotate (const vec3_t in1, const float in2[3][4], vec3_t out);
-void VectorTranslate (const vec3_t in1, const float in2[3][4], vec3_t out);
-void VectorTransform (const vec3_t in1, const float in2[3][4], vec3_t out);
+	// matrix = (Z * Y) * X
+	matrix[0][0] = cp*cy;
+	matrix[1][0] = cp*sy;
+	matrix[2][0] = -sp;
+	matrix[0][1] = sr*sp*cy+cr*-sy;
+	matrix[1][1] = sr*sp*sy+cr*cy;
+	matrix[2][1] = sr*cp;
+	matrix[0][2] = (cr*sp*cy+-sr*-sy);
+	matrix[1][2] = (cr*sp*sy+-sr*cy);
+	matrix[2][2] = cr*cp;
+	matrix[0][3] = 0.0f;
+	matrix[1][3] = 0.0f;
+	matrix[2][3] = 0.0f;
+}
+
+void AngleIMatrix (const vec3_t angles, float matrix[3][4] );
+inline void R_ConcatTransforms (const float in1[3][4], const float in2[3][4], float out[3][4])
+{
+	out[0][0] = in1[0][0] * in2[0][0] + in1[0][1] * in2[1][0] + in1[0][2] * in2[2][0];
+	out[0][1] = in1[0][0] * in2[0][1] + in1[0][1] * in2[1][1] + in1[0][2] * in2[2][1];
+	out[0][2] = in1[0][0] * in2[0][2] + in1[0][1] * in2[1][2] + in1[0][2] * in2[2][2];
+	out[0][3] = in1[0][0] * in2[0][3] + in1[0][1] * in2[1][3] + in1[0][2] * in2[2][3] + in1[0][3];
+	out[1][0] = in1[1][0] * in2[0][0] + in1[1][1] * in2[1][0] + in1[1][2] * in2[2][0];
+	out[1][1] = in1[1][0] * in2[0][1] + in1[1][1] * in2[1][1] + in1[1][2] * in2[2][1];
+	out[1][2] = in1[1][0] * in2[0][2] + in1[1][1] * in2[1][2] + in1[1][2] * in2[2][2];
+	out[1][3] = in1[1][0] * in2[0][3] + in1[1][1] * in2[1][3] + in1[1][2] * in2[2][3] + in1[1][3];
+	out[2][0] = in1[2][0] * in2[0][0] + in1[2][1] * in2[1][0] + in1[2][2] * in2[2][0];
+	out[2][1] = in1[2][0] * in2[0][1] + in1[2][1] * in2[1][1] + in1[2][2] * in2[2][1];
+	out[2][2] = in1[2][0] * in2[0][2] + in1[2][1] * in2[1][2] + in1[2][2] * in2[2][2];
+	out[2][3] = in1[2][0] * in2[0][3] + in1[2][1] * in2[1][3] + in1[2][2] * in2[2][3] + in1[2][3];
+}
+
+inline void VectorIRotate (const vec3_t in1, const float in2[3][4], vec3_t out)
+{
+	out[0] = in1[0]*in2[0][0] + in1[1]*in2[1][0] + in1[2]*in2[2][0];
+	out[1] = in1[0]*in2[0][1] + in1[1]*in2[1][1] + in1[2]*in2[2][1];
+	out[2] = in1[0]*in2[0][2] + in1[1]*in2[1][2] + in1[2]*in2[2][2];
+}
+
+inline void VectorRotate (const vec3_t in1, const float in2[3][4], vec3_t out)
+{
+	out[0] = in1[0]*in2[0][0] + in1[1]*in2[0][1] + in1[2]*in2[0][2];
+	out[1] = in1[0]*in2[1][0] + in1[1]*in2[1][1] + in1[2]*in2[1][2];
+	out[2] = in1[0]*in2[2][0] + in1[1]*in2[2][1] + in1[2]*in2[2][2];
+}
+
+inline void VectorTranslate (const vec3_t in1, const float in2[3][4], vec3_t out)
+{
+	out[0] = in1[0] + in2[0][3];
+	out[1] = in1[1] + in2[1][3];
+	out[2] = in1[2] + in2[2][3];
+}
+
+inline void VectorTransform (const vec3_t in1, const float in2[3][4], vec3_t out)
+{
+	out[0] = in1[0]*in2[0][0] + in1[1]*in2[0][1] + in1[2]*in2[0][2] + in2[0][3];
+	out[1] = in1[0]*in2[1][0] + in1[1]*in2[1][1] + in1[2]*in2[1][2] + in2[1][3];
+	out[2] = in1[0]*in2[2][0] + in1[1]*in2[2][1] + in1[2]*in2[2][2] + in2[2][3];
+}
 
 void AngleQuaternion( const vec3_t angles, vec4_t quaternion );
-void QuaternionMatrix( const vec4_t quaternion, float (*matrix)[4] );
-void QuaternionSlerp( const vec4_t p, vec4_t q, float t, vec4_t qt );
+
+inline void QuaternionMatrix( const vec4_t quaternion, float (*matrix)[4] )
+{
+	matrix[0][0] = 1.0f - 2.0f * quaternion[1] * quaternion[1] - 2.0f * quaternion[2] * quaternion[2];
+	matrix[1][0] = 2.0f * quaternion[0] * quaternion[1] + 2.0f * quaternion[3] * quaternion[2];
+	matrix[2][0] = 2.0f * quaternion[0] * quaternion[2] - 2.0f * quaternion[3] * quaternion[1];
+
+	matrix[0][1] = 2.0f * quaternion[0] * quaternion[1] - 2.0f * quaternion[3] * quaternion[2];
+	matrix[1][1] = 1.0f - 2.0f * quaternion[0] * quaternion[0] - 2.0f * quaternion[2] * quaternion[2];
+	matrix[2][1] = 2.0f * quaternion[1] * quaternion[2] + 2.0f * quaternion[3] * quaternion[0];
+
+	matrix[0][2] = 2.0f * quaternion[0] * quaternion[2] + 2.0f * quaternion[3] * quaternion[1];
+	matrix[1][2] = 2.0f * quaternion[1] * quaternion[2] - 2.0f * quaternion[3] * quaternion[0];
+	matrix[2][2] = 1.0f - 2.0f * quaternion[0] * quaternion[0] - 2.0f * quaternion[1] * quaternion[1];
+}
+
+inline void QuaternionSlerp( const vec4_t p, vec4_t q, float t, vec4_t qt )
+{
+	float cosom = p[0]*q[0] + p[1]*q[1] + p[2]*q[2] + p[3]*q[3];
+
+	if (cosom < 0.0f) {
+		cosom = -cosom;
+		q[0] = -q[0];
+		q[1] = -q[1];
+		q[2] = -q[2];
+		q[3] = -q[3];
+	}
+
+	float sclp, sclq;
+	if ((1.0f - cosom) > 0.0001f) {
+		float omega = acosf( (cosom > 1.0f) ? 1.0f : cosom );
+		float sinom = sinf( omega );
+		sclp = sinf( (1.0f - t)*omega) / sinom;
+		sclq = sinf( t*omega ) / sinom;
+	}
+	else {
+		sclp = 1.0f - t;
+		sclq = t;
+	}
+
+	qt[0] = sclp * p[0] + sclq * q[0];
+	qt[1] = sclp * p[1] + sclq * q[1];
+	qt[2] = sclp * p[2] + sclq * q[2];
+	qt[3] = sclp * p[3] + sclq * q[3];
+}
 
 void FaceNormalize(vec3_t v1,vec3_t v2,vec3_t v3,vec3_t Normal);
 

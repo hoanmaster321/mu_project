@@ -801,6 +801,11 @@ CHAT Chat[MAX_CHAT];
 
 void SetBooleanPosition(CHAT* c)
 {
+	if (c->Width > 0 && c->Height > 0)
+	{
+		return;
+	}
+
 	BOOL bResult[5];
 	SIZE Size[5];
 	memset(&Size[0], 0, sizeof(SIZE) * 5);
@@ -1477,6 +1482,8 @@ void CreateChat(char *ID,const char* Text,CHARACTER *Owner,int Flag, int SetColo
 				c->Owner = Owner;
 				AddChat(c,Text,Flag);
 			}
+			c->Width = 0;
+			c->Height = 0;
 			return;
 		}
 	}
@@ -1498,9 +1505,39 @@ void CreateChat(char *ID,const char* Text,CHARACTER *Owner,int Flag, int SetColo
 			{
 				AddChat(c,Text,Flag);
 			}
+			c->Width = 0;
+			c->Height = 0;
 			return;
 		}
 	}
+}
+
+bool HasActiveChat(CHARACTER *Owner)
+{
+	if (Owner == nullptr) return false;
+	for(int i=0;i<MAX_CHAT;i++)
+	{
+		CHAT *c = &Chat[i];
+		if(c->Owner == Owner && (c->LifeTime[0] > 0 || c->IDLifeTime > 0))
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
+bool HasActiveChat(OBJECT *Owner)
+{
+	if (Owner == nullptr) return false;
+	for(int i=0;i<MAX_CHAT;i++)
+	{
+		CHAT *c = &Chat[i];
+		if(c->Owner == (CHARACTER*)Owner && (c->LifeTime[0] > 0 || c->IDLifeTime > 0))
+		{
+			return true;
+		}
+	}
+	return false;
 }
 
 int CreateChat(char *ID,const char* Text,OBJECT* Owner,int Flag, int SetColor)
@@ -1529,6 +1566,8 @@ int CreateChat(char *ID,const char* Text,OBJECT* Owner,int Flag, int SetColor)
             c->LifeTime[0]  = Flag;
 			
 			Vector(o->Position[0],o->Position[1],o->Position[2]+o->BoundingBoxMax[2]+60.f,c->Position);
+			c->Width = 0;
+			c->Height = 0;
 			return c->LifeTime[0];
 		}
 	}
@@ -9565,10 +9604,15 @@ void RenderHPBar()
 	DisableAlphaBlend();
 	glColor3f(1.f, 1.f, 1.f);
 	g_pRenderText->SetFont(g_hFont);
-}void RenderBooleans()
+}
+
+void RenderBooleans()
 {
 	g_pRenderText->SetFont(g_hFont);
 	
+	int activeChatCount = 0;
+	CHAT* activeChats[MAX_CHAT];
+
 	for(int i=0;i<MAX_CHAT;i++)
 	{
 		CHAT *ci = &Chat[i];
@@ -9598,44 +9642,39 @@ void RenderHPBar()
 			SetBooleanPosition(ci);
 			ci->x = ScreenX-(ci->Width/2);
 			ci->y = ScreenY-ci->Height;
+			activeChats[activeChatCount++] = ci;
 		}
 	}
 
-	for(int i=0;i<MAX_CHAT;i++)		//. Bubble sorting
+	for(int i=0;i<activeChatCount;i++)		//. Bubble sorting
 	{
-		CHAT *ci = &Chat[i];
-		if(ci->IDLifeTime>0 || ci->LifeTime[0]>0)
+		CHAT *ci = activeChats[i];
+		for(int j=0;j<activeChatCount;j++)
 		{
-			for(int j=0;j<MAX_CHAT;j++)
+			if(i!=j)
 			{
-				CHAT *cj = &Chat[j];
-				if(i!=j && (cj->IDLifeTime>0 || cj->LifeTime[0]>0))
+				CHAT *cj = activeChats[j];
+				if(ci->x+ci->Width>cj->x && ci->x<cj->x+cj->Width &&
+					ci->y+ci->Height>cj->y && ci->y<cj->y+cj->Height)
 				{
-					if(ci->x+ci->Width>cj->x && ci->x<cj->x+cj->Width &&
-						ci->y+ci->Height>cj->y && ci->y<cj->y+cj->Height)
-					{
-						if(ci->y < cj->y+cj->Height/2)
-							ci->y = cj->y-ci->Height;
-						else
-							ci->y = cj->y+cj->Height;
-					}
+					if(ci->y < cj->y+cj->Height/2)
+						ci->y = cj->y-ci->Height;
+					else
+						ci->y = cj->y+cj->Height;
 				}
 			}
 		}
 	}
 
-	for(int i=0;i<MAX_CHAT;i++)
+	for(int i=0;i<activeChatCount;i++)
 	{
-		CHAT *ci = &Chat[i];
-		if(ci->IDLifeTime>0 || ci->LifeTime[0]>0)
-		{
-			//. Fit to screen
-			if(ci->x < 0) ci->x = 0;
-			if(ci->x >= (int)WindowWidth-ci->Width) ci->x = WindowWidth-ci->Width;
-			if(ci->y < 0) ci->y = 0;
-			if(ci->y >= (int)WindowHeight-ci->Height) ci->y = WindowHeight-ci->Height;	
-			RenderBoolean(ci->x,ci->y,ci);
-		}
+		CHAT *ci = activeChats[i];
+		//. Fit to screen
+		if(ci->x < 0) ci->x = 0;
+		if(ci->x >= (int)WindowWidth-ci->Width) ci->x = WindowWidth-ci->Width;
+		if(ci->y < 0) ci->y = 0;
+		if(ci->y >= (int)WindowHeight-ci->Height) ci->y = WindowHeight-ci->Height;	
+		RenderBoolean(ci->x,ci->y,ci);
 	}
 }
 

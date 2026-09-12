@@ -2,6 +2,8 @@
 #include "StackWalker.h"
 #include <tchar.h>
 #include <time.h>
+#include <dbghelp.h>
+#pragma comment(lib, "dbghelp.lib")
 
 
 static TCHAR s_szExceptionLogFileName[_MAX_PATH] = _T("\\exceptions.log");  // default
@@ -18,44 +20,45 @@ class StackWalkerToConsole : public StackWalker
 private:
 	FILE* file;
 	char szFile[256];
-	struct tm* today;
 	time_t ltime;
 
 public:
-	StackWalkerToConsole()
+	StackWalkerToConsole() : file(nullptr)
 	{
-		if (GetTime == FALSE)
-		{
-			CreateDirectory("STACK_ERROR", 0);
-			time(&ltime);
-			today = new tm;
-			localtime_s(today, &ltime);
-			today->tm_year = today->tm_year + 1900;
-			LogMYear = today->tm_year;
-			LogMonth = today->tm_mon + 1;
-			LogMDay = today->tm_mday;
-			wsprintf(szFile, "STACK_ERROR\\stack_%02d%02d%02d_%02d%02d.log", LogMYear, LogMonth, LogMDay, today->tm_hour, today->tm_min);
-			GetTime = TRUE;
-		}
+		CreateDirectoryA("STACK_ERROR", 0);
+		time(&ltime);
+		struct tm today;
+		localtime_s(&today, &ltime);
+		wsprintfA(szFile, "STACK_ERROR\\stack_%04d%02d%02d_%02d%02d%02d.log",
+			today.tm_year + 1900, today.tm_mon + 1, today.tm_mday,
+			today.tm_hour, today.tm_min, today.tm_sec);
 		fopen_s(&file, szFile, "w");
 	}
 
 	~StackWalkerToConsole()
 	{
-		fclose(file);
+		if (file)
+		{
+			fclose(file);
+			file = nullptr;
+		}
 	}
 	char* GetStackLogFileName()
 	{
 		return szFile;
 	}
+	FILE* GetFile() const
+	{
+		return file;
+	}
 protected:
 	virtual void OnOutput(LPCTSTR szText)
 	{
-		char szMsg[512]; memset(szMsg, 0, 512);
-		//base64.Encrypt(szText,strlen(szText),szMsg);
-		wsprintf(szMsg, "%s", szText);
-		fprintf(file, szMsg);
-		fprintf(file, "\n");
+		if (file)
+		{
+			fprintf(file, "%s\n", szText);
+			fflush(file);
+		}
 	}
 };
 
@@ -156,34 +159,84 @@ BOOL PreventSetUnhandledExceptionFilter()
 static LONG __stdcall CrashHandlerExceptionFilter(EXCEPTION_POINTERS* pExPtrs)
 {
 #ifdef _M_IX86
-	if (pExPtrs->ExceptionRecord->ExceptionCode == EXCEPTION_STACK_OVERFLOW)
+	if (pExPtrs && pExPtrs->ExceptionRecord && pExPtrs->ExceptionRecord->ExceptionCode == EXCEPTION_STACK_OVERFLOW)
 	{
-		static char MyStack[1024 * 128];  // be sure that we have enought space...
-		// it assumes that DS and SS are the same!!! (this is the case for Win32)
-		// change the stack only if the selectors are the same (this is the case for Win32)
-		//__asm push offset MyStack[1024*128];
-		//__asm pop esp;
+		static char MyStack[1024 * 128];
 		__asm mov eax, offset MyStack[1024 * 128];
 		__asm mov esp, eax;
 	}
 #endif
 
-	StackWalkerToConsole sw;  // output to console
-	sw.ShowCallstack(GetCurrentThread(), pExPtrs->ContextRecord);
-	TCHAR lString[500];
-	/*_stprintf_s(lString,
-		_T("*** Unhandled Exception! See console output for more infos!\n")
-		_T("   ExpCode: 0x%8.8X\n")
-		_T("   ExpFlags: %d\n")
-		_T("   ExpAddress: 0x%8.8X\n")
-		_T("   Please report!"),
-		pExPtrs->ExceptionRecord->ExceptionCode,
-		pExPtrs->ExceptionRecord->ExceptionFlags,
-		pExPtrs->ExceptionRecord->ExceptionAddress);*/
+	CreateDirectoryA("STACK_ERROR", NULL);
 
-	_stprintf_s(lString, "*** Please Send %s to Server Admin! ***", sw.GetStackLogFileName());
-	//FatalAppExit(-1, lString);
-	return EXCEPTION_CONTINUE_SEARCH;
+	SYSTEMTIME st;
+	GetLocalTime(&st);
+	char szDumpFile[MAX_PATH];
+	sprintf_s(szDumpFile, sizeof(szDumpFile), "STACK_ERROR\\crash_%04d%02d%02d_%02d%02d%02d.dmp",
+		st.wYear, st.wMonth, st.wDay, st.wHour, st.wMinute, st.wSecond);
+
+	HANDLE hDumpFile = CreateFileA(szDumpFile, GENERIC_WRITE, FILE_SHARE_READ, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+	if (hDumpFile != INVALID_HANDLE_VALUE)
+	{
+		MINIDUMP_EXCEPTION_INFORMATION mdei;
+		mdei.ThreadId = GetCurrentThreadId();
+		mdei.ExceptionPointers = pExPtrs;
+		mdei.ClientPointers = FALSE;
+
+		MINIDUMP_TYPE dumpType = (MINIDUMP_TYPE)(
+			MiniDumpWithIndirectlyReferencedMemory |
+			MiniDumpScanMemory |
+			MiniDumpWithDataSegs
+		);
+
+		MiniDumpWriteDump(GetCurrentProcess(), GetCurrentProcessId(), hDumpFile, dumpType, &mdei, NULL, NULL);
+		CloseHandle(hDumpFile);
+	}
+
+	StackWalkerToConsole sw;
+	FILE* fp = sw.GetFile();
+	if (fp && pExPtrs && pExPtrs->ExceptionRecord)
+	{
+		fprintf(fp, "================================================================\n");
+		fprintf(fp, "MU ONLINE CRASH REPORT\n");
+		fprintf(fp, "Exception Code   : 0x%08X\n", pExPtrs->ExceptionRecord->ExceptionCode);
+		fprintf(fp, "Exception Address: 0x%p\n", pExPtrs->ExceptionRecord->ExceptionAddress);
+		fprintf(fp, "Exception Flags  : 0x%08X\n", pExPtrs->ExceptionRecord->ExceptionFlags);
+		if (pExPtrs->ContextRecord)
+		{
+#ifdef _M_IX86
+			fprintf(fp, "EAX: 0x%08X  EBX: 0x%08X  ECX: 0x%08X  EDX: 0x%08X\n",
+				pExPtrs->ContextRecord->Eax, pExPtrs->ContextRecord->Ebx, pExPtrs->ContextRecord->Ecx, pExPtrs->ContextRecord->Edx);
+			fprintf(fp, "ESI: 0x%08X  EDI: 0x%08X  EBP: 0x%08X  ESP: 0x%08X  EIP: 0x%08X\n",
+				pExPtrs->ContextRecord->Esi, pExPtrs->ContextRecord->Edi, pExPtrs->ContextRecord->Ebp, pExPtrs->ContextRecord->Esp, pExPtrs->ContextRecord->Eip);
+#endif
+		}
+		fprintf(fp, "Dump File        : %s\n", szDumpFile);
+		fprintf(fp, "================================================================\n\n");
+		fflush(fp);
+	}
+
+	if (pExPtrs)
+	{
+		sw.ShowCallstack(GetCurrentThread(), pExPtrs->ContextRecord);
+	}
+
+	char szNotice[512];
+	sprintf_s(szNotice, sizeof(szNotice),
+		"Game Da Bi Crash!\n\n"
+		"Ma loi (Exception): 0x%08X\n"
+		"Dia chi (Address): 0x%p\n\n"
+		"File Minidump va Log da duoc luu tai:\n"
+		"- %s\n"
+		"- %s\n\n"
+		"Vui long gui file trong thu muc STACK_ERROR.",
+		pExPtrs && pExPtrs->ExceptionRecord ? pExPtrs->ExceptionRecord->ExceptionCode : 0,
+		pExPtrs && pExPtrs->ExceptionRecord ? pExPtrs->ExceptionRecord->ExceptionAddress : 0,
+		szDumpFile,
+		sw.GetStackLogFileName());
+	MessageBoxA(NULL, szNotice, "MU Crash Reporter", MB_OK | MB_ICONERROR);
+
+	return EXCEPTION_EXECUTE_HANDLER;
 }
 
 static void InitUnhandledExceptionFilter()

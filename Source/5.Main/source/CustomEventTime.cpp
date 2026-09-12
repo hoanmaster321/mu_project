@@ -15,6 +15,7 @@ CCustomEventTime::CCustomEventTime()
 }
 
 CCustomEventTime gCustomEventTime;
+DWORD g_pSetCursorFocus = 0;
 
 void CCustomEventTime::Init()
 {
