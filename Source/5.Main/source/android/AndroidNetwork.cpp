@@ -1,4 +1,4 @@
-#ifdef __ANDROID__
+#if defined(__ANDROID__) || defined(MU_IOS)
 
 #include "stdafx.h"
 #include "AndroidNetwork.h"

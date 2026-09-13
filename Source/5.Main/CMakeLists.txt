@@ -220,9 +220,7 @@ list(FILTER SOURCEMAIN_SOURCES EXCLUDE REGEX "Utilities/Dump/CrashHandler\\.cpp$
 list(FILTER SOURCEMAIN_SOURCES EXCLUDE REGEX "Utilities/Dump/CrashReporter\\.cpp$")
 list(FILTER SOURCEMAIN_SOURCES EXCLUDE REGEX "Utilities/Dump/Logger\\.cpp$")
 list(FILTER SOURCEMAIN_SOURCES EXCLUDE REGEX "Utilities/Dump/Uploader\\.cpp$")
-list(FILTER SOURCEMAIN_SOURCES EXCLUDE REGEX "android_main\\.cpp$")
-list(FILTER SOURCEMAIN_SOURCES EXCLUDE REGEX "android_link_stubs\\.cpp$")
-if(NOT ANDROID)
+if(NOT ANDROID AND NOT IOS)
     list(FILTER SOURCEMAIN_SOURCES EXCLUDE REGEX "android_turbojpeg_stubs\\.cpp$")
     list(FILTER SOURCEMAIN_SOURCES EXCLUDE REGEX "Platform/AndroidGDI\\.cpp$")
 endif()
@@ -318,9 +316,9 @@ target_include_directories(${PROJECT_NAME} PRIVATE
     ${Vulkan_INCLUDE_DIRS}
 )
 
-if(ANDROID)
+if(ANDROID OR IOS)
     target_include_directories(${PROJECT_NAME} PRIVATE
-        "${CMAKE_CURRENT_SOURCE_DIR}/../../android/app/src/main/cpp/compat_include"
+        "${CMAKE_CURRENT_SOURCE_DIR}/source/Platform/compat_include"
     )
 endif()
 

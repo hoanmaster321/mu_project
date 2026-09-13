@@ -419,11 +419,11 @@ void WebzenScene(HDC hDC)
 #endif
 	LoadBitmap("Interface\\New_lo_back_01.jpg", BITMAP_TITLE, GL_LINEAR);
 	LoadBitmap("Interface\\New_lo_back_02.jpg", BITMAP_TITLE+1, GL_LINEAR);
-#ifndef __ANDROID__
+#if !defined(__ANDROID__) && !defined(MU_IOS)
 	LoadBitmap("Interface\\MU_TITLE.tga", BITMAP_TITLE+2, GL_LINEAR);
 #endif
 	LoadBitmap("Interface\\lo_121518.tga", BITMAP_TITLE+3, GL_LINEAR);
-#ifndef __ANDROID__
+#if !defined(__ANDROID__) && !defined(MU_IOS)
 	LoadBitmap("Interface\\New_lo_webzen_logo.tga", BITMAP_TITLE+4, GL_LINEAR);
 #endif
 	LoadBitmap("Interface\\lo_lo.jpg", BITMAP_TITLE+5, GL_LINEAR, GL_REPEAT);

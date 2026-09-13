@@ -1,22 +1,16 @@
-﻿// =============================================================================
+// =============================================================================
 // AndroidGDI.cpp
 // Android GDI text-rendering engine built on FreeType.
 // Provides CreateFont / CreateDIBSection / TextOut / GetTextExtentPoint32 etc.
 // =============================================================================
-#ifdef __ANDROID__
+#if defined(__ANDROID__) || defined(MU_IOS)
 
 #include "AndroidGDI.h"
 #include <ft2build.h>
 #include FT_FREETYPE_H
+#if defined(__ANDROID__)
 #include <android/log.h>
-#include <vector>
-#include <string>
-#include <fstream>
-#include <limits>
-#include <cstring>
-#include <cstdlib>
-
-#define LOG_TAG "AndroidGDI"
+#define LOG_TAG "MobileGDI"
 #if defined(MU_ANDROID_DISABLE_LOG)
 #define LOGI(...) ((void)0)
 #define LOGE(...) ((void)0)
@@ -24,6 +18,17 @@
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO,  LOG_TAG, __VA_ARGS__)
 #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
 #endif
+#else
+#include <stdio.h>
+#define LOGI(...) printf("[MobileGDI] " __VA_ARGS__)
+#define LOGE(...) fprintf(stderr, "[MobileGDI ERROR] " __VA_ARGS__)
+#endif
+#include <vector>
+#include <string>
+#include <fstream>
+#include <limits>
+#include <cstring>
+#include <cstdlib>
 
 static FT_Library s_FTLib = nullptr;
 static int s_DefaultFontSize = 14;
@@ -50,6 +55,9 @@ static bool ReadFontFile(const char* path, std::vector<unsigned char>& outBytes)
 static void LoadFontBytes() {
     static const char* sNormalPaths[] = {
         "Data/fonts/font_.ttf",
+        "/System/Library/Fonts/Cache/PingFang.ttc",
+        "/System/Library/Fonts/Core/Helvetica.ttc",
+        "/System/Library/Fonts/Helvetica.ttc",
         "/sdcard/Android/data/com.muonline.client/files/Data/fonts/font_.ttf",
         "/storage/emulated/0/Android/data/com.muonline.client/files/Data/fonts/font_.ttf",
         "/data/data/com.muonline.client/files/Data/fonts/font_.ttf",
@@ -60,6 +68,9 @@ static void LoadFontBytes() {
     };
     static const char* sBoldPaths[] = {
         "Data/fonts/font_2.ttf",
+        "/System/Library/Fonts/Cache/PingFang.ttc",
+        "/System/Library/Fonts/Core/Helvetica.ttc",
+        "/System/Library/Fonts/Helvetica.ttc",
         "/sdcard/Android/data/com.muonline.client/files/Data/fonts/font_2.ttf",
         "/storage/emulated/0/Android/data/com.muonline.client/files/Data/fonts/font_2.ttf",
         "/data/data/com.muonline.client/files/Data/fonts/font_2.ttf",
@@ -354,4 +365,4 @@ bool AndroidDeleteObject(HGDIOBJ obj) {
     return false;
 }
 
-#endif // __ANDROID__
+#endif // defined(__ANDROID__) || defined(MU_IOS)

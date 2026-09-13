@@ -39,9 +39,13 @@ extern float g_fScreenRate_y;
 extern int MouseX;
 extern int MouseY;
 extern CHARACTER* Hero;
-extern int TextNum;
 extern float CacheY;
 extern DWORD CacheTimeRenterTip1;
+extern float g_fTooltipMaxRight;
+extern float g_fTooltipActualLeft;
+extern float g_fTooltipActualTop;
+extern float g_fTooltipActualWidth;
+extern float g_fTooltipActualHeight;
 
 static SEASON3B::CUIMobileInventory* s_pInstance = nullptr;
 
@@ -528,6 +532,8 @@ namespace SEASON3B
                         {
                             ExecuteEquip(m_selectedIndex);
                             m_bShowActionCard = false;
+                            m_selectedType = SLOT_TYPE_NONE;
+                            m_selectedIndex = -1;
                         }
                         else
                         {
@@ -538,12 +544,16 @@ namespace SEASON3B
                     {
                         ExecuteUse(m_selectedIndex);
                         m_bShowActionCard = false;
+                        m_selectedType = SLOT_TYPE_NONE;
+                        m_selectedIndex = -1;
                     }
                 }
                 else if (m_selectedType == SLOT_TYPE_EQUIPMENT)
                 {
                     ExecuteUnequip(m_selectedIndex);
                     m_bShowActionCard = false;
+                    m_selectedType = SLOT_TYPE_NONE;
+                    m_selectedIndex = -1;
                 }
                 return true;
             }
@@ -553,6 +563,8 @@ namespace SEASON3B
             {
                 ExecuteDrop(m_selectedIndex, m_selectedType);
                 m_bShowActionCard = false;
+                m_selectedType = SLOT_TYPE_NONE;
+                m_selectedIndex = -1;
                 return true;
             }
 
@@ -665,6 +677,8 @@ namespace SEASON3B
         if (HitTestButton(tx, ty, m_panelX, m_panelY, m_panelW, m_panelH))
         {
             m_bShowActionCard = false;
+            m_selectedType = SLOT_TYPE_NONE;
+            m_selectedIndex = -1;
             return true;
         }
 
@@ -678,6 +692,8 @@ namespace SEASON3B
             if (tx >= extX && tx <= extX + extW && ty >= extY && ty <= extY + extH)
             {
                 m_bShowActionCard = false;
+                m_selectedType = SLOT_TYPE_NONE;
+                m_selectedIndex = -1;
                 return true;
             }
         }
@@ -688,6 +704,8 @@ namespace SEASON3B
             if (tx < m_panelX)
             {
                 m_bShowActionCard = false;
+                m_selectedType = SLOT_TYPE_NONE;
+                m_selectedIndex = -1;
                 return false; // Pass through to PC mouse click handling
             }
         }
@@ -695,6 +713,8 @@ namespace SEASON3B
         if (m_bShowActionCard)
         {
             m_bShowActionCard = false;
+            m_selectedType = SLOT_TYPE_NONE;
+            m_selectedIndex = -1;
             PlayBuffer(SOUND_CLICK01);
             return true;
         }
@@ -873,7 +893,19 @@ namespace SEASON3B
             iSrcIndex, targetSlot, pItem->Type, (pItem->Level >> 3) & 15);
 #endif
 
-        SendRequestEquipmentItem(REQUEST_EQUIPMENT_INVENTORY, iSrcIndex, pItem, REQUEST_EQUIPMENT_INVENTORY, targetSlot);
+        ITEM itemCopy = *pItem;
+        if (CNewUIInventoryCtrl::CreatePickedItem(ctrl, pItem))
+        {
+            CNewUIPickedItem* pPickedItem = CNewUIInventoryCtrl::GetPickedItem();
+            if (pPickedItem) pPickedItem->HidePickedItem();
+            if (ctrl) ctrl->RemoveItem(pItem);
+        }
+        else if (ctrl)
+        {
+            ctrl->RemoveItem(pItem);
+        }
+
+        SendRequestEquipmentItem(REQUEST_EQUIPMENT_INVENTORY, iSrcIndex, &itemCopy, REQUEST_EQUIPMENT_INVENTORY, targetSlot);
         PlayBuffer(SOUND_GET_ITEM01);
     }
 
@@ -945,6 +977,30 @@ namespace SEASON3B
 
         const int dropX = static_cast<int>(Hero->PositionX);
         const int dropY = static_cast<int>(Hero->PositionY);
+
+        CNewUIInventoryCtrl* ctrl = (slotType == SLOT_TYPE_BAG && g_pMyInventory) ? g_pMyInventory->GetInventoryCtrl() : nullptr;
+        if (slotType == SLOT_TYPE_BAG)
+        {
+            if (CNewUIInventoryCtrl::CreatePickedItem(ctrl, pItem))
+            {
+                CNewUIPickedItem* pPickedItem = CNewUIInventoryCtrl::GetPickedItem();
+                if (pPickedItem) pPickedItem->HidePickedItem();
+                if (ctrl) ctrl->RemoveItem(pItem);
+            }
+            else if (ctrl)
+            {
+                ctrl->RemoveItem(pItem);
+            }
+        }
+        else if (slotType == SLOT_TYPE_EQUIPMENT)
+        {
+            if (CNewUIInventoryCtrl::CreatePickedItem(nullptr, pItem))
+            {
+                CNewUIPickedItem* pPickedItem = CNewUIInventoryCtrl::GetPickedItem();
+                if (pPickedItem) pPickedItem->HidePickedItem();
+                if (g_pMyInventory) g_pMyInventory->UnequipItem(slotIndex);
+            }
+        }
 
         SendRequestDropItem(packetSlot, dropX, dropY);
         PlayBuffer(SOUND_DROP_ITEM01);
@@ -1737,92 +1793,54 @@ namespace SEASON3B
         else
             pItem->bySelectedSlotIndex = m_selectedIndex + 12;
 
-        const float estTooltipW = (m_cardW > 100.0f) ? m_cardW : 190.0f;
-        const float estTooltipH = (m_cardH > 80.0f) ? m_cardH : 240.0f;
-
         // Position tooltip right edge adjacent to inventory panel (or extension panel if open)
         const float targetRight = (CUIMobileInventoryExtension::GetInstance() && CUIMobileInventoryExtension::GetInstance()->IsOpen())
-            ? (m_panelX - 288.0f - 6.0f)
+            ? (CUIMobileInventoryExtension::GetInstance()->GetWinX() - 6.0f)
             : (m_panelX - 6.0f);
-        float tooltipTargetX = targetRight - (estTooltipW * 0.5f);
-        if (tooltipTargetX - (estTooltipW * 0.5f) < 6.0f)
-        {
-            tooltipTargetX = 6.0f + (estTooltipW * 0.5f);
-        }
 
-        float tooltipTargetY = m_panelY;
-        if (tooltipTargetY + estTooltipH > 474.0f)
-        {
-            tooltipTargetY = (std::max)(6.0f, 474.0f - estTooltipH);
-        }
+        // Clamp tooltip right edge so it NEVER penetrates into the UI panel
+        g_fTooltipMaxRight = targetRight;
 
         // Reset tooltip cache time so RenderTipTextList honors tooltipTargetY on every frame
         CacheTimeRenterTip1 = 0;
 
         // Call authentic PC MU RenderItemInfo!
-        RenderItemInfo(static_cast<int>(tooltipTargetX), static_cast<int>(tooltipTargetY), pItem, false, 0, false, false);
+        RenderItemInfo(static_cast<int>(targetRight - 100.0f), static_cast<int>(m_panelY), pItem, false, 0, false, false);
 
-        // Compute actual dimensions of the rendered tooltip from TextList and TextNum
-        float actualW = 0.0f;
-        float actualH = 0.0f;
-        SIZE tSize = { 0, 0 };
-        int textLine = 0, emptyLine = 0;
+        // Clear max right clamp
+        g_fTooltipMaxRight = 0.0f;
 
-        for (int i = 0; i < TextNum; ++i)
-        {
-            if (TextList[i][0] == '\0') break;
-            if (TextBold[i]) g_pRenderText->SetFont((g_hFontItemInfoBold != nullptr) ? g_hFontItemInfoBold : g_hFontBold);
-            else g_pRenderText->SetFont((g_hFontItemInfo != nullptr) ? g_hFontItemInfo : g_hFont);
+        // Retrieve exact layout calculated by RenderTipTextList
+        const float tipLeft   = g_fTooltipActualLeft;
+        const float tipTop    = g_fTooltipActualTop;
+        const float tipWidth  = g_fTooltipActualWidth;
+        const float tipHeight = g_fTooltipActualHeight;
 
-            g_pMultiLanguage->_GetTextExtentPoint32(g_pRenderText->GetFontDC(), TextList[i], lstrlen(TextList[i]), &tSize);
-            if (actualW < tSize.cx) actualW = static_cast<float>(tSize.cx);
-            if (TextList[i][0] == '\n') ++emptyLine;
-            else ++textLine;
-        }
+        // Mobile Action Buttons placed on the SIDE (left edge of tooltip) instead of underneath!
+        const float btnW       = 76.0f;
+        const float btnH       = 34.0f;
+        const float btnSpacing = 8.0f;
+        float btnX             = tipLeft - btnW - 6.0f;
+        if (btnX < 6.0f) btnX = 6.0f;
 
-        g_pRenderText->SetFont(g_hFont);
-
-        if (g_fScreenRate_y > 0.0f)
-            actualH = (tSize.cy * textLine + tSize.cy * 0.5f * emptyLine) / (g_fScreenRate_y / 1.1f);
-        else
-            actualH = (tSize.cy * textLine + tSize.cy * 0.5f * emptyLine);
-
-        if (g_fScreenRate_x > 0.0f)
-            actualW = (actualW / g_fScreenRate_x) + 4.0f;
-        else
-            actualW += 4.0f;
-
-        const int iPos_x = static_cast<int>(tooltipTargetX) - static_cast<int>(actualW * 0.5f);
-        const float tipLeft   = static_cast<float>(iPos_x);
-        const float tipTop    = (CacheY > 0.0f) ? CacheY : tooltipTargetY;
-        const float tipBottom = tipTop + actualH;
-
-        // Mobile Action Button Bar matches tooltip width!
-        const float barW    = (std::max)(actualW, 100.0f);
-        const float barLeft = (barW > actualW) ? (tooltipTargetX - (barW * 0.5f)) : tipLeft;
-        const float btnH    = 24.0f;
-        const float row1Y   = tipBottom + 3.0f;
-        const float row2Y   = row1Y + btnH + 3.0f;
+        const float btnY1 = tipTop + 4.0f;
+        const float btnY2 = btnY1 + btnH + btnSpacing;
 
         const bool bHasPrimaryAction = (m_selectedType == SLOT_TYPE_EQUIPMENT) ||
             (m_selectedType == SLOT_TYPE_BAG && (IsEquipableItem(pItem) || IsConsumable(pItem)));
 
-        const float totalCardBottom = bHasPrimaryAction ? (row2Y + btnH + 4.0f) : (row1Y + btnH + 4.0f);
-        const float bgH             = bHasPrimaryAction ? ((btnH * 2.0f) + 8.0f) : (btnH + 6.0f);
-
-        // Update member card bounds for touch hit testing
-        m_cardX = (std::min)(tipLeft, barLeft);
-        m_cardY = tipTop;
-        m_cardW = (std::max)(actualW, barW);
-        m_cardH = totalCardBottom - tipTop;
+        // Reset all action buttons to default/hidden
+        m_btnEquipW     = 0.0f;
+        m_btnUseW       = 0.0f;
+        m_btnDropW      = 0.0f;
+        m_btnCloseCardW = 0.0f;
+        m_btnCloseCardH = 0.0f;
 
         if (bHasPrimaryAction)
         {
-            // Row 1 buttons: [Trang Bị / Tháo Ra / Sử Dụng] + [Vứt Bỏ]
-            const float btn1W = (barW - 4.0f) * 0.5f;
-            m_btnEquipX = barLeft;
-            m_btnEquipY = row1Y;
-            m_btnEquipW = btn1W;
+            m_btnEquipX = btnX;
+            m_btnEquipY = btnY1;
+            m_btnEquipW = btnW;
             m_btnEquipH = btnH;
 
             m_btnUseX = m_btnEquipX;
@@ -1830,67 +1848,44 @@ namespace SEASON3B
             m_btnUseW = m_btnEquipW;
             m_btnUseH = m_btnEquipH;
 
-            m_btnDropX = barLeft + btn1W + 4.0f;
-            m_btnDropY = row1Y;
-            m_btnDropW = btn1W;
+            m_btnDropX = btnX;
+            m_btnDropY = btnY2;
+            m_btnDropW = btnW;
             m_btnDropH = btnH;
-
-            // Row 2 button: [Đóng]
-            m_btnCloseCardX = barLeft;
-            m_btnCloseCardY = row2Y;
-            m_btnCloseCardW = barW;
-            m_btnCloseCardH = btnH;
         }
         else
         {
-            const float btn1W = (barW - 4.0f) * 0.5f;
-            m_btnEquipW = 0.0f;
-            m_btnUseW   = 0.0f;
-
-            m_btnDropX = barLeft;
-            m_btnDropY = row1Y;
-            m_btnDropW = btn1W;
+            m_btnDropX = btnX;
+            m_btnDropY = btnY1;
+            m_btnDropW = btnW;
             m_btnDropH = btnH;
-
-            m_btnCloseCardX = barLeft + btn1W + 4.0f;
-            m_btnCloseCardY = row1Y;
-            m_btnCloseCardW = btn1W;
-            m_btnCloseCardH = btnH;
         }
 
-        // Render button bar background matching MU tooltip style
-        EnableAlphaTest();
-        glColor4f(0.0f, 0.0f, 0.0f, 1.0f);
-        RenderColor(barLeft - 1.0f, row1Y - 2.0f, barW + 2.0f, 1.0f);
-        RenderColor(barLeft - 1.0f, row1Y - 2.0f, 1.0f, bgH + 1.0f);
-        RenderColor(barLeft + barW, row1Y - 2.0f, 1.0f, bgH + 1.0f);
-        RenderColor(barLeft - 1.0f, totalCardBottom, barW + 2.0f, 1.0f);
+        // Card touch bounds (covers side buttons + tooltip)
+        m_cardX = btnX - 4.0f;
+        m_cardY = tipTop;
+        m_cardW = (tipLeft + tipWidth) - m_cardX + 4.0f;
+        m_cardH = (std::max)(tipHeight, (bHasPrimaryAction ? btnY2 : btnY1) + btnH + 4.0f - tipTop);
 
-        glColor4f(0.0f, 0.0f, 0.0f, 0.85f);
-        RenderColor(barLeft, row1Y - 1.0f, barW, bgH);
-        EndRenderColor();
-
-        // Render buttons
+        // Render Action Buttons on the side
         if (m_selectedType == SLOT_TYPE_BAG)
         {
             if (IsEquipableItem(pItem))
             {
                 const bool bCanEquip = IsRequireEquipItem(pItem);
-                UIMobile::DrawButton(m_btnEquipX, m_btnEquipY, m_btnEquipW, m_btnEquipH, "Trang Bị", false, bCanEquip);
+                UIMobile::DrawButton(m_btnEquipX, m_btnEquipY, m_btnEquipW, m_btnEquipH, "Trang Bị", false, bCanEquip, UIMobile::Colors::BtnSuccess);
             }
             else if (IsConsumable(pItem))
             {
-                UIMobile::DrawButton(m_btnUseX, m_btnUseY, m_btnUseW, m_btnUseH, "Sử Dụng", false, true);
+                UIMobile::DrawButton(m_btnUseX, m_btnUseY, m_btnUseW, m_btnUseH, "Sử Dụng", false, true, UIMobile::Colors::BtnPrimary);
             }
 
-            UIMobile::DrawButton(m_btnDropX, m_btnDropY, m_btnDropW, m_btnDropH, "Vứt Bỏ", false, true);
-            UIMobile::DrawButton(m_btnCloseCardX, m_btnCloseCardY, m_btnCloseCardW, m_btnCloseCardH, "Đóng", false, true);
+            UIMobile::DrawButton(m_btnDropX, m_btnDropY, m_btnDropW, m_btnDropH, "Vứt Bỏ", false, true, UIMobile::Colors::BtnDanger);
         }
         else if (m_selectedType == SLOT_TYPE_EQUIPMENT)
         {
-            UIMobile::DrawButton(m_btnEquipX, m_btnEquipY, m_btnEquipW, m_btnEquipH, "Tháo Ra", false, true);
-            UIMobile::DrawButton(m_btnDropX, m_btnDropY, m_btnDropW, m_btnDropH, "Vứt Bỏ", false, true);
-            UIMobile::DrawButton(m_btnCloseCardX, m_btnCloseCardY, m_btnCloseCardW, m_btnCloseCardH, "Đóng", false, true);
+            UIMobile::DrawButton(m_btnEquipX, m_btnEquipY, m_btnEquipW, m_btnEquipH, "Tháo Ra", false, true, UIMobile::Colors::BtnPrimary);
+            UIMobile::DrawButton(m_btnDropX, m_btnDropY, m_btnDropW, m_btnDropH, "Vứt Bỏ", false, true, UIMobile::Colors::BtnDanger);
         }
         DisableAlphaBlend();
     }

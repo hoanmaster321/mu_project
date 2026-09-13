@@ -307,6 +307,11 @@ int RenderTextList(int sx,int sy,int TextNum,int Tab, int iSort = RT3_SORT_CENTE
 bool SetStatus = 0;
 float CacheY = 0;
 DWORD CacheTimeRenterTip1 = 0;
+float g_fTooltipMaxRight = 0.0f;
+float g_fTooltipActualLeft = 0.0f;
+float g_fTooltipActualTop = 0.0f;
+float g_fTooltipActualWidth = 0.0f;
+float g_fTooltipActualHeight = 0.0f;
 void RenderTipTextList(const int sx, const int sy, int TextNum, int Tab, int iSort, int iRenderPoint, BOOL bUseBG, BOOL Render3DItem)
 {
 	SIZE TextSize = {0, 0};
@@ -351,7 +356,7 @@ void RenderTipTextList(const int sx, const int sy, int TextNum, int Tab, int iSo
 		FixHRender3DItem = 80;
 	}
 	
-	fHeight /= g_fScreenRate_y / 1.1f;
+	fHeight /= g_fScreenRate_y / 1.05f;
 	fHeight += FixHRender3DItem;
 	EnableAlphaTest();
 	fWidth /= g_fScreenRate_x;
@@ -364,6 +369,11 @@ void RenderTipTextList(const int sx, const int sy, int TextNum, int Tab, int iSo
 	{
 		iPos_x = ((int)WindowWidth) / g_fScreenRate_x - fWidth - 1;
 	}
+	if (g_fTooltipMaxRight > 0.0f && ((float)iPos_x + fWidth > g_fTooltipMaxRight))
+	{
+		iPos_x = (int)(g_fTooltipMaxRight - fWidth);
+	}
+	if (iPos_x < 6) iPos_x = 6;
 	
 	float fsx = iPos_x + 1;
 	float fsy = 0.f;
@@ -395,6 +405,22 @@ void RenderTipTextList(const int sx, const int sy, int TextNum, int Tab, int iSo
 	}
 
 	fsy = CacheY;
+#if defined(__ANDROID__) || defined(MU_IOS)
+	if (fsy + fHeight > 472.0f)
+	{
+		fsy = 472.0f - fHeight;
+	}
+	if (fsy < 8.0f)
+	{
+		fsy = 8.0f;
+	}
+	CacheY = fsy;
+#endif
+
+	g_fTooltipActualLeft   = (float)iPos_x;
+	g_fTooltipActualTop    = fsy;
+	g_fTooltipActualWidth  = fWidth;
+	g_fTooltipActualHeight = fHeight;
 	//===
 	//unicode::t_char szText[100];
 	//unicode::_sprintf(szText, " %d Get y %d, maxy %d", MouseWheel,(int)fsy, (int)(fsy+fHeight));
@@ -506,7 +532,7 @@ void RenderTipTextList(const int sx, const int sy, int TextNum, int Tab, int iSo
 			g_pRenderText->RenderText(fsx,fsy,TextList[i],(fWidth-2),0,iSort, &TextSize);
 			fHeight = TextSize.cy;
 		}
-		fsy += fHeight * 1.1f;
+		fsy += fHeight * 1.05f;
 	}
 
 	g_pRenderText->SetFont(g_hFont);

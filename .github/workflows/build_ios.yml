@@ -1,0 +1,121 @@
+name: Build iOS Client
+
+on:
+  workflow_dispatch:
+    inputs:
+      build_target:
+        description: 'Build Target'
+        required: true
+        default: 'device'
+        type: choice
+        options:
+          - device
+          - simulator
+      bundle_data:
+        description: 'Bundle Client/Data into IPA'
+        required: true
+        default: true
+        type: boolean
+  push:
+    paths:
+      - 'Source/**'
+      - 'ios/**'
+      - '.github/workflows/build_ios.yml'
+    branches:
+      - main
+
+jobs:
+  build-ios:
+    name: Build MU Online iOS (.ipa)
+    runs-on: macos-14
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Set up Xcode
+        run: |
+          sudo xcode-select -s /Applications/Xcode_15.4.app || sudo xcode-select -s /Applications/Xcode.app
+          xcodebuild -version
+
+      - name: Install Build Tools & MoltenVK
+        run: |
+          brew install cmake ninja molten-vk
+
+      - name: Configure CMake for iOS
+        run: |
+          PLATFORM="OS64"
+          CONFIG="Release"
+          if [ "${{ github.event.inputs.build_target }}" = "simulator" ]; then
+            PLATFORM="SIMULATORARM64"
+            CONFIG="Debug"
+          fi
+
+          mkdir -p build-ios
+          cmake -B build-ios -S Source/5.Main -G Xcode \
+            -DCMAKE_TOOLCHAIN_FILE=ios/ios.toolchain.cmake \
+            -DPLATFORM="${PLATFORM}" \
+            -DCMAKE_BUILD_TYPE="${CONFIG}" \
+            -DCMAKE_OSX_DEPLOYMENT_TARGET="14.0"
+
+      - name: Compile iOS Application
+        run: |
+          CONFIG="Release"
+          SDK="iphoneos"
+          DEST="generic/platform=iOS"
+          if [ "${{ github.event.inputs.build_target }}" = "simulator" ]; then
+            CONFIG="Debug"
+            SDK="iphonesimulator"
+            DEST="generic/platform=iOS Simulator"
+          fi
+
+          xcodebuild -project build-ios/Main.xcodeproj \
+            -scheme Main \
+            -configuration "${CONFIG}" \
+            -sdk "${SDK}" \
+            -destination "${DEST}" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            build
+
+      - name: Embed Game Data & Package IPA
+        run: |
+          CONFIG="Release"
+          SDK_DIR="Release-iphoneos"
+          if [ "${{ github.event.inputs.build_target }}" = "simulator" ]; then
+            CONFIG="Debug"
+            SDK_DIR="Debug-iphonesimulator"
+          fi
+
+          APP_PATH="build-ios/${SDK_DIR}/MUOnline.app"
+          if [ ! -d "${APP_PATH}" ]; then
+            echo "::error::MUOnline.app not found at ${APP_PATH}"
+            exit 1
+          fi
+
+          # Sync Data if requested
+          if [ "${{ github.event.inputs.bundle_data }}" != "false" ] && [ -d "Client/Data" ]; then
+            echo "Copying Client/Data to ${APP_PATH}/Data..."
+            mkdir -p "${APP_PATH}/Data"
+            cp -R Client/Data/* "${APP_PATH}/Data/" 2>/dev/null || true
+          fi
+
+          mkdir -p outputs
+          if [ "${{ github.event.inputs.build_target }}" = "simulator" ]; then
+            cd "build-ios/${SDK_DIR}"
+            zip -q -r "${GITHUB_WORKSPACE}/outputs/MUOnline_Simulator.zip" MUOnline.app
+          else
+            mkdir -p build-ios/Payload
+            cp -R "${APP_PATH}" build-ios/Payload/
+            cd build-ios
+            zip -q -r "${GITHUB_WORKSPACE}/outputs/MUOnline_Client.ipa" Payload
+          fi
+
+      - name: Upload iOS Build Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: MUOnline_iOS_${{ github.event.inputs.build_target || 'device' }}
+          path: outputs/*
+          retention-days: 14

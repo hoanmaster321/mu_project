@@ -16,7 +16,7 @@
 #if(CB_VIP_CHAR)
 CBInterfaceVIPChar* gBInterfaceVIPChar = nullptr;
 
-#ifdef __ANDROID__
+#if defined(__ANDROID__) || defined(MU_IOS)
 #define ANDROID_VIP_STAGE(msg) do { OutputDebugStringA("UI_VIP: " msg); g_ErrorReport.Write("[UI_VIP] " msg "\r\n"); } while(0)
 #else
 #define ANDROID_VIP_STAGE(msg) ((void)0)
@@ -48,7 +48,7 @@ void CBInterfaceVIPChar::ErrorMessageBox(char* message, ...) // OK
 	vsnprintf(buff, sizeof(buff), (message != NULL) ? message : "", arg);
 	va_end(arg);
 
-#ifdef __ANDROID__
+#if defined(__ANDROID__) || defined(MU_IOS)
 	OutputDebugStringA(buff);
 	g_ErrorReport.Write("[UI_VIP_ERROR] %s\r\n", buff);
 	return;
@@ -64,7 +64,7 @@ void CBInterfaceVIPChar::LoadData()
 	this->m_VipCharRank.clear();
 	char* path = "Data\\Custom\\VIPCharRank.txt";
 
-#ifdef __ANDROID__
+#if defined(__ANDROID__) || defined(MU_IOS)
 	FILE* file = fopen("Data/Custom/VIPCharRank.txt", "rb");
 
 	if (file == NULL)

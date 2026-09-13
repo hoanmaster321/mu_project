@@ -61,7 +61,7 @@ bool CCameraMove::LoadCameraWalkScript(const std::string& filename)
 		return false;
 	}
 
-#ifdef __ANDROID__
+#if defined(__ANDROID__) || defined(MU_IOS)
 	unsigned int size = 0;
 	if (fread(&size, sizeof(unsigned int), 1, fp) != 1)
 #else

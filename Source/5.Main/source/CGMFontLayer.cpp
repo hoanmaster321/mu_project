@@ -94,14 +94,20 @@ bool isKoreanChar(FT_ULong charcode)
 
 void CGMFontLayer::runtime_font_property(HDC hdc, HFONT hFont, DWORD dwTable, FT_Library library, BitmapFont* FontType, int FontIndex, int PixelSize)
 {
-#ifdef __ANDROID__
+#if defined(__ANDROID__) || defined(MU_IOS)
 	FT_Face face = nullptr;
 	const char* fontFile = (FontIndex == 1) ? "Data/fonts/font_2.ttf" : "Data/fonts/font_.ttf";
 	if (FT_New_Face(library, fontFile, 0, &face) != 0)
 	{
 		if (FT_New_Face(library, "/system/fonts/Roboto-Regular.ttf", 0, &face) != 0)
 		{
-			return;
+			if (FT_New_Face(library, "/System/Library/Fonts/Cache/PingFang.ttc", 0, &face) != 0)
+			{
+				if (FT_New_Face(library, "/System/Library/Fonts/Core/Helvetica.ttc", 0, &face) != 0)
+				{
+					return;
+				}
+			}
 		}
 	}
 

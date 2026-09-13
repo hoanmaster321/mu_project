@@ -174,7 +174,7 @@ void CUIMng::RenderTitleSceneUI(HDC hDC, DWORD dwNow, DWORD dwTotal)
 
 	for (int i = 0; i < UIM_TS_MAX; ++i)
 	{
-#ifdef __ANDROID__
+#if defined(__ANDROID__) || defined(MU_IOS)
 		if(i==2 || i==4)
 			continue;
 #else
@@ -184,7 +184,7 @@ void CUIMng::RenderTitleSceneUI(HDC hDC, DWORD dwNow, DWORD dwTotal)
 		m_asprTitle[i].Render();
 	}
 
-#ifndef __ANDROID__
+#if !defined(__ANDROID__) && !defined(MU_IOS)
 	m_asprTitle[UIM_TS_MU].Render();
 #endif
 	m_pgbLoding->SetValue(dwNow, dwTotal);
