@@ -1,4 +1,4 @@
-﻿// =============================================================================
+// =============================================================================
 // UIMobileSystem.h
 // Central Mobile UI Coordinator and Event Dispatcher.
 // =============================================================================
@@ -15,6 +15,7 @@ namespace SEASON3B
     class CNewUIManager;
     class CNewUI3DRenderMng;
     class CUIMobileInventory;
+    class CUIMobileInventoryExtension;
     class CUIMobileCharacterInfo;
     class CUIMobileMoveCommand;
     class CUIMobileSkillSelect;
@@ -45,6 +46,7 @@ namespace UIMobile
         UI_OPTION,
         UI_HELPER,
         UI_NPC_DIALOGUE,
+        UI_INVENTORY_EXT,
         UI_COUNT
     };
 
@@ -89,11 +91,13 @@ namespace UIMobile
         SEASON3B::CUIMobileOption*         GetOption() const;
         SEASON3B::CUIMobileHelper*         GetHelper() const;
         SEASON3B::CUIMobileNPCDialogue*    GetNPCDialogue() const;
+        SEASON3B::CUIMobileInventoryExtension* GetInventoryExt() const;
 
     private:
         SEASON3B::CNewUIManager*      m_pNewUIMng;
         SEASON3B::CNewUI3DRenderMng*  m_pNewUI3DRenderMng;
 
+        SEASON3B::CUIMobileInventoryExtension* m_pInventoryExt;
         SEASON3B::CUIMobileCharacterInfo* m_pCharInfo;
         SEASON3B::CUIMobileMoveCommand*   m_pMoveCommand;
         SEASON3B::CUIMobileSkillSelect*   m_pSkillSelect;

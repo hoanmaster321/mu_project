@@ -73,6 +73,11 @@ namespace SEASON3B
         bool IsOpen() const { return m_bIsOpen; }
         bool IsVisible() const override { return m_bIsOpen; }
 
+        float GetPanelX() const { return m_panelX; }
+        float GetPanelY() const { return m_panelY; }
+        float GetPanelW() const { return m_panelW; }
+        float GetPanelH() const { return m_panelH; }
+
         // Touch Input Dispatch (called from MobileControls)
         bool OnFingerDown(const SDL_TouchFingerEvent& ev);
         bool OnFingerUp(const SDL_TouchFingerEvent& ev);
@@ -84,6 +89,13 @@ namespace SEASON3B
         void ExecuteUse(int bagSlotIndex);
         void ExecuteDrop(int slotIndex, SLOT_TYPE slotType);
         void ExecuteMoveOrSwap(SLOT_TYPE srcType, int srcIndex, SLOT_TYPE dstType, int dstIndex);
+        void ExecuteRepairAll();
+
+        // Helper getters for items
+        ITEM* GetEquipItem(int equipIndex) const;
+        ITEM* GetBagItem(int bagIndex) const;
+        bool  IsConsumable(const ITEM* pItem) const;
+        bool  IsEquipableItem(const ITEM* pItem) const;
 
     private:
         void EnsureTextures();
@@ -100,12 +112,7 @@ namespace SEASON3B
         void RenderActionCard();
         void RenderDraggedItem();
         void RenderHeaderAndZen();
-
-        // Helper getters for items
-        ITEM* GetEquipItem(int equipIndex) const;
-        ITEM* GetBagItem(int bagIndex) const;
-        bool  IsConsumable(const ITEM* pItem) const;
-        bool  IsEquipableItem(const ITEM* pItem) const;
+        void RenderUtilityButtons();
 
         CNewUIManager*     m_pNewUIMng;
         CNewUI3DRenderMng* m_pNewUI3DRenderMng;
@@ -152,6 +159,11 @@ namespace SEASON3B
         float m_btnDropX, m_btnDropY, m_btnDropW, m_btnDropH;
         float m_btnCloseCardX, m_btnCloseCardY, m_btnCloseCardW, m_btnCloseCardH;
 
+        // Utility button hitboxes (Sửa All, Mở Rộng, Cửa Hàng)
+        float m_btnRepairX, m_btnRepairY, m_btnRepairW, m_btnRepairH;
+        float m_btnExpandX, m_btnExpandY, m_btnExpandW, m_btnExpandH;
+        float m_btnMyShopX, m_btnMyShopY, m_btnMyShopW, m_btnMyShopH;
+
         // Textures & silhouettes
         GLuint m_equipSilhouettes[12];
         DWORD m_texBackdrop;
@@ -160,6 +172,9 @@ namespace SEASON3B
         DWORD m_texActionCardBg;
         DWORD m_texBtnNormal;
         DWORD m_texBtnPressed;
+        DWORD m_texBtnRepair;
+        DWORD m_texBtnExpand;
+        DWORD m_texBtnMyShop;
     };
 }
 

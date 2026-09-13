@@ -13,6 +13,9 @@
 #include "NewUISystem.h"
 #include "NewUIMyInventory.h"
 #include "NewUIInventoryCtrl.h"
+#include "NewUIInventoryExtension.h"
+#include "UIMobileInventoryExtension.h"
+#include "NewUIMyShopInventory.h"
 #include "CharacterManager.h"
 #include "ZzzInventory.h"
 #include "DSPlaySound.h"
@@ -81,12 +84,18 @@ namespace SEASON3B
         , m_btnUseX(0.0f), m_btnUseY(0.0f), m_btnUseW(0.0f), m_btnUseH(0.0f)
         , m_btnDropX(0.0f), m_btnDropY(0.0f), m_btnDropW(0.0f), m_btnDropH(0.0f)
         , m_btnCloseCardX(0.0f), m_btnCloseCardY(0.0f), m_btnCloseCardW(0.0f), m_btnCloseCardH(0.0f)
+        , m_btnRepairX(0.0f), m_btnRepairY(0.0f), m_btnRepairW(0.0f), m_btnRepairH(0.0f)
+        , m_btnExpandX(0.0f), m_btnExpandY(0.0f), m_btnExpandW(0.0f), m_btnExpandH(0.0f)
+        , m_btnMyShopX(0.0f), m_btnMyShopY(0.0f), m_btnMyShopW(0.0f), m_btnMyShopH(0.0f)
         , m_texBackdrop(0)
         , m_texSlotBg(0)
         , m_texSlotActive(0)
         , m_texActionCardBg(0)
         , m_texBtnNormal(0)
         , m_texBtnPressed(0)
+        , m_texBtnRepair(0)
+        , m_texBtnExpand(0)
+        , m_texBtnMyShop(0)
     {
         s_pInstance = this;
         std::memset(m_equipSlots, 0, sizeof(m_equipSlots));
@@ -106,21 +115,18 @@ namespace SEASON3B
 
     bool CUIMobileInventory::Create(CNewUIManager* pNewUIMng, CNewUI3DRenderMng* pNewUI3DRenderMng)
     {
+        if (!pNewUIMng || !pNewUI3DRenderMng) return false;
+
         m_pNewUIMng = pNewUIMng;
         m_pNewUI3DRenderMng = pNewUI3DRenderMng;
 
-        if (m_pNewUIMng)
-        {
-            m_pNewUIMng->AddUIObj(INTERFACE_INVENTORY, this);
-        }
-        if (m_pNewUI3DRenderMng)
-        {
-            m_pNewUI3DRenderMng->Add3DRenderObj(this, INVENTORY_CAMERA_Z_ORDER);
-        }
+        m_pNewUIMng->AddUIObj(INTERFACE_INVENTORY, this);
+        m_pNewUI3DRenderMng->Add3DRenderObj(this, INVENTORY_CAMERA_Z_ORDER);
 
         EnsureTextures();
         ComputeLayout();
-        m_bIsOpen = false;
+
+        Show(false);
         return true;
     }
 
@@ -159,6 +165,11 @@ namespace SEASON3B
         m_texSlotBg       = BITMAP_INTERFACE_NEW_INVENTORY_BASE_BEGIN;        // newui_item_box.tga
         m_texSlotActive   = BITMAP_INTERFACE_NEW_INVENTORY_BASE_BEGIN + 1;    // table highlight
         m_texActionCardBg = BITMAP_INTERFACE_NEW_MESSAGEBOX_BEGIN;            // newui_msgbox_back.jpg
+
+        // Utility Buttons (PC MU Season 6 personal inventory buttons)
+        m_texBtnRepair    = BITMAP_INTERFACE_NEW_PERSONALINVENTORY_BEGIN + 18; // newui_repair_00.tga
+        m_texBtnExpand    = BITMAP_INTERFACE_NEW_PERSONALINVENTORY_BEGIN + 19; // newui_expansion_btn.tga
+        m_texBtnMyShop    = BITMAP_MYSHOPINTERFACE_NEW_PERSONALINVENTORY_BEGIN + 1; // newui_Bt_openshop.tga
     }
 
     void CUIMobileInventory::ComputeLayout()
@@ -166,54 +177,74 @@ namespace SEASON3B
         const float winW = (DisplayWin > 0) ? static_cast<float>(DisplayWin) : 640.0f;
         const float winH = (DisplayHeight > 0) ? static_cast<float>(DisplayHeight) : 480.0f;
 
-        // 1. Right-side panel (compact authentic MU panel styling)
-        m_panelW = 224.0f;
-        m_panelH = 388.0f;
-        m_panelX = winW - m_panelW - 12.0f;
+        // 1. Right-side panel (full height mobile panel docked to right edge with 26px margin to avoid curved glass edges)
+        m_panelW = 280.0f;
+        m_panelH = 464.0f;
+        m_panelX = winW - m_panelW - 26.0f;
         m_panelY = (winH - m_panelH) * 0.5f;
 
-        // Close button (top right of panel)
-        m_closeBtnSize = 22.0f;
-        m_closeBtnX = m_panelX + m_panelW - m_closeBtnSize - 6.0f;
-        m_closeBtnY = m_panelY + 5.0f;
+        // Close button (top right of panel, inset so curved screen/notch doesn't clip)
+        m_closeBtnSize = 24.0f;
+        m_closeBtnX = m_panelX + m_panelW - m_closeBtnSize - 10.0f;
+        m_closeBtnY = m_panelY + 7.0f;
 
-        // 2. Equipment slots layout (Paperdoll layout inside top half of panel)
-        const float paperCenterX = m_panelX + (m_panelW * 0.5f);
-        const float paperTopY    = m_panelY + 30.0f;
-        const float eqSize       = 24.0f;
+        // 2. Equipment slots layout (Paperdoll layout shifted to the left, enlarged slots)
+        const float paperCenterX = m_panelX + 104.0f;
+        const float paperTopY    = m_panelY + 34.0f;
+        const float eqSize       = 28.0f;
 
         // Helper / Pet (Top-Left)
-        m_equipSlots[EQUIPMENT_HELPER] = { paperCenterX - 78.0f, paperTopY, eqSize, eqSize, EQUIPMENT_HELPER, SLOT_TYPE_EQUIPMENT };
+        m_equipSlots[EQUIPMENT_HELPER] = { paperCenterX - 86.0f, paperTopY, eqSize, eqSize, EQUIPMENT_HELPER, SLOT_TYPE_EQUIPMENT };
         // Helm (Top-Center)
         m_equipSlots[EQUIPMENT_HELM]   = { paperCenterX - (eqSize * 0.5f), paperTopY, eqSize, eqSize, EQUIPMENT_HELM, SLOT_TYPE_EQUIPMENT };
         // Wing (Top-Right)
-        m_equipSlots[EQUIPMENT_WING]   = { paperCenterX + 46.0f, paperTopY, eqSize * 1.35f, eqSize, EQUIPMENT_WING, SLOT_TYPE_EQUIPMENT };
+        m_equipSlots[EQUIPMENT_WING]   = { paperCenterX + 50.0f, paperTopY, 44.0f, eqSize, EQUIPMENT_WING, SLOT_TYPE_EQUIPMENT };
 
         // Weapon Right (Mid-Left)
-        m_equipSlots[EQUIPMENT_WEAPON_RIGHT] = { paperCenterX - 78.0f, paperTopY + 28.0f, eqSize, eqSize * 1.5f, EQUIPMENT_WEAPON_RIGHT, SLOT_TYPE_EQUIPMENT };
+        m_equipSlots[EQUIPMENT_WEAPON_RIGHT] = { paperCenterX - 86.0f, paperTopY + 32.0f, eqSize, 42.0f, EQUIPMENT_WEAPON_RIGHT, SLOT_TYPE_EQUIPMENT };
         // Armor (Mid-Center)
-        m_equipSlots[EQUIPMENT_ARMOR]        = { paperCenterX - (eqSize * 0.5f), paperTopY + 28.0f, eqSize, eqSize * 1.35f, EQUIPMENT_ARMOR, SLOT_TYPE_EQUIPMENT };
+        m_equipSlots[EQUIPMENT_ARMOR]        = { paperCenterX - (eqSize * 0.5f), paperTopY + 32.0f, eqSize, 38.0f, EQUIPMENT_ARMOR, SLOT_TYPE_EQUIPMENT };
         // Weapon Left / Shield (Mid-Right)
-        m_equipSlots[EQUIPMENT_WEAPON_LEFT]  = { paperCenterX + 54.0f, paperTopY + 28.0f, eqSize, eqSize * 1.5f, EQUIPMENT_WEAPON_LEFT, SLOT_TYPE_EQUIPMENT };
+        m_equipSlots[EQUIPMENT_WEAPON_LEFT]  = { paperCenterX + 58.0f, paperTopY + 32.0f, eqSize, 42.0f, EQUIPMENT_WEAPON_LEFT, SLOT_TYPE_EQUIPMENT };
 
         // Gloves (Low-Left)
-        m_equipSlots[EQUIPMENT_GLOVES] = { paperCenterX - 78.0f, paperTopY + 68.0f, eqSize, eqSize, EQUIPMENT_GLOVES, SLOT_TYPE_EQUIPMENT };
+        m_equipSlots[EQUIPMENT_GLOVES] = { paperCenterX - 86.0f, paperTopY + 78.0f, eqSize, eqSize, EQUIPMENT_GLOVES, SLOT_TYPE_EQUIPMENT };
         // Pants (Low-Center)
-        m_equipSlots[EQUIPMENT_PANTS]  = { paperCenterX - (eqSize * 0.5f), paperTopY + 64.0f, eqSize, eqSize * 1.25f, EQUIPMENT_PANTS, SLOT_TYPE_EQUIPMENT };
+        m_equipSlots[EQUIPMENT_PANTS]  = { paperCenterX - (eqSize * 0.5f), paperTopY + 74.0f, eqSize, 36.0f, EQUIPMENT_PANTS, SLOT_TYPE_EQUIPMENT };
         // Boots (Low-Right)
-        m_equipSlots[EQUIPMENT_BOOTS]  = { paperCenterX + 54.0f, paperTopY + 68.0f, eqSize, eqSize, EQUIPMENT_BOOTS, SLOT_TYPE_EQUIPMENT };
+        m_equipSlots[EQUIPMENT_BOOTS]  = { paperCenterX + 58.0f, paperTopY + 78.0f, eqSize, eqSize, EQUIPMENT_BOOTS, SLOT_TYPE_EQUIPMENT };
 
         // Jewelry row
-        const float jewY = paperTopY + 98.0f;
-        const float jewSize = 20.0f;
-        m_equipSlots[EQUIPMENT_RING_RIGHT] = { paperCenterX - 50.0f, jewY, jewSize, jewSize, EQUIPMENT_RING_RIGHT, SLOT_TYPE_EQUIPMENT };
+        const float jewY = paperTopY + 118.0f;
+        const float jewSize = 22.0f;
+        m_equipSlots[EQUIPMENT_RING_RIGHT] = { paperCenterX - 56.0f, jewY, jewSize, jewSize, EQUIPMENT_RING_RIGHT, SLOT_TYPE_EQUIPMENT };
         m_equipSlots[EQUIPMENT_AMULET]     = { paperCenterX - (jewSize * 0.5f), jewY, jewSize, jewSize, EQUIPMENT_AMULET, SLOT_TYPE_EQUIPMENT };
-        m_equipSlots[EQUIPMENT_RING_LEFT]  = { paperCenterX + 30.0f, jewY, jewSize, jewSize, EQUIPMENT_RING_LEFT, SLOT_TYPE_EQUIPMENT };
+        m_equipSlots[EQUIPMENT_RING_LEFT]  = { paperCenterX + 34.0f, jewY, jewSize, jewSize, EQUIPMENT_RING_LEFT, SLOT_TYPE_EQUIPMENT };
 
-        // 3. Bag Grid layout (8 cols x 8 rows = 64 slots, compact 24px grid)
-        m_bagSlotSize = 24.0f;
+        // Utility Buttons (Repair All, Expand Inventory, Personal Shop) beside paperdoll
+        const float utilBtnX = m_panelX + 204.0f;
+        const float utilBtnW = 64.0f;
+        const float utilBtnH = 34.0f;
+
+        m_btnRepairX = utilBtnX;
+        m_btnRepairY = paperTopY + 4.0f;
+        m_btnRepairW = utilBtnW;
+        m_btnRepairH = utilBtnH;
+
+        m_btnExpandX = utilBtnX;
+        m_btnExpandY = m_btnRepairY + utilBtnH + 6.0f;
+        m_btnExpandW = utilBtnW;
+        m_btnExpandH = utilBtnH;
+
+        m_btnMyShopX = utilBtnX;
+        m_btnMyShopY = m_btnExpandY + utilBtnH + 6.0f;
+        m_btnMyShopW = utilBtnW;
+        m_btnMyShopH = utilBtnH;
+
+        // 3. Bag Grid layout (8 cols x 8 rows = 64 slots, 33px slot size, 264x264 total)
+        m_bagSlotSize = 33.0f;
         m_bagStartX   = m_panelX + ((m_panelW - (8.0f * m_bagSlotSize)) * 0.5f);
-        m_bagStartY   = m_panelY + 152.0f;
+        m_bagStartY   = m_panelY + 172.0f;
 
         for (int row = 0; row < 8; ++row)
         {
@@ -259,6 +290,12 @@ namespace SEASON3B
         m_btnCloseCardY = row2Y;
         m_btnCloseCardW = m_cardW - 20.0f;
         m_btnCloseCardH = btnH;
+
+        if (g_pMyInventoryExt)
+        {
+            const int extX = static_cast<int>(m_panelX - 280.0f - 8.0f);
+            g_pMyInventoryExt->SetPos((extX < 8) ? 8 : extX, static_cast<int>(m_panelY));
+        }
     }
 
     void CUIMobileInventory::Open()
@@ -308,6 +345,22 @@ namespace SEASON3B
         m_selectedType = SLOT_TYPE_NONE;
         m_selectedIndex = -1;
         m_bDragging = false;
+        if (CUIMobileInventoryExtension::GetInstance() && CUIMobileInventoryExtension::GetInstance()->IsOpen())
+        {
+            CUIMobileInventoryExtension::GetInstance()->Close();
+        }
+        if (g_pNewUISystem)
+        {
+            if (g_pNewUISystem->IsVisible(INTERFACE_MYSHOP_INVENTORY))
+            {
+                g_pNewUISystem->Hide(INTERFACE_MYSHOP_INVENTORY);
+                g_pNewUISystem->Hide(INTERFACE_PURCHASESHOP_INVENTORY);
+            }
+            if (g_pNewUISystem->IsVisible(INTERFACE_ExpandInventory))
+            {
+                g_pNewUISystem->Hide(INTERFACE_ExpandInventory);
+            }
+        }
         PlayBuffer(SOUND_CLICK01);
     }
 
@@ -504,7 +557,41 @@ namespace SEASON3B
             }
         }
 
-        // 3. Test item slots in Equipment or Bag
+        // 3. Check Utility Buttons (Repair All, Expand, Personal Shop)
+        if (HitTestButton(tx, ty, m_btnRepairX, m_btnRepairY, m_btnRepairW, m_btnRepairH))
+        {
+            ExecuteRepairAll();
+            return true;
+        }
+
+        if (HitTestButton(tx, ty, m_btnExpandX, m_btnExpandY, m_btnExpandW, m_btnExpandH))
+        {
+            if (CUIMobileInventoryExtension::GetInstance())
+            {
+                CUIMobileInventoryExtension::GetInstance()->Toggle();
+            }
+            return true;
+        }
+
+        if (HitTestButton(tx, ty, m_btnMyShopX, m_btnMyShopY, m_btnMyShopW, m_btnMyShopH))
+        {
+            if (g_pNewUISystem)
+            {
+                if (g_pNewUISystem->IsVisible(INTERFACE_MYSHOP_INVENTORY))
+                {
+                    g_pNewUISystem->Hide(INTERFACE_MYSHOP_INVENTORY);
+                    g_pNewUISystem->Hide(INTERFACE_PURCHASESHOP_INVENTORY);
+                }
+                else
+                {
+                    g_pNewUISystem->Show(INTERFACE_MYSHOP_INVENTORY);
+                }
+                PlayBuffer(SOUND_CLICK01);
+            }
+            return true;
+        }
+
+        // 4. Test item slots in Equipment or Bag
         SLOT_TYPE hitType = SLOT_TYPE_NONE;
         const int hitIndex = HitTestSlot(tx, ty, hitType);
 
@@ -575,6 +662,30 @@ namespace SEASON3B
             return true;
         }
 
+        // If touched inside Mobile Inventory Extension window, don't close inventory and pass through
+        if (CUIMobileInventoryExtension::GetInstance() && CUIMobileInventoryExtension::GetInstance()->IsOpen())
+        {
+            const float extX = CUIMobileInventoryExtension::GetInstance()->GetWinX();
+            const float extY = CUIMobileInventoryExtension::GetInstance()->GetWinY();
+            const float extW = CUIMobileInventoryExtension::GetInstance()->GetWinW();
+            const float extH = CUIMobileInventoryExtension::GetInstance()->GetWinH();
+            if (tx >= extX && tx <= extX + extW && ty >= extY && ty <= extY + extH)
+            {
+                m_bShowActionCard = false;
+                return false;
+            }
+        }
+
+        // If touched inside Personal Shop window, don't close inventory and pass through touch
+        if (g_pNewUISystem && g_pNewUISystem->IsVisible(INTERFACE_MYSHOP_INVENTORY))
+        {
+            if (tx < m_panelX)
+            {
+                m_bShowActionCard = false;
+                return false; // Pass through to PC mouse click handling
+            }
+        }
+
         if (m_bShowActionCard)
         {
             m_bShowActionCard = false;
@@ -635,6 +746,21 @@ namespace SEASON3B
                 if (dstIndex != -1)
                 {
                     ExecuteMoveOrSwap(m_dragSrcType, m_dragSrcIndex, dstType, dstIndex);
+                }
+                else if (CUIMobileInventoryExtension::GetInstance() && CUIMobileInventoryExtension::GetInstance()->IsOpen())
+                {
+                    const float extX = CUIMobileInventoryExtension::GetInstance()->GetWinX();
+                    const float extY = CUIMobileInventoryExtension::GetInstance()->GetWinY();
+                    const float extW = CUIMobileInventoryExtension::GetInstance()->GetWinW();
+                    const float extH = CUIMobileInventoryExtension::GetInstance()->GetWinH();
+                    if (tx >= extX && tx <= extX + extW && ty >= extY && ty <= extY + extH && m_dragSrcType == SLOT_TYPE_BAG)
+                    {
+                        CUIMobileInventoryExtension::GetInstance()->ExecuteTransferFromBag(m_dragSrcIndex);
+                    }
+                    else
+                    {
+                        PlayBuffer(SOUND_CLICK01);
+                    }
                 }
                 else
                 {
@@ -804,6 +930,16 @@ namespace SEASON3B
 
         SendRequestDropItem(packetSlot, dropX, dropY);
         PlayBuffer(SOUND_DROP_ITEM01);
+    }
+
+    void CUIMobileInventory::ExecuteRepairAll()
+    {
+        const BYTE byGoldType = (g_pNewUISystem && g_pNewUISystem->IsVisible(INTERFACE_NPCSHOP)) ? 0 : 1;
+        SendRequestRepair(255, byGoldType);
+        PlayBuffer(SOUND_REPAIR);
+#if defined(__ANDROID__)
+        __android_log_print(ANDROID_LOG_INFO, "MuMain", "[MobileInven] ExecuteRepairAll sent (255, %d)", byGoldType);
+#endif
     }
 
     void CUIMobileInventory::ExecuteMoveOrSwap(SLOT_TYPE srcType, int srcIndex, SLOT_TYPE dstType, int dstIndex)
@@ -1045,8 +1181,8 @@ namespace SEASON3B
         glColor4f(1.0f, 1.0f, 1.0f, 1.0f);
 
         RenderBackdrop();
-        RenderHeaderAndZen();
         RenderEquipmentSlots();
+        RenderUtilityButtons();
         RenderBagGrid();
 
         if (m_bShowActionCard)
@@ -1094,13 +1230,13 @@ namespace SEASON3B
             if (pItem && pItem->Type >= 0)
             {
                 glColor4f(1.0f, 1.0f, 1.0f, 1.0f);
-                float y = m_equipSlots[i].y + 2.0f;
+                float y = m_equipSlots[i].y + 1.0f;
                 if (i == EQUIPMENT_ARMOR) y -= 4.0f;
                 RenderItem3D(
-                    m_equipSlots[i].x + 2.0f,
+                    m_equipSlots[i].x + 1.0f,
                     y,
-                    m_equipSlots[i].w - 4.0f,
-                    m_equipSlots[i].h - 4.0f,
+                    m_equipSlots[i].w - 2.0f,
+                    m_equipSlots[i].h - 2.0f,
                     pItem->Type,
                     pItem->Level,
                     pItem->Option1,
@@ -1136,10 +1272,10 @@ namespace SEASON3B
 
                 glColor4f(1.0f, 1.0f, 1.0f, 1.0f);
                 RenderItem3D(
-                    itemX + 2.0f,
-                    itemY + 2.0f,
-                    itemW - 4.0f,
-                    itemH - 4.0f,
+                    itemX + 1.0f,
+                    itemY + 1.0f,
+                    itemW - 2.0f,
+                    itemH - 2.0f,
                     pItem->Type,
                     pItem->Level,
                     pItem->Option1,
@@ -1199,16 +1335,19 @@ namespace SEASON3B
             EnableAlphaTest();
             glColor4f(1.0f, 1.0f, 1.0f, 1.0f);
             const float zenX = m_panelX + 16.0f;
-            const float zenY = m_panelY + m_panelH - 24.0f;
+            const float zenY = m_panelY + m_panelH - 34.0f;
             const float zenW = m_panelW - 32.0f;
-            UIMobile::DrawStretched(BITMAP_INTERFACE_NEW_PERSONALINVENTORY_BEGIN + 16, zenX, zenY, zenW, 18.0f);
+            UIMobile::DrawStretched(BITMAP_INTERFACE_NEW_PERSONALINVENTORY_BEGIN + 16, zenX, zenY, zenW, 20.0f);
 
-            char zenStr[64];
-            std::snprintf(zenStr, sizeof(zenStr), "%u Zen", CharacterMachine->Gold);
+            unicode::t_char zenNumStr[64] = { 0 };
+            ConvertGold(CharacterMachine->Gold, zenNumStr);
+            char fullZenStr[128];
+            std::snprintf(fullZenStr, sizeof(fullZenStr), "%s Zen", zenNumStr);
+
             g_pRenderText->SetFont(g_hFontBold);
             g_pRenderText->SetTextColor(255, 230, 90, 255);
             g_pRenderText->SetBgColor(0, 0, 0, 0);
-            g_pRenderText->RenderText(static_cast<int>(zenX + 28.0f), static_cast<int>(zenY + 3.0f), zenStr);
+            g_pRenderText->RenderText(static_cast<int>(zenX + 28.0f), static_cast<int>(zenY + 4.0f), fullZenStr);
             DisableAlphaBlend();
         }
     }
@@ -1281,6 +1420,19 @@ namespace SEASON3B
                 EndRenderColor();
             }
         }
+    }
+
+    void CUIMobileInventory::RenderUtilityButtons()
+    {
+        // 1. Repair All
+        UIMobile::DrawButton(m_btnRepairX, m_btnRepairY, m_btnRepairW, m_btnRepairH, "Sửa All", false, true, UIMobile::Colors::BtnPrimary);
+
+        // 2. Expand Inventory
+        UIMobile::DrawButton(m_btnExpandX, m_btnExpandY, m_btnExpandW, m_btnExpandH, "Mở Rộng", false, true, UIMobile::Colors::BtnPrimary);
+
+        // 3. Personal Shop (toggle text between "Cửa Hàng" and "Đóng Shop")
+        const bool bShopOpen = (g_pNewUISystem && g_pNewUISystem->IsVisible(INTERFACE_MYSHOP_INVENTORY));
+        UIMobile::DrawButton(m_btnMyShopX, m_btnMyShopY, m_btnMyShopW, m_btnMyShopH, bShopOpen ? "Đóng Shop" : "Cửa Hàng", false, true, bShopOpen ? UIMobile::Colors::BtnSuccess : UIMobile::Colors::BtnPrimary);
     }
 
     void CUIMobileInventory::RenderBagGrid()

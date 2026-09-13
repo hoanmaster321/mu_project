@@ -1,4 +1,4 @@
-﻿// =============================================================================
+// =============================================================================
 // UIMobileSystem.cpp
 // Implementation of Central Mobile UI Coordinator & Event Dispatcher.
 // =============================================================================
@@ -6,6 +6,7 @@
 #include "stdafx.h"
 #include "UIMobileSystem.h"
 #include "UIMobileInventory.h"
+#include "UIMobileInventoryExtension.h"
 #include "UIMobileCharacterInfo.h"
 #include "UIMobileMoveCommand.h"
 #include "UIMobileSkillSelect.h"
@@ -25,6 +26,7 @@ namespace UIMobile
     CUIMobileSystem::CUIMobileSystem()
         : m_pNewUIMng(nullptr)
         , m_pNewUI3DRenderMng(nullptr)
+        , m_pInventoryExt(nullptr)
         , m_pCharInfo(nullptr)
         , m_pMoveCommand(nullptr)
         , m_pSkillSelect(nullptr)
@@ -89,11 +91,15 @@ namespace UIMobile
         m_pNPCDialogue = new SEASON3B::CUIMobileNPCDialogue;
         m_pNPCDialogue->Create(m_pNewUIMng);
 
+        m_pInventoryExt = new SEASON3B::CUIMobileInventoryExtension;
+        m_pInventoryExt->Create(m_pNewUIMng, m_pNewUI3DRenderMng);
+
         return true;
     }
 
     void CUIMobileSystem::Release()
     {
+        SAFE_DELETE(m_pInventoryExt);
         SAFE_DELETE(m_pCharInfo);
         SAFE_DELETE(m_pMoveCommand);
         SAFE_DELETE(m_pSkillSelect);
@@ -170,10 +176,15 @@ namespace UIMobile
         return m_pNPCDialogue;
     }
 
+    SEASON3B::CUIMobileInventoryExtension* CUIMobileSystem::GetInventoryExt() const
+    {
+        return m_pInventoryExt;
+    }
+
     void CUIMobileSystem::Show(MOBILE_UI_TYPE type)
     {
-        // Exclusive window display unless opening paired windows like NPCShop/Storage + Inventory
-        if (type != UI_INVENTORY && type != UI_NPC_SHOP && type != UI_STORAGE && type != UI_MIX && type != UI_TRADE)
+        // Exclusive window display unless opening paired windows like NPCShop/Storage/Extension + Inventory
+        if (type != UI_INVENTORY && type != UI_INVENTORY_EXT && type != UI_NPC_SHOP && type != UI_STORAGE && type != UI_MIX && type != UI_TRADE)
         {
             HideAll();
         }
@@ -182,6 +193,9 @@ namespace UIMobile
         {
             case UI_INVENTORY:
                 if (GetInventory()) GetInventory()->Open();
+                break;
+            case UI_INVENTORY_EXT:
+                if (m_pInventoryExt) m_pInventoryExt->Open();
                 break;
             case UI_CHARACTER_INFO:
                 if (m_pCharInfo) m_pCharInfo->Open();
@@ -230,6 +244,9 @@ namespace UIMobile
         {
             case UI_INVENTORY:
                 if (GetInventory()) GetInventory()->Close();
+                break;
+            case UI_INVENTORY_EXT:
+                if (m_pInventoryExt) m_pInventoryExt->Close();
                 break;
             case UI_CHARACTER_INFO:
                 if (m_pCharInfo) m_pCharInfo->Close();
@@ -282,6 +299,7 @@ namespace UIMobile
 
     void CUIMobileSystem::HideAll()
     {
+        if (m_pInventoryExt && m_pInventoryExt->IsOpen()) m_pInventoryExt->Close();
         if (GetInventory() && GetInventory()->IsOpen()) GetInventory()->Close();
         if (m_pCharInfo && m_pCharInfo->IsOpen()) m_pCharInfo->Close();
         if (m_pMoveCommand && m_pMoveCommand->IsOpen()) m_pMoveCommand->Close();
@@ -302,6 +320,8 @@ namespace UIMobile
         {
             case UI_INVENTORY:
                 return (GetInventory() && GetInventory()->IsOpen());
+            case UI_INVENTORY_EXT:
+                return (m_pInventoryExt && m_pInventoryExt->IsOpen());
             case UI_CHARACTER_INFO:
                 return (m_pCharInfo && m_pCharInfo->IsOpen());
             case UI_MOVE_COMMAND:
@@ -331,6 +351,7 @@ namespace UIMobile
     bool CUIMobileSystem::IsAnyUIVisible() const
     {
         return (IsVisible(UI_INVENTORY)
+            || IsVisible(UI_INVENTORY_EXT)
             || IsVisible(UI_CHARACTER_INFO)
             || IsVisible(UI_MOVE_COMMAND)
             || IsVisible(UI_SKILL_SELECT)
@@ -350,6 +371,8 @@ namespace UIMobile
         if (m_pOption && m_pOption->IsOpen() && m_pOption->OnFingerDown(ev)) return true;
         if (m_pHelper && m_pHelper->IsOpen() && m_pHelper->OnFingerDown(ev)) return true;
         if (m_pNPCDialogue && m_pNPCDialogue->IsOpen() && m_pNPCDialogue->OnFingerDown(ev)) return true;
+
+        if (m_pInventoryExt && m_pInventoryExt->IsOpen() && m_pInventoryExt->OnFingerDown(ev)) return true;
 
         if (m_pNPCShop && m_pNPCShop->IsOpen() && m_pNPCShop->OnFingerDown(ev)) return true;
         if (m_pStorage && m_pStorage->IsOpen() && m_pStorage->OnFingerDown(ev)) return true;
@@ -371,6 +394,8 @@ namespace UIMobile
         if (m_pHelper && m_pHelper->IsOpen() && m_pHelper->OnFingerMotion(ev)) return true;
         if (m_pNPCDialogue && m_pNPCDialogue->IsOpen() && m_pNPCDialogue->OnFingerMotion(ev)) return true;
 
+        if (m_pInventoryExt && m_pInventoryExt->IsOpen() && m_pInventoryExt->OnFingerMotion(ev)) return true;
+
         if (m_pNPCShop && m_pNPCShop->IsOpen() && m_pNPCShop->OnFingerMotion(ev)) return true;
         if (m_pStorage && m_pStorage->IsOpen() && m_pStorage->OnFingerMotion(ev)) return true;
         if (m_pMix && m_pMix->IsOpen() && m_pMix->OnFingerMotion(ev)) return true;
@@ -391,6 +416,8 @@ namespace UIMobile
         if (m_pHelper && m_pHelper->IsOpen() && m_pHelper->OnFingerUp(ev)) return true;
         if (m_pNPCDialogue && m_pNPCDialogue->IsOpen() && m_pNPCDialogue->OnFingerUp(ev)) return true;
 
+        if (m_pInventoryExt && m_pInventoryExt->IsOpen() && m_pInventoryExt->OnFingerUp(ev)) return true;
+
         if (m_pNPCShop && m_pNPCShop->IsOpen() && m_pNPCShop->OnFingerUp(ev)) return true;
         if (m_pStorage && m_pStorage->IsOpen() && m_pStorage->OnFingerUp(ev)) return true;
         if (m_pMix && m_pMix->IsOpen() && m_pMix->OnFingerUp(ev)) return true;
@@ -408,6 +435,7 @@ namespace UIMobile
     void CUIMobileSystem::Update()
     {
         if (GetInventory()) GetInventory()->Update();
+        if (m_pInventoryExt) m_pInventoryExt->Update();
         if (m_pCharInfo) m_pCharInfo->Update();
         if (m_pMoveCommand) m_pMoveCommand->Update();
         if (m_pSkillSelect) m_pSkillSelect->Update();
@@ -424,6 +452,7 @@ namespace UIMobile
     void CUIMobileSystem::Render()
     {
         if (GetInventory() && GetInventory()->IsOpen()) GetInventory()->Render();
+        if (m_pInventoryExt && m_pInventoryExt->IsOpen()) m_pInventoryExt->Render();
         if (m_pCharInfo && m_pCharInfo->IsOpen()) m_pCharInfo->Render();
         if (m_pMoveCommand && m_pMoveCommand->IsOpen()) m_pMoveCommand->Render();
         if (m_pSkillSelect && m_pSkillSelect->IsOpen()) m_pSkillSelect->Render();
@@ -440,6 +469,7 @@ namespace UIMobile
     void CUIMobileSystem::Render3D()
     {
         if (GetInventory() && GetInventory()->IsOpen()) GetInventory()->Render3D();
+        if (m_pInventoryExt && m_pInventoryExt->IsOpen()) m_pInventoryExt->Render3D();
         if (m_pNPCShop && m_pNPCShop->IsOpen()) m_pNPCShop->Render3D();
         if (m_pStorage && m_pStorage->IsOpen()) m_pStorage->Render3D();
         if (m_pMix && m_pMix->IsOpen()) m_pMix->Render3D();
