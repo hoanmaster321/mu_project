@@ -565,17 +565,26 @@ namespace SEASON3B
             std::snprintf(nameBuf, sizeof(nameBuf), "Vật phẩm");
         }
 
+#if defined(ANDROID) || defined(__ANDROID__)
+        g_pRenderText->SetFont((g_hFontItemInfoBold != nullptr) ? g_hFontItemInfoBold : g_hFontBold);
+#else
         g_pRenderText->SetFont(g_hFontBold);
+#endif
         g_pRenderText->SetBgColor(0, 0, 0, 0);
         g_pRenderText->SetTextColor(255, 230, 90, 255);
-        g_pRenderText->RenderText(static_cast<int>(m_cardX + 12.0f), static_cast<int>(m_cardY + 10.0f), nameBuf);
+        g_pRenderText->RenderText(static_cast<int>(m_cardX + 12.0f), static_cast<int>(m_cardY + 8.0f), nameBuf);
 
         // Durability / stats
         char durBuf[64] = { 0 };
         std::snprintf(durBuf, sizeof(durBuf), "Độ bền: %d", pItem->Durability);
+#if defined(ANDROID) || defined(__ANDROID__)
+        g_pRenderText->SetFont((g_hFontItemInfo != nullptr) ? g_hFontItemInfo : g_hFont);
+#else
         g_pRenderText->SetFont(g_hFont);
+#endif
         g_pRenderText->SetTextColor(180, 180, 180, 255);
-        g_pRenderText->RenderText(static_cast<int>(m_cardX + 12.0f), static_cast<int>(m_cardY + 32.0f), durBuf);
+        g_pRenderText->RenderText(static_cast<int>(m_cardX + 12.0f), static_cast<int>(m_cardY + 34.0f), durBuf);
+        g_pRenderText->SetFont(g_hFont);
 
         // Buttons: [Chuyển Về Túi] and [Đóng]
         UIMobile::DrawButton(m_btnToBagX, m_btnToBagY, m_btnToBagW, m_btnToBagH, "Chuyển Về Túi", false, true, UIMobile::Colors::BtnPrimary);

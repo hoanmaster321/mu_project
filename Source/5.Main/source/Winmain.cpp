@@ -109,6 +109,8 @@ HFONT     g_hFontBoldName = NULL;
 HFONT     g_hFontBig = NULL;
 HFONT     g_hFixFont = NULL;
 HFONT     g_hFontMini= NULL;
+HFONT     g_hFontItemInfo = NULL;
+HFONT     g_hFontItemInfoBold = NULL;
 CTimer*		g_pTimer = NULL;	// performance counter.
 bool      Destroy = false;
 bool      ActiveIME = false;
@@ -479,6 +481,8 @@ void DestroyWindow()
 	if (g_hFontMini)::DeleteObject((HGDIOBJ)g_hFixFont);
 
 	if (g_hFontBoldName)::DeleteObject((HGDIOBJ)g_hFontBoldName);
+	if (g_hFontItemInfo)::DeleteObject((HGDIOBJ)g_hFontItemInfo);
+	if (g_hFontItemInfoBold)::DeleteObject((HGDIOBJ)g_hFontItemInfoBold);
 	
 	ReleaseCharacters();
 

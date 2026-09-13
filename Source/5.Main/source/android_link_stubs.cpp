@@ -53,6 +53,8 @@ int mShowMiniMap = 1;
 int mShowDanhHieu = 1;
 float g_androidZoomOverride = 0.0f;
 HFONT g_hFontMini = NULL;
+HFONT g_hFontItemInfo = NULL;
+HFONT g_hFontItemInfoBold = NULL;
 
 class CChatRoomSocketList;
 CChatRoomSocketList* g_pChatRoomSocketList = nullptr;

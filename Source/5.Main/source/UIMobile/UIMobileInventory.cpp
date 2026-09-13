@@ -1696,11 +1696,13 @@ namespace SEASON3B
         else
             pItem->bySelectedSlotIndex = m_selectedIndex + 12;
 
-        const float estTooltipW = (m_cardW > 90.0f) ? m_cardW : 140.0f;
-        const float estTooltipH = (m_cardH > 60.0f) ? m_cardH : 200.0f;
+        const float estTooltipW = (m_cardW > 100.0f) ? m_cardW : 190.0f;
+        const float estTooltipH = (m_cardH > 80.0f) ? m_cardH : 240.0f;
 
-        // Position tooltip right edge adjacent to inventory panel left edge with a clean 6px margin
-        const float targetRight = m_panelX - 6.0f;
+        // Position tooltip right edge adjacent to inventory panel (or extension panel if open)
+        const float targetRight = (CUIMobileInventoryExtension::GetInstance() && CUIMobileInventoryExtension::GetInstance()->IsOpen())
+            ? (m_panelX - 288.0f - 6.0f)
+            : (m_panelX - 6.0f);
         float tooltipTargetX = targetRight - (estTooltipW * 0.5f);
         if (tooltipTargetX - (estTooltipW * 0.5f) < 6.0f)
         {
@@ -1728,14 +1730,21 @@ namespace SEASON3B
         for (int i = 0; i < TextNum; ++i)
         {
             if (TextList[i][0] == '\0') break;
+#if defined(ANDROID) || defined(__ANDROID__)
+            if (TextBold[i]) g_pRenderText->SetFont((g_hFontItemInfoBold != nullptr) ? g_hFontItemInfoBold : g_hFontBold);
+            else g_pRenderText->SetFont((g_hFontItemInfo != nullptr) ? g_hFontItemInfo : g_hFont);
+#else
             if (TextBold[i]) g_pRenderText->SetFont(g_hFontBold);
             else g_pRenderText->SetFont(g_hFont);
+#endif
 
             g_pMultiLanguage->_GetTextExtentPoint32(g_pRenderText->GetFontDC(), TextList[i], lstrlen(TextList[i]), &tSize);
             if (actualW < tSize.cx) actualW = static_cast<float>(tSize.cx);
             if (TextList[i][0] == '\n') ++emptyLine;
             else ++textLine;
         }
+
+        g_pRenderText->SetFont(g_hFont);
 
         if (g_fScreenRate_y > 0.0f)
             actualH = (tSize.cy * textLine + tSize.cy * 0.5f * emptyLine) / (g_fScreenRate_y / 1.1f);
@@ -1755,8 +1764,8 @@ namespace SEASON3B
         // Mobile Action Button Bar matches tooltip width!
         const float barW    = (std::max)(actualW, 100.0f);
         const float barLeft = (barW > actualW) ? (tooltipTargetX - (barW * 0.5f)) : tipLeft;
-        const float btnH    = 22.0f;
-        const float row1Y   = tipBottom + 2.0f;
+        const float btnH    = 24.0f;
+        const float row1Y   = tipBottom + 3.0f;
         const float row2Y   = row1Y + btnH + 3.0f;
 
         const bool bHasPrimaryAction = (m_selectedType == SLOT_TYPE_EQUIPMENT) ||

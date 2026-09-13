@@ -320,6 +320,16 @@ void RenderTipTextList(const int sx, const int sy, int TextNum, int Tab, int iSo
 			break;
 		}
 
+#if defined(ANDROID) || defined(__ANDROID__)
+		if(TextBold[i])
+		{
+			g_pRenderText->SetFont((g_hFontItemInfoBold != nullptr) ? g_hFontItemInfoBold : g_hFontBold);
+		}
+		else
+		{
+			g_pRenderText->SetFont((g_hFontItemInfo != nullptr) ? g_hFontItemInfo : g_hFont);
+		}
+#else
 		if(TextBold[i])
 		{
 			g_pRenderText->SetFont(g_hFontBold);
@@ -328,6 +338,7 @@ void RenderTipTextList(const int sx, const int sy, int TextNum, int Tab, int iSo
 		{
 			g_pRenderText->SetFont(g_hFont);
 		}
+#endif
 
 		g_pMultiLanguage->_GetTextExtentPoint32(g_pRenderText->GetFontDC(), TextList[i], lstrlen(TextList[i]), &TextSize);
 		
@@ -424,6 +435,16 @@ void RenderTipTextList(const int sx, const int sy, int TextNum, int Tab, int iSo
 
 	for(int i=0;i<TextNum;i++)
 	{
+#if defined(ANDROID) || defined(__ANDROID__)
+     	if(TextBold[i])
+		{
+			g_pRenderText->SetFont((g_hFontItemInfoBold != nullptr) ? g_hFontItemInfoBold : g_hFontBold);
+		}
+		else
+		{
+			g_pRenderText->SetFont((g_hFontItemInfo != nullptr) ? g_hFontItemInfo : g_hFont);
+		}
+#else
      	if(TextBold[i])
 		{
 			g_pRenderText->SetFont(g_hFontBold);
@@ -432,6 +453,7 @@ void RenderTipTextList(const int sx, const int sy, int TextNum, int Tab, int iSo
 		{
 			g_pRenderText->SetFont(g_hFont);
 		}
+#endif
 		
 		float fHeight = 0;
 		if(TextList[i][0] == 0x0a || (TextList[i][0] == ' ' && TextList[i][1] == 0x00))
@@ -509,6 +531,9 @@ void RenderTipTextList(const int sx, const int sy, int TextNum, int Tab, int iSo
 		fsy += fHeight * 1.1f;
 	}
 
+#if defined(ANDROID) || defined(__ANDROID__)
+	g_pRenderText->SetFont(g_hFont);
+#endif
 	glColor4f(1.0f, 1.0f, 1.0f, 1.0f);
 	DisableAlphaBlend();
 }

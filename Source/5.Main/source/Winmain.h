@@ -73,6 +73,8 @@ extern HFONT     g_hFontBoldName;
 extern HFONT     g_hFontBig;
 extern HFONT     g_hFixFont;
 extern HFONT     g_hFontMini;
+extern HFONT     g_hFontItemInfo;
+extern HFONT     g_hFontItemInfoBold;
 extern bool      Destroy;
 extern int       RandomTable[];
 

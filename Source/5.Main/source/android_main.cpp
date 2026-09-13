@@ -409,6 +409,8 @@ HFONT     g_hFont     = nullptr;
 HFONT     g_hFontBold = nullptr;
 HFONT     g_hFontBig  = nullptr;
 HFONT     g_hFixFont  = nullptr;
+HFONT     g_hFontItemInfo     = nullptr;
+HFONT     g_hFontItemInfoBold = nullptr;
 
 CTimer*   g_pTimer    = new CTimer();
 bool      Destroy     = false;
@@ -8315,6 +8317,14 @@ void DestroyWindow_Android()
         DeleteObject((HGDIOBJ)g_hFixFont);
         g_hFixFont = nullptr;
     }
+    if (g_hFontItemInfo) {
+        DeleteObject((HGDIOBJ)g_hFontItemInfo);
+        g_hFontItemInfo = nullptr;
+    }
+    if (g_hFontItemInfoBold) {
+        DeleteObject((HGDIOBJ)g_hFontItemInfoBold);
+        g_hFontItemInfoBold = nullptr;
+    }
     AndroidGDI_Shutdown();
 
     LOGI("Game systems destroyed");
@@ -9698,7 +9708,13 @@ static bool InitializeAndroidGame()
         g_hFontBold = AndroidCreateFont(fontSize, 600);
         g_hFontBig = AndroidCreateFont(fontSize * 2, 600);
         g_hFixFont = AndroidCreateFont((static_cast<int>(WindowHeight) <= 600) ? 13 : 14, 400);
-        LOGI("GDI fonts created: size=%d big=%d", fontSize, fontSize * 2);
+
+        int itemFontSize = static_cast<int>(std::round(fontSize * 1.55f));
+        if (itemFontSize > 26) itemFontSize = 26;
+        if (itemFontSize < 18) itemFontSize = 18;
+        g_hFontItemInfo = AndroidCreateFont(itemFontSize, 400);
+        g_hFontItemInfoBold = AndroidCreateFont(itemFontSize, 600);
+        LOGI("GDI fonts created: size=%d itemSize=%d big=%d", fontSize, itemFontSize, fontSize * 2);
     }
 
     if (!g_hWnd) g_hWnd = reinterpret_cast<HWND>(0x1);
@@ -10497,7 +10513,13 @@ int SDL_main(int argc, char* argv[])
         g_hFontBig  = AndroidCreateFont(fontSize * 2, 600);
         g_hFixFont  = AndroidCreateFont(
             (int)WindowHeight <= 600 ? 13 : 14, 400);
-        LOGI("GDI fonts created: size=%d big=%d", fontSize, fontSize*2);
+
+        int itemFontSize = static_cast<int>(std::round(fontSize * 1.55f));
+        if (itemFontSize > 26) itemFontSize = 26;
+        if (itemFontSize < 18) itemFontSize = 18;
+        g_hFontItemInfo = AndroidCreateFont(itemFontSize, 400);
+        g_hFontItemInfoBold = AndroidCreateFont(itemFontSize, 600);
+        LOGI("GDI fonts created: size=%d itemSize=%d big=%d", fontSize, itemFontSize, fontSize*2);
     }
 
     // â”€â”€ Init input system with actual screen size so dialogs position correctly
