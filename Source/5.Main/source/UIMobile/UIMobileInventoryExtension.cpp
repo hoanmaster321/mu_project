@@ -300,14 +300,7 @@ namespace SEASON3B
         }
 
         // Close button [X]
-        if (UIMobile::HitTestRect(tx, ty, m_closeBtnX, m_closeBtnY, m_closeBtnSize, m_closeBtnSize))
-        {
-            Close();
-            return true;
-        }
-
-        // Exit button
-        if (UIMobile::HitTestRect(tx, ty, m_exitBtnX, m_exitBtnY, m_exitBtnW, m_exitBtnH))
+        if (UIMobile::HitTestRect(tx, ty, m_closeBtnX - 4.0f, m_closeBtnY - 4.0f, m_closeBtnSize + 8.0f, m_closeBtnSize + 8.0f))
         {
             Close();
             return true;
@@ -446,31 +439,8 @@ namespace SEASON3B
 
     void CUIMobileInventoryExtension::RenderFrame()
     {
-        // 1. Background
-        RenderImage(IMAGE_EXTENSION_BACK, m_winX, m_winY, m_winW, m_winH);
-
-        // 2. Header
-        RenderImage(IMAGE_EXTENSION_TOP, m_winX, m_winY, m_winW, 64.0f);
-
-        // 3. Left / Right borders
-        const float borderH = m_winH - 64.0f - 45.0f;
-        RenderImage(IMAGE_EXTENSION_LEFT, m_winX, m_winY + 64.0f, 21.0f, borderH);
-        RenderImage(IMAGE_EXTENSION_RIGHT, m_winX + m_winW - 21.0f, m_winY + 64.0f, 21.0f, borderH);
-
-        // 4. Bottom frame
-        RenderImage(IMAGE_EXTENSION_BOTTOM, m_winX, m_winY + m_winH - 45.0f, m_winW, 45.0f);
-
-        // 5. Title Text
-        g_pRenderText->SetFont(g_hFontBold);
-        g_pRenderText->SetBgColor(0, 0, 0, 0);
-        g_pRenderText->SetTextColor(220, 220, 220, 255);
-        g_pRenderText->RenderText(static_cast<int>(m_winX), static_cast<int>(m_winY + 14.0f), GlobalText[3323], static_cast<int>(m_winW), 0, RT3_SORT_CENTER);
-
-        // 6. Close button [X]
-        UIMobile::DrawCloseButton(m_closeBtnX, m_closeBtnY, m_closeBtnSize);
-
-        // 7. Exit button at bottom
-        RenderImage(IMAGE_INVENTORY_EXIT_BTN, m_exitBtnX, m_exitBtnY, m_exitBtnW, m_exitBtnH);
+        UIMobile::DrawSlicedFrame(m_winX, m_winY, m_winW, m_winH, GlobalText[3323]);
+        UIMobile::DrawCloseButton(m_closeBtnX, m_closeBtnY, m_closeBtnSize, false);
     }
 
     void CUIMobileInventoryExtension::RenderBoxes()
@@ -486,29 +456,25 @@ namespace SEASON3B
 
             if (ext >= unlockedCount)
             {
-                // Locked Box (Classic PC style, scaled to 240x120)
-                RenderImage(IMAGE_EXTENSION_TABLE, bX - 4.0f, bY - 4.0f, bW + 8.0f, bH + 8.0f);
-                RenderImage(IMAGE_EXTENSION_EMPTY, bX, bY, bW, bH);
-                RenderImage(static_cast<GLuint>(IMAGE_EXTENSION_NO1 + ext), bX + (bW * 0.5f) - 15.0f, bY + (bH * 0.5f) - 20.0f, 30.0f, 34.0f);
+                // Locked Box (Clean GlassCard background with authentic MU table borders)
+                UIMobile::Render::DrawGlassCard(bX, bY, bW, bH, 0.6f);
+                UIMobile::DrawTableFrameBorders(bX, bY, bW, bH);
+
+                // Roman numeral icon (NO1 / NO2)
+                EnableAlphaTest();
+                glColor4f(1.0f, 1.0f, 1.0f, 0.8f);
+                RenderImage(static_cast<GLuint>(IMAGE_EXTENSION_NO1 + ext), bX + (bW * 0.5f) - 15.0f, bY + (bH * 0.5f) - 22.0f, 30.0f, 34.0f);
+                DisableAlphaBlend();
 
                 g_pRenderText->SetFont(g_hFont);
-                g_pRenderText->SetTextColor(150, 150, 150, 255);
-                g_pRenderText->RenderText(static_cast<int>(bX), static_cast<int>(bY + bH - 24.0f), "Chưa mở khóa", static_cast<int>(bW), 0, RT3_SORT_CENTER);
+                g_pRenderText->SetBgColor(0, 0, 0, 0);
+                g_pRenderText->SetTextColor(180, 180, 180, 255);
+                g_pRenderText->RenderText(static_cast<int>(bX), static_cast<int>(bY + bH - 26.0f), "Chưa mở khóa", static_cast<int>(bW), 0, RT3_SORT_CENTER);
             }
             else
             {
-                // Unlocked Box: Table border frame + 8x4 slots
-                RenderImage(IMAGE_EXTENSION_TABLE, bX - 4.0f, bY - 4.0f, bW + 8.0f, bH + 8.0f);
-
-                for (int r = 0; r < 4; ++r)
-                {
-                    for (int c = 0; c < 8; ++c)
-                    {
-                        const float sX = bX + (static_cast<float>(c) * m_slotSize);
-                        const float sY = bY + (static_cast<float>(r) * m_slotSize);
-                        RenderImage(IMAGE_ITEM_SQUARE, sX, sY, m_slotSize, m_slotSize);
-                    }
-                }
+                // Unlocked Box: Grid with authentic MU table borders
+                UIMobile::DrawTableGrid(bX, bY, bW, bH, 8, 4);
 
                 // Highlight selected slot
                 if (m_selectedExt == ext && m_selectedSlot != -1)
