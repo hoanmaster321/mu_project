@@ -2940,7 +2940,7 @@ void CUIRenderTextOriginal::WriteText(int iOffset, int iWidth, int iHeight)
 
 void CUIRenderTextOriginal::WriteTextWhite(int iOffset, int iWidth, int iHeight)
 {
-	const int LIMIT_WIDTH = 256, LIMIT_HEIGHT = 32;
+	const int LIMIT_WIDTH = 256, LIMIT_HEIGHT = FONT_SLOT_HEIGHT;
 
 	if (!m_pFontBuffer || m_dwBufferSize == 0)
 	{
@@ -3271,7 +3271,7 @@ void CUIRenderTextOriginal::RenderText(int iPos_x, int iPos_y, const unicode::t_
 		}
 		if (sy < 0)
 		{
-			TextureV = (-sy + 0.01f) / 32.0f;
+			TextureV = (-sy + 0.01f) / (float)FONT_SLOT_HEIGHT;
 			height += sy;
 			sy = 0;
 		}
@@ -3283,11 +3283,11 @@ void CUIRenderTextOriginal::RenderText(int iPos_x, int iPos_y, const unicode::t_
 		if (width > 0 && height > 0 && sx + width > 0 && sy + height > 0)
 		{
 			float atlasScaleU = 256.0f / (float)FONT_ATLAS_WIDTH;
-			float atlasScaleV = 32.0f / (float)FONT_ATLAS_HEIGHT;
+			float atlasScaleV = (float)FONT_SLOT_HEIGHT / (float)FONT_ATLAS_HEIGHT;
 			float atlasU = sec.slotUV.u0 + TextureU * atlasScaleU;
 			float atlasV = sec.slotUV.v0 + TextureV * atlasScaleV;
 			float atlasUWidth = ((width + 0.01f) / 256.0f) * atlasScaleU;
-			float atlasVHeight = ((height + 0.01f) / 32.0f) * atlasScaleV;
+			float atlasVHeight = ((height + 0.01f) / (float)FONT_SLOT_HEIGHT) * atlasScaleV;
 
 			if (m_TypeShadow)
 			{
@@ -3915,7 +3915,7 @@ void CUITextInputBox::WriteText(int iOffset, int iWidth, int iHeight)
 	GetCaretPos(&pt);
 
 	SIZE RealBoxSize = { (long)m_iWidth*g_fScreenRate_x, (long)m_iHeight*g_fScreenRate_y };
-	const int LIMIT_WIDTH = 256, LIMIT_HEIGHT = 32;
+	const int LIMIT_WIDTH = 256, LIMIT_HEIGHT = FONT_SLOT_HEIGHT;
 	int iPitch = ((RealBoxSize.cx*24+31)&~31)>>3;
 
 	int iSectionX = (iOffset % iPitch) / (LIMIT_WIDTH*3);
@@ -4094,8 +4094,8 @@ void CUITextInputBox::Render()
 	
 	CallWindowProcW(m_hOldProc, m_hEditWnd, WM_ERASEBKGND, (WPARAM)m_hMemDC, 0);
 	CallWindowProcW(m_hOldProc, m_hEditWnd, WM_PAINT, (WPARAM)m_hMemDC, 0);
-
-	const int LIMIT_WIDTH = 256, LIMIT_HEIGHT = 32;
+ 
+	const int LIMIT_WIDTH = 256, LIMIT_HEIGHT = FONT_SLOT_HEIGHT;
 	SIZE RealTextLine = { 0, 0 };
 	
 	if (m_bUseMultiLine == FALSE)

@@ -1771,13 +1771,8 @@ namespace SEASON3B
         for (int i = 0; i < TextNum; ++i)
         {
             if (TextList[i][0] == '\0') break;
-#if defined(ANDROID) || defined(__ANDROID__)
             if (TextBold[i]) g_pRenderText->SetFont((g_hFontItemInfoBold != nullptr) ? g_hFontItemInfoBold : g_hFontBold);
             else g_pRenderText->SetFont((g_hFontItemInfo != nullptr) ? g_hFontItemInfo : g_hFont);
-#else
-            if (TextBold[i]) g_pRenderText->SetFont(g_hFontBold);
-            else g_pRenderText->SetFont(g_hFont);
-#endif
 
             g_pMultiLanguage->_GetTextExtentPoint32(g_pRenderText->GetFontDC(), TextList[i], lstrlen(TextList[i]), &tSize);
             if (actualW < tSize.cx) actualW = static_cast<float>(tSize.cx);

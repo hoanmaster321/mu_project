@@ -9709,7 +9709,8 @@ static bool InitializeAndroidGame()
         g_hFontBig = AndroidCreateFont(fontSize * 2, 600);
         g_hFixFont = AndroidCreateFont((static_cast<int>(WindowHeight) <= 600) ? 13 : 14, 400);
 
-        int itemFontSize = 28;
+        int itemFontSize = static_cast<int>(fontSize * 1.5f);
+        if (itemFontSize > 54) itemFontSize = 54;
         g_hFontItemInfo = AndroidCreateFont(itemFontSize, 400);
         g_hFontItemInfoBold = AndroidCreateFont(itemFontSize, 600);
         LOGI("GDI fonts created: size=%d itemSize=%d big=%d", fontSize, itemFontSize, fontSize * 2);
@@ -10512,7 +10513,8 @@ int SDL_main(int argc, char* argv[])
         g_hFixFont  = AndroidCreateFont(
             (int)WindowHeight <= 600 ? 13 : 14, 400);
 
-        int itemFontSize = 28;
+        int itemFontSize = static_cast<int>(fontSize * 1.5f);
+        if (itemFontSize > 54) itemFontSize = 54;
         g_hFontItemInfo = AndroidCreateFont(itemFontSize, 400);
         g_hFontItemInfoBold = AndroidCreateFont(itemFontSize, 600);
         LOGI("GDI fonts created: size=%d itemSize=%d big=%d", fontSize, itemFontSize, fontSize*2);
