@@ -1,4 +1,4 @@
-﻿// =============================================================================
+// =============================================================================
 // UIMobileInventoryExtension.h
 // Mobile Inventory Extension Window (cloning PC UI look & feel, scaled for mobile)
 // =============================================================================
@@ -17,13 +17,13 @@ namespace SEASON3B
     public:
         enum IMAGE_LIST
         {
-            IMAGE_NPCSHOP_BACK       = BITMAP_INTERFACE_NEW_PERSONALINVENTORY_BEGIN + 8,
-            IMAGE_NPCSHOP_TOP        = BITMAP_INTERFACE_NEW_PERSONALINVENTORY_BEGIN + 1, // newui_item_back04.tga
-            IMAGE_NPCSHOP_LEFT       = BITMAP_INTERFACE_NEW_PERSONALINVENTORY_BEGIN + 2, // newui_item_back02-L.tga
-            IMAGE_NPCSHOP_RIGHT      = BITMAP_INTERFACE_NEW_PERSONALINVENTORY_BEGIN + 3, // newui_item_back02-R.tga
-            IMAGE_NPCSHOP_BOTTOM     = BITMAP_INTERFACE_NEW_PERSONALINVENTORY_BEGIN + 4, // newui_item_back03.tga
-            IMAGE_INVENTORY_EXIT_BTN = BITMAP_INTERFACE_NEW_PERSONALINVENTORY_BEGIN + 13,
-            IMAGE_ITEM_SQUARE        = BITMAP_INTERFACE_NEW_PERSONALINVENTORY_BEGIN,
+            IMAGE_EXTENSION_BACK     = SEASON3B::CNewUIMessageBoxMng::IMAGE_MSGBOX_BACK,
+            IMAGE_EXTENSION_TOP      = BITMAP_INTERFACE_NEW_PERSONALINVENTORY_BEGIN + 1, // newui_item_back04.tga
+            IMAGE_EXTENSION_LEFT     = BITMAP_INTERFACE_NEW_PERSONALINVENTORY_BEGIN + 2, // newui_item_back02-L.tga
+            IMAGE_EXTENSION_RIGHT    = BITMAP_INTERFACE_NEW_PERSONALINVENTORY_BEGIN + 3, // newui_item_back02-R.tga
+            IMAGE_EXTENSION_BOTTOM   = BITMAP_INTERFACE_NEW_PERSONALINVENTORY_BEGIN + 4, // newui_item_back03.tga
+            IMAGE_INVENTORY_EXIT_BTN = BITMAP_INTERFACE_NEW_PERSONALINVENTORY_BEGIN + 17,
+            IMAGE_ITEM_SQUARE        = BITMAP_INTERFACE_NEW_INVENTORY_BASE_BEGIN,
             IMAGE_EXTENSION_EMPTY    = BITMAP_INTERFACE_NEW_INVENTORY_EXT_BEGIN,
             IMAGE_EXTENSION_TABLE    = BITMAP_INTERFACE_NEW_INVENTORY_EXT_BEGIN + 1,
             IMAGE_EXTENSION_NO1      = BITMAP_INTERFACE_NEW_INVENTORY_EXT_BEGIN + 2,
@@ -56,6 +56,8 @@ namespace SEASON3B
         void Toggle();
         bool IsOpen() const { return m_bIsOpen; }
         bool IsVisible() const override { return m_bIsOpen; }
+        bool IsDragging() const { return m_bDragging; }
+        bool IsActionCardVisible() const { return m_bShowActionCard; }
 
         float GetWinX() const { return m_winX; }
         float GetWinY() const { return m_winY; }
@@ -67,13 +69,14 @@ namespace SEASON3B
 
         ITEM* GetExtensionItem(int extIndex, int slotIndex, int& outItemLinealIndex) const;
 
+        void RenderActionCard();
+        void RenderDraggedItem();
+
     private:
         void EnsureTextures();
         void ComputeLayout();
         void RenderFrame();
         void RenderBoxes();
-        void RenderActionCard();
-        void RenderDraggedItem();
 
         int  HitTestSlot(float tx, float ty, int& outExtIndex) const;
 

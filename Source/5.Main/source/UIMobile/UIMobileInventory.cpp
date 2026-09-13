@@ -485,6 +485,12 @@ namespace SEASON3B
     {
         if (!m_bIsOpen) return false;
 
+        if (CUIMobileInventoryExtension::GetInstance() && CUIMobileInventoryExtension::GetInstance()->IsOpen())
+        {
+            if (CUIMobileInventoryExtension::GetInstance()->OnFingerDown(ev))
+                return true;
+        }
+
         float tx = 0.0f, ty = 0.0f;
         TouchToVirtual(ev.x, ev.y, tx, ty);
 
@@ -672,7 +678,7 @@ namespace SEASON3B
             if (tx >= extX && tx <= extX + extW && ty >= extY && ty <= extY + extH)
             {
                 m_bShowActionCard = false;
-                return false;
+                return true;
             }
         }
 
@@ -701,6 +707,12 @@ namespace SEASON3B
     bool CUIMobileInventory::OnFingerMotion(const SDL_TouchFingerEvent& ev)
     {
         if (!m_bIsOpen) return false;
+
+        if (CUIMobileInventoryExtension::GetInstance() && CUIMobileInventoryExtension::GetInstance()->IsOpen())
+        {
+            if (CUIMobileInventoryExtension::GetInstance()->OnFingerMotion(ev))
+                return true;
+        }
 
         float tx = 0.0f, ty = 0.0f;
         TouchToVirtual(ev.x, ev.y, tx, ty);
@@ -732,6 +744,12 @@ namespace SEASON3B
     bool CUIMobileInventory::OnFingerUp(const SDL_TouchFingerEvent& ev)
     {
         if (!m_bIsOpen) return false;
+
+        if (CUIMobileInventoryExtension::GetInstance() && CUIMobileInventoryExtension::GetInstance()->IsOpen())
+        {
+            if (CUIMobileInventoryExtension::GetInstance()->OnFingerUp(ev))
+                return true;
+        }
 
         if (m_dragFingerId == ev.fingerID)
         {
@@ -1158,6 +1176,10 @@ namespace SEASON3B
     bool CUIMobileInventory::Update()
     {
         if (!m_bIsOpen) return true;
+        if (CUIMobileInventoryExtension::GetInstance() && CUIMobileInventoryExtension::GetInstance()->IsOpen())
+        {
+            CUIMobileInventoryExtension::GetInstance()->Update();
+        }
         ComputeLayout();
         return true;
     }
@@ -1176,6 +1198,11 @@ namespace SEASON3B
     bool CUIMobileInventory::Render()
     {
         if (!m_bIsOpen) return true;
+
+        if (CUIMobileInventoryExtension::GetInstance() && CUIMobileInventoryExtension::GetInstance()->IsOpen())
+        {
+            CUIMobileInventoryExtension::GetInstance()->Render();
+        }
 
         EnableAlphaTest();
         glColor4f(1.0f, 1.0f, 1.0f, 1.0f);
@@ -1211,12 +1238,26 @@ namespace SEASON3B
         {
             self->RenderDraggedItem();
         }
+
+        if (CUIMobileInventoryExtension::GetInstance() && CUIMobileInventoryExtension::GetInstance()->IsOpen())
+        {
+            if (CUIMobileInventoryExtension::GetInstance()->IsActionCardVisible())
+            {
+                CUIMobileInventoryExtension::GetInstance()->RenderActionCard();
+            }
+        }
+
         DisableAlphaBlend();
     }
 
     void CUIMobileInventory::Render3D()
     {
         if (!m_bIsOpen) return;
+
+        if (CUIMobileInventoryExtension::GetInstance() && CUIMobileInventoryExtension::GetInstance()->IsOpen())
+        {
+            CUIMobileInventoryExtension::GetInstance()->Render3D();
+        }
 
         // 1. Render 3D items inside equipment slots
         for (int i = 0; i < 12; ++i)

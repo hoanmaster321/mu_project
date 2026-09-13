@@ -70,11 +70,6 @@ namespace SEASON3B
         m_pNewUIMng = pNewUIMng;
         m_pNewUI3DRenderMng = pNewUI3DRenderMng;
 
-        if (m_pNewUI3DRenderMng)
-        {
-            m_pNewUI3DRenderMng->Add3DRenderObj(this, 10.65f);
-        }
-
         EnsureTextures();
         ComputeLayout();
         return true;
@@ -82,24 +77,13 @@ namespace SEASON3B
 
     void CUIMobileInventoryExtension::Release()
     {
-        if (m_pNewUI3DRenderMng)
-        {
-            m_pNewUI3DRenderMng->Remove3DRenderObj(this);
-            m_pNewUI3DRenderMng = nullptr;
-        }
+        m_pNewUI3DRenderMng = nullptr;
         m_pNewUIMng = nullptr;
         m_bIsOpen = false;
     }
 
     void CUIMobileInventoryExtension::EnsureTextures()
     {
-        LoadBitmap("Interface\\newui_msgbox_back.jpg", IMAGE_NPCSHOP_BACK, GL_LINEAR);
-        LoadBitmap("Interface\\newui_item_back04.tga", IMAGE_NPCSHOP_TOP, GL_LINEAR);
-        LoadBitmap("Interface\\newui_item_back02-L.tga", IMAGE_NPCSHOP_LEFT, GL_LINEAR);
-        LoadBitmap("Interface\\newui_item_back02-R.tga", IMAGE_NPCSHOP_RIGHT, GL_LINEAR);
-        LoadBitmap("Interface\\newui_item_back03.tga", IMAGE_NPCSHOP_BOTTOM, GL_LINEAR);
-        LoadBitmap("Interface\\newui_exit_00.tga", IMAGE_INVENTORY_EXIT_BTN, GL_LINEAR);
-
         LoadBitmap("Interface\\newui_item_add_marking_non.jpg", IMAGE_EXTENSION_EMPTY, GL_LINEAR);
         LoadBitmap("Interface\\newui_item_add_table.tga", IMAGE_EXTENSION_TABLE, GL_LINEAR);
         LoadBitmap("Interface\\newui_item_add_marking_no01.tga", IMAGE_EXTENSION_NO1, GL_LINEAR);
@@ -151,17 +135,17 @@ namespace SEASON3B
 
         // Action card (below Box 1)
         m_cardX = m_winX + 16.0f;
-        m_cardY = m_winY + 306.0f;
+        m_cardY = m_winY + 296.0f;
         m_cardW = m_winW - 32.0f;
-        m_cardH = 104.0f;
+        m_cardH = 118.0f;
 
         m_btnToBagX = m_cardX + 10.0f;
-        m_btnToBagY = m_cardY + 60.0f;
+        m_btnToBagY = m_cardY + 74.0f;
         m_btnToBagW = 132.0f;
         m_btnToBagH = 34.0f;
 
         m_btnCloseCardX = m_cardX + 152.0f;
-        m_btnCloseCardY = m_cardY + 60.0f;
+        m_btnCloseCardY = m_cardY + 74.0f;
         m_btnCloseCardW = 76.0f;
         m_btnCloseCardH = 34.0f;
     }
@@ -450,6 +434,7 @@ namespace SEASON3B
     bool CUIMobileInventoryExtension::Update()
     {
         if (!m_bIsOpen) return true;
+        ComputeLayout();
         return true;
     }
 
@@ -462,18 +447,18 @@ namespace SEASON3B
     void CUIMobileInventoryExtension::RenderFrame()
     {
         // 1. Background
-        RenderImage(IMAGE_NPCSHOP_BACK, m_winX, m_winY, m_winW, m_winH);
+        RenderImage(IMAGE_EXTENSION_BACK, m_winX, m_winY, m_winW, m_winH);
 
         // 2. Header
-        RenderImage(IMAGE_NPCSHOP_TOP, m_winX, m_winY, m_winW, 64.0f);
+        RenderImage(IMAGE_EXTENSION_TOP, m_winX, m_winY, m_winW, 64.0f);
 
         // 3. Left / Right borders
         const float borderH = m_winH - 64.0f - 45.0f;
-        RenderImage(IMAGE_NPCSHOP_LEFT, m_winX, m_winY + 64.0f, 21.0f, borderH);
-        RenderImage(IMAGE_NPCSHOP_RIGHT, m_winX + m_winW - 21.0f, m_winY + 64.0f, 21.0f, borderH);
+        RenderImage(IMAGE_EXTENSION_LEFT, m_winX, m_winY + 64.0f, 21.0f, borderH);
+        RenderImage(IMAGE_EXTENSION_RIGHT, m_winX + m_winW - 21.0f, m_winY + 64.0f, 21.0f, borderH);
 
         // 4. Bottom frame
-        RenderImage(IMAGE_NPCSHOP_BOTTOM, m_winX, m_winY + m_winH - 45.0f, m_winW, 45.0f);
+        RenderImage(IMAGE_EXTENSION_BOTTOM, m_winX, m_winY + m_winH - 45.0f, m_winW, 45.0f);
 
         // 5. Title Text
         g_pRenderText->SetFont(g_hFontBold);
@@ -583,7 +568,7 @@ namespace SEASON3B
         g_pRenderText->SetFont(g_hFont);
 #endif
         g_pRenderText->SetTextColor(180, 180, 180, 255);
-        g_pRenderText->RenderText(static_cast<int>(m_cardX + 12.0f), static_cast<int>(m_cardY + 34.0f), durBuf);
+        g_pRenderText->RenderText(static_cast<int>(m_cardX + 12.0f), static_cast<int>(m_cardY + 38.0f), durBuf);
         g_pRenderText->SetFont(g_hFont);
 
         // Buttons: [Chuyển Về Túi] and [Đóng]
