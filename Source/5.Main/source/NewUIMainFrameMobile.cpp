@@ -1214,6 +1214,18 @@ namespace SEASON3B
     {
         if (SceneFlag != MAIN_SCENE || Hero == nullptr) return false;
 
+        // 0. Dispatch to active mobile UI windows first
+        if (g_pMobileSystem && g_pMobileSystem->IsAnyUIVisible())
+        {
+            g_pMobileSystem->OnFingerDown(ev);
+            return true;
+        }
+        else if (g_pMobileInventory && g_pMobileInventory->IsOpen())
+        {
+            g_pMobileInventory->OnFingerDown(ev);
+            return true;
+        }
+
         float touchX = 0.0f, touchY = 0.0f;
         TouchToVirtual(ev.x, ev.y, touchX, touchY);
 
@@ -1383,6 +1395,18 @@ namespace SEASON3B
 
     bool CNewUIMainFrameMobile::OnFingerUp(const SDL_TouchFingerEvent& ev)
     {
+        // 0. Dispatch to active mobile UI windows first
+        if (g_pMobileSystem && g_pMobileSystem->IsAnyUIVisible())
+        {
+            g_pMobileSystem->OnFingerUp(ev);
+            return true;
+        }
+        else if (g_pMobileInventory && g_pMobileInventory->IsOpen())
+        {
+            g_pMobileInventory->OnFingerUp(ev);
+            return true;
+        }
+
         // 1. Joystick release: STOP IMMEDIATELY! Do not call SendMove!
         if (m_joystickActive && ev.fingerID == m_joystickFingerId)
         {
@@ -1485,6 +1509,18 @@ namespace SEASON3B
 
     bool CNewUIMainFrameMobile::OnFingerMotion(const SDL_TouchFingerEvent& ev)
     {
+        // 0. Dispatch to active mobile UI windows first
+        if (g_pMobileSystem && g_pMobileSystem->IsAnyUIVisible())
+        {
+            g_pMobileSystem->OnFingerMotion(ev);
+            return true;
+        }
+        else if (g_pMobileInventory && g_pMobileInventory->IsOpen())
+        {
+            g_pMobileInventory->OnFingerMotion(ev);
+            return true;
+        }
+
         // 1. Aiming drag tracking
         if (m_aimActive && ev.fingerID == m_aimFingerId)
         {
@@ -1750,7 +1786,15 @@ namespace SEASON3B
         RenderBitmap(m_texJoyKnob, m_knobX - kKnobRadius, m_knobY - kKnobRadius,
                      kKnobRadius * 2.0f, kKnobRadius * 2.0f, 0, 0, 1, 1, true, true);
 
-        // ── 2. Combat Layout ──
+        // ── 2. Combat Layout & Dock Menu ──
+        const bool bAnyUIVisible = (g_pMobileSystem && g_pMobileSystem->IsAnyUIVisible())
+                                || (g_pMobileInventory && g_pMobileInventory->IsOpen());
+
+        if (bAnyUIVisible)
+        {
+            return true;
+        }
+
         const float winW = (DisplayWin > 0) ? static_cast<float>(DisplayWin) : 640.0f;
         const float winH = (DisplayHeight > 0) ? static_cast<float>(DisplayHeight) : 480.0f;
 

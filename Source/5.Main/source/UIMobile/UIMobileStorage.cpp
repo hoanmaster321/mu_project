@@ -1,4 +1,4 @@
-﻿// =============================================================================
+// =============================================================================
 // UIMobileStorage.cpp
 // Implementation of Mobile Storage / Vault Window.
 // =============================================================================
@@ -181,7 +181,7 @@ namespace SEASON3B
         const int emptySlot = g_pMyInventory->FindEmptySlot(pItem);
         if (emptySlot != -1)
         {
-            SendRequestEquipmentItem(REQUEST_EQUIPMENT_STORAGE, storageSlot, pItem, REQUEST_EQUIPMENT_INVENTORY, 12 + emptySlot);
+            SendRequestEquipmentItem(REQUEST_EQUIPMENT_STORAGE, storageSlot, pItem, REQUEST_EQUIPMENT_INVENTORY, emptySlot);
             PlayBuffer(SOUND_CLICK01);
             m_selectedSlot = -1;
         }

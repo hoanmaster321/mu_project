@@ -13,6 +13,7 @@
 #include "NewUIBase.h"
 #include "NewUIManager.h"
 #include "NewUI3DRenderMng.h"
+#include "UIMobileCommon.h"
 
 #if defined(__ANDROID__) || defined(MU_IOS) || (defined(__has_include) && __has_include(<SDL3/SDL.h>))
 #include <SDL3/SDL.h>
@@ -58,11 +59,12 @@ namespace SEASON3B
         bool UpdateMouseEvent() override { return true; }
         bool UpdateKeyEvent() override;
 
-        float GetLayerDepth() override { return 6.5f; }
+        float GetLayerDepth() override { return 4.54f; }
         float GetKeyEventOrder() override { return 3.1f; }
 
         // INewUI3DRenderObj interface
         void Render3D() override;
+        static void UI2DEffectCallback(LPVOID pClass, DWORD dwParamA, DWORD dwParamB);
 
         // Visibility
         void Open();
@@ -86,13 +88,15 @@ namespace SEASON3B
     private:
         void EnsureTextures();
         void ComputeLayout();
-        int  HitTestSlot(float x, float y, SLOT_TYPE& outType) const;
+        int  HitTestSlot(float x, float y, SLOT_TYPE& outType, bool bForDrop = false) const;
         bool HitTestButton(float x, float y, float bx, float by, float bw, float bh) const;
 
         // Render helpers
         void RenderBackdrop();
         void RenderEquipmentSlots();
         void RenderBagGrid();
+        void RenderBagItemOverlays();
+        void RenderActionCardBackground();
         void RenderActionCard();
         void RenderDraggedItem();
         void RenderHeaderAndZen();
@@ -135,6 +139,7 @@ namespace SEASON3B
         float m_panelX, m_panelY, m_panelW, m_panelH;
         float m_cardX, m_cardY, m_cardW, m_cardH;
         float m_closeBtnX, m_closeBtnY, m_closeBtnSize;
+        float m_bagSlotSize, m_bagStartX, m_bagStartY;
 
         // Equipment slot hitboxes (12 slots)
         TouchSlot m_equipSlots[12];
@@ -147,7 +152,8 @@ namespace SEASON3B
         float m_btnDropX, m_btnDropY, m_btnDropW, m_btnDropH;
         float m_btnCloseCardX, m_btnCloseCardY, m_btnCloseCardW, m_btnCloseCardH;
 
-        // Textures
+        // Textures & silhouettes
+        GLuint m_equipSilhouettes[12];
         DWORD m_texBackdrop;
         DWORD m_texSlotBg;
         DWORD m_texSlotActive;

@@ -34,7 +34,7 @@ namespace SEASON3B
         bool UpdateMouseEvent() override;
         bool UpdateKeyEvent() override;
 
-        float GetLayerDepth() override { return 10.8f; }
+        float GetLayerDepth() override { return 2.0f; }
         float GetKeyEventOrder() override { return 3.0f; }
 
         // Touch Input Dispatch

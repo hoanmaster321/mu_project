@@ -150,6 +150,26 @@ void SEASON3B::CNewUIMessageBoxButton::Update()
 	if((m_bEnable == false))
 		return;
 
+#if defined(__ANDROID__) || defined(MU_IOS)
+	if (IsMouseIn())
+	{
+		if (MouseLButtonPush || MouseLButton)
+		{
+			m_EventState = EVENT_BTN_DOWN;
+			return;
+		}
+		else
+		{
+			m_EventState = EVENT_BTN_HOVER;
+			return;
+		}
+	}
+	else
+	{
+		m_EventState = EVENT_NONE;
+		return;
+	}
+#else
 	if(m_EventState == EVENT_NONE && MouseLButtonPush == false && IsMouseIn() == true)
 	{
 		m_EventState = EVENT_BTN_HOVER;
@@ -177,6 +197,7 @@ void SEASON3B::CNewUIMessageBoxButton::Update()
 		m_EventState = EVENT_NONE;
 		return;
 	}
+#endif
 }
 
 void SEASON3B::CNewUIMessageBoxButton::Render()
@@ -622,6 +643,7 @@ void SEASON3B::CNewUICommonMessageBox::RenderTexts()
 {
 	float x, y;
 
+	glColor4f(1.0f, 1.0f, 1.0f, 1.0f);
 	x = GetPos().x; y = GetPos().y + MSGBOX_TEXT_TOP_BLANK;
 	type_vector_msgdata::iterator vi = m_MsgDataList.begin();
 	for(; vi != m_MsgDataList.end(); vi++)
@@ -678,11 +700,16 @@ CALLBACK_RESULT SEASON3B::CNewUICommonMessageBox::LButtonUp(class CNewUIMessageB
 		switch(pMsgBox->GetType())
 		{
 		case MSGBOX_COMMON_TYPE_OK:
+#if defined(__ANDROID__) || defined(MU_IOS)
+			g_MessageBox->SendEvent(pOwner, MSGBOX_EVENT_USER_COMMON_OK);
+			return CALLBACK_BREAK;
+#else
 			if(pMsgBox->m_BtnOk.IsMouseIn() == true)
 			{
 				g_MessageBox->SendEvent(pOwner, MSGBOX_EVENT_USER_COMMON_OK);
 				return CALLBACK_BREAK;
 			}
+#endif
 			break;
 		case MSGBOX_COMMON_TYPE_OKCANCEL:
 			if(pMsgBox->m_BtnOk.IsMouseIn() == true)
@@ -1942,7 +1969,7 @@ bool  SEASON3B::CLuckyItemMsgBoxLayout::SetLayout()
 	if(false == pMsgBox->Create(MSGBOX_COMMON_TYPE_OKCANCEL))
 		return false;
 	
-	// ¾ÆÀÌÅÛ Á¦¸ñ
+	// Â¾Ã†Ã€ÃŒÃ…Ã› ÃÂ¦Â¸Ã±
 	int				nTextIndex[10]	= {0, };
 	eLUCKYITEMTYPE	eAct		 = g_pLuckyItemWnd->GetAct();
 	

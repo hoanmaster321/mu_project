@@ -3083,12 +3083,6 @@ void MainScene(HDC hDC)
 			EndBitmap();
 		}
 
-#if defined(__ANDROID__) || defined(MU_IOS)
-		if (g_pMainFrameMobile != nullptr)
-		{
-			g_pMainFrameMobile->Render();
-		}
-#endif
 
 		if (Success)
 		{

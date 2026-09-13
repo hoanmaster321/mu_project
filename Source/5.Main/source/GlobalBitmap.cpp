@@ -654,6 +654,8 @@ bool CGlobalBitmap::OpenJpeg(GLuint uiBitmapIndex, const std::string& filename, 
 				strncpy_s(pNewBitmap->FileName, MAX_BITMAP_FILE_NAME, filename.c_str(), MAX_BITMAP_FILE_NAME - 1);
 				pNewBitmap->Width      = (float)Width;
 				pNewBitmap->Height     = (float)Height;
+				pNewBitmap->OrigWidth  = (float)jpegWidth;
+				pNewBitmap->OrigHeight = (float)jpegHeight;
 				pNewBitmap->Components = 3;
 				pNewBitmap->Ref = 1;
 
@@ -762,6 +764,8 @@ bool CGlobalBitmap::OpenTga(GLuint uiBitmapIndex, const std::string& filename, G
 	
 	pNewBitmap->Width      = (float)Width;
 	pNewBitmap->Height     = (float)Height;
+	pNewBitmap->OrigWidth  = (float)nx;
+	pNewBitmap->OrigHeight = (float)ny;
 	pNewBitmap->Components = 4;
 	pNewBitmap->Ref = 1;
 	

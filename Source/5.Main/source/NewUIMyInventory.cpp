@@ -528,6 +528,9 @@ void CNewUIMyInventory::SetRepairMode(bool bRepair)
 
 bool CNewUIMyInventory::UpdateMouseEvent()
 {
+#if defined(__ANDROID__) || defined(MU_IOS)
+	return true; // Mobile inventory handles touch input exclusively
+#endif
 	if (m_pNewInventoryCtrl && !m_pNewInventoryCtrl->UpdateMouseEvent())
 		return false;
 
@@ -784,6 +787,9 @@ bool CNewUIMyInventory::Update()
 
 bool CNewUIMyInventory::Render()
 {
+#if defined(__ANDROID__) || defined(MU_IOS)
+	return true; // Handled exclusively by CUIMobileInventory
+#endif
 	EnableAlphaTest();
 	glColor4f(1.0f, 1.0f, 1.0f, 1.0f);
 	RenderFrame();
@@ -849,6 +855,9 @@ void CNewUIMyInventory::RenderSocketOption()
 
 void CNewUIMyInventory::Render3D()
 {
+#if defined(__ANDROID__) || defined(MU_IOS)
+	return; // Handled exclusively by CUIMobileInventory
+#endif
 	for (int i = 0; i < MAX_EQUIPMENT_INDEX; i++)
 	{
 		const ITEM* pEquippedItem = &CharacterMachine->Equipment[i];

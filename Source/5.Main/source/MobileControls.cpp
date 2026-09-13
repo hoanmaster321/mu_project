@@ -37,7 +37,6 @@ namespace MobileControls
         if (g_pMobileSystem && g_pMobileSystem->IsAnyUIVisible())
         {
             g_pMobileSystem->Render();
-            g_pMobileSystem->Render3D();
         }
     }
     bool IsActive() { return false; }

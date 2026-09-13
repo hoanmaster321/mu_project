@@ -821,6 +821,9 @@ int SEASON3B::CNewUIInventoryCtrl::GetEmptySlotCount()
 
 bool SEASON3B::CNewUIInventoryCtrl::UpdateMouseEvent()
 {
+#if defined(__ANDROID__) || defined(MU_IOS)
+	if (m_StorageType == STORAGE_TYPE::INVENTORY) return true;
+#endif
 	if (m_EventState == EVENT_NONE
 		&& SEASON3B::IsNone(VK_LBUTTON)
 		&& m_iPointedSquareIndex != -1)
@@ -898,6 +901,12 @@ void SEASON3B::CNewUIInventoryCtrl::UpdateProcess()
 
 void SEASON3B::CNewUIInventoryCtrl::Render()
 {
+#if defined(__ANDROID__) || defined(MU_IOS)
+	if (m_StorageType == STORAGE_TYPE::INVENTORY)
+	{
+		return; // Rendered with mobile layout by CUIMobileInventory
+	}
+#endif
 	int x, y;
 	for (y = 0; y < m_nRow; y++)
 	{
@@ -1568,6 +1577,12 @@ void SEASON3B::CNewUIInventoryCtrl::SetEventState(EVENT_STATE es)
 
 void SEASON3B::CNewUIInventoryCtrl::Render3D()
 {
+#if defined(__ANDROID__) || defined(MU_IOS)
+	if (m_StorageType == STORAGE_TYPE::INVENTORY)
+	{
+		return; // Rendered with mobile layout by CUIMobileInventory
+	}
+#endif
 	auto li = m_vecItem.begin();
 	for (; li != m_vecItem.end(); ++li)
 	{

@@ -598,6 +598,16 @@ int ConvertItemType(BYTE *Item)
 void OpenItemScript(char *FileName)
 {
 	FILE *fp = fopen(FileName,"rb");
+	if (!fp && FileName)
+	{
+		std::string alt = FileName;
+		std::transform(alt.begin(), alt.end(), alt.begin(), ::tolower);
+		fp = fopen(alt.c_str(), "rb");
+	}
+#if defined(__ANDROID__)
+    __android_log_print(ANDROID_LOG_WARN, "MuMain", "[OpenItemScript] File='%s' fp=%p sizeof(ITEM_ATTRIBUTE)=%zu",
+        FileName, fp, sizeof(ITEM_ATTRIBUTE));
+#endif
 	if(fp != NULL)
 	{
 		int Size = sizeof(ITEM_ATTRIBUTE);
@@ -624,6 +634,13 @@ void OpenItemScript(char *FileName)
 				memcpy(&ItemAttribute[i],pSeek,Size);
 				pSeek += Size;
 			}
+#if defined(__ANDROID__)
+            __android_log_print(ANDROID_LOG_WARN, "MuMain", "[OpenItemScript] Loaded! ItemAttribute[4114]: Name='%s' ReqStr=%d ReqClass=[%d,%d,%d,%d,%d,%d,%d]",
+                ItemAttribute[4114].Name, ItemAttribute[4114].RequireStrength,
+                ItemAttribute[4114].RequireClass[0], ItemAttribute[4114].RequireClass[1], ItemAttribute[4114].RequireClass[2],
+                ItemAttribute[4114].RequireClass[3], ItemAttribute[4114].RequireClass[4], ItemAttribute[4114].RequireClass[5],
+                ItemAttribute[4114].RequireClass[6]);
+#endif
 		}
 		delete [] Buffer;
 	}

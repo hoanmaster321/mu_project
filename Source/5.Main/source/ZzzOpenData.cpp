@@ -5690,6 +5690,10 @@ void OpenBasicData(HDC hDC)
 #ifdef __ANDROID__
 	OutputDebugStringA("OPENBASIC: scripts begin");
 #endif
+	if (g_strSelectedML.empty())
+	{
+		g_strSelectedML = "Eng";
+	}
 	g_ServerListManager->LoadServerListScript();
 
 	sprintf(Text, "Data\\Local\\%s\\Dialog_%s.bmd", g_strSelectedML.c_str(), g_strSelectedML.c_str());

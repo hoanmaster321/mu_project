@@ -134,7 +134,7 @@ void SEASON3B::CNewUIMessageBoxBase::RenderMsgBackColor(bool _bRender)
 		EnableAlphaTest();
 		//glColor4f(0.2f, 0.2f, 0.2f, m_fOpacityAlpha);
 		glColor4f(m_vColor[0], m_vColor[1], m_vColor[2], m_fOpacityAlpha);
-		// ¸ÞÀÎÇÁ·¹ÀÓ¿¡¼­ ³ôÀÌ°ªÀ» 51À» Àâ°íÀÖÀ½
+		// ë©”ì¸í”„ë ˆìž„ì—ì„œ ë†’ì´ê°’ì„ 51ì„ ìž¡ê³ ìžˆìŒ
 		RenderColor(_fPosX, _fPosY, _fWidth, _fHeight);
 		glEnable(GL_TEXTURE_2D);
 		
@@ -222,7 +222,7 @@ bool SEASON3B::CNewUIMessageBoxMng::UpdateMouseEvent()
 	{
 		m_EventState = EVENT_NONE;
 	}
-	else if(m_EventState == EVENT_WND_MOUSE_HOVER && MouseLButtonPush &&
+	else if((m_EventState == EVENT_WND_MOUSE_HOVER || m_EventState == EVENT_NONE) && MouseLButtonPush &&
 		SEASON3B::CheckMouseIn(pCurMsgBox->GetPos().x, pCurMsgBox->GetPos().y, 
 		pCurMsgBox->GetSize().cx, pCurMsgBox->GetSize().cy) )
 	{
@@ -246,7 +246,7 @@ bool SEASON3B::CNewUIMessageBoxMng::UpdateMouseEvent()
 			m_EventState = EVENT_NONE;
 		}
 	}
-	else if(m_EventState == EVENT_WND_MOUSE_HOVER && MouseRButtonPush &&
+	else if((m_EventState == EVENT_WND_MOUSE_HOVER || m_EventState == EVENT_NONE) && MouseRButtonPush &&
 		SEASON3B::CheckMouseIn(pCurMsgBox->GetPos().x, pCurMsgBox->GetPos().y, 
 		pCurMsgBox->GetSize().cx, pCurMsgBox->GetSize().cy) )
 	{

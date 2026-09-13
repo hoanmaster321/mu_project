@@ -21,6 +21,8 @@ typedef struct
 	char	FileName[MAX_BITMAP_FILE_NAME];
 	float	Width;
 	float	Height;
+	float	OrigWidth;
+	float	OrigHeight;
 	char	Components;
 	GLuint	TextureNumber;
 	BYTE	Ref;

@@ -1151,8 +1151,8 @@ int mShowHPBar;
 int mShowMiniMap;
 int mShowDanhHieu;
 
-char g_aszMLSelection[MAX_LANGUAGE_NAME_LENGTH] = {'\0'};
-std::string g_strSelectedML = "";
+char g_aszMLSelection[MAX_LANGUAGE_NAME_LENGTH] = "Eng";
+std::string g_strSelectedML = "Eng";
 
 BOOL OpenInitFile()
 {
@@ -1280,6 +1280,11 @@ BOOL OpenInitFile()
 		g_strSelectedML = g_aszMLSelection;
 	}
 	RegCloseKey( hKey);
+	if (g_strSelectedML.empty())
+	{
+		strcpy(g_aszMLSelection, "Eng");
+		g_strSelectedML = "Eng";
+	}
 
 #if(WIDE_SCREEN)
 	float GetPos = 0.0f;
@@ -1690,6 +1695,9 @@ MSG MainLoop()
 			}
 			else if (ev.type == SDL_EVENT_MOUSE_BUTTON_DOWN)
 			{
+#if defined(__ANDROID__) || defined(MU_IOS)
+				if (ev.button.which == SDL_TOUCH_MOUSEID) break;
+#endif
 				const int pxX = std::clamp((int)ev.button.x, 0, (int)WindowWidth - 1);
 				const int pxY = std::clamp((int)ev.button.y, 0, (int)WindowHeight - 1);
 				MouseX = (g_fScreenRate_x > 0.0f) ? std::clamp((int)((float)pxX / g_fScreenRate_x), 0, DisplayWin) : pxX;
@@ -1710,6 +1718,9 @@ MSG MainLoop()
 			}
 			else if (ev.type == SDL_EVENT_MOUSE_BUTTON_UP)
 			{
+#if defined(__ANDROID__) || defined(MU_IOS)
+				if (ev.button.which == SDL_TOUCH_MOUSEID) break;
+#endif
 				const int pxX = std::clamp((int)ev.button.x, 0, (int)WindowWidth - 1);
 				const int pxY = std::clamp((int)ev.button.y, 0, (int)WindowHeight - 1);
 				MouseX = (g_fScreenRate_x > 0.0f) ? std::clamp((int)((float)pxX / g_fScreenRate_x), 0, DisplayWin) : pxX;

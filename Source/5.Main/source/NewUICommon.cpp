@@ -10,7 +10,7 @@
 #include "NewUICommonMessageBox.h"
 #include "ZzzTexture.h"
 #include "ZzzOpenglUtil.h"
-extern float g_fScreenRate_x;	// ¡Ø
+extern float g_fScreenRate_x;	// Â¡Ã˜
 extern float g_fScreenRate_y;
 extern int DisplayWinCDepthBox;
 extern int DisplayWin;
@@ -24,6 +24,9 @@ extern bool g_bWndActive;
 
 bool SEASON3B::CreateOkMessageBox(const unicode::t_string& strMsg, DWORD dwColor, float fPriority)
 {
+#if defined(__ANDROID__)
+	__android_log_print(ANDROID_LOG_WARN, "MuMain", "[CreateOkMessageBox] msg='%s' dwColor=0x%08X", strMsg.c_str(), dwColor);
+#endif
 	CNewUICommonMessageBox* pMsgBox = g_MessageBox->NewMessageBox(MSGBOX_CLASS(CNewUICommonMessageBox));
 	if(pMsgBox)
 	{
@@ -48,6 +51,13 @@ int SEASON3B::IsPurchaseShop()
 
 bool SEASON3B::CheckMouseIn(int x, int y, int width, int height)
 {
+#if defined(__ANDROID__) || defined(MU_IOS)
+	if (MouseX >= x && MouseX < x + width && MouseY >= y && MouseY < y + height)
+	{
+		return true;
+	}
+	return false;
+#else
 	if (MouseX >= x && MouseX < x + width && MouseY >= y && MouseY < y + height && GetForegroundWindow() == g_hWnd)
 	{
 
@@ -55,6 +65,7 @@ bool SEASON3B::CheckMouseIn(int x, int y, int width, int height)
 	}
 
 	return false;
+#endif
 }
 
 void SEASON3B::RenderImage(GLuint uiImageType, float x, float y, float width, float height)

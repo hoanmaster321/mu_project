@@ -14,6 +14,9 @@ namespace
 {
 bool GetUi3DScissorRect(float zOrder, int& outX, int& outY, int& outWidth, int& outHeight)
 {
+#if defined(__ANDROID__) || defined(MU_IOS)
+	return false; // Mobile inventory has custom 310px width; do not clip with PC 190px rect
+#else
 	if (zOrder != INVENTORY_CAMERA_Z_ORDER)
 	{
 		return false;
@@ -31,6 +34,7 @@ bool GetUi3DScissorRect(float zOrder, int& outX, int& outY, int& outWidth, int& 
 	outWidth = static_cast<int>(WindowWidth) - outX;
 	outHeight = static_cast<int>(WindowHeight);
 	return (outWidth > 0 && outHeight > 0);
+#endif
 }
 }
 
